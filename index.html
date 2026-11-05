@@ -195,6 +195,7 @@ tr.clk.sel td:first-child{box-shadow:inset 3px 0 0 var(--teal)}
 </div>
 <script src="config.js"></script>
 <script src="calc.js"></script>
+<script src="real.js"></script>
 <script src="sync.js"></script>
 <script>
 /* ===== Dados de EXEMPLO (fictícios). Na versão real vêm da planilha (somente leitura) e de arquivos do app. ===== */
@@ -250,6 +251,9 @@ const stCls = s => s==='atencao'?'at':s==='ruim'?'ru':s;
 function load(k,def){ try{ const v=JSON.parse(localStorage.getItem(k)); return v==null?def:v; }catch(e){ return def; } }
 function save0(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
 function save(k,v){ save0(k,v); if(window.mudou) mudou(); }
+const MODO = load('tf_modo',null);   // 'real' | 'demo' | null (ainda sem dados)
+let real = load('tf_real',null);
+if(MODO==='real' && real) Object.assign(DEMO, Real.derivar(real));
 const hoje = new Date(); const diaHoje = hoje.getDate();
 const mesAtual = hoje.getFullYear()+'-'+String(hoje.getMonth()+1).padStart(2,'0');
 const diasMes = new Date(hoje.getFullYear(),hoje.getMonth()+1,0).getDate();
@@ -277,10 +281,10 @@ const metasPadrao = () => [
   {id:2,nome:'Viagem',alvo:3000,guardado:400,prazo:'2027-07',aporte:280},
   {id:3,nome:'Notebook novo',alvo:4500,guardado:0,prazo:'2027-03',aporte:150}
 ];
-let lanc = load('tf_lanc3', null) || seed();
+let lanc = load('tf_lanc3', null) || (MODO==='demo'?seed():[]);
 let pagos = load('tf_pagos',{});
 let tetos = load('tf_tetos',null) || {...DEMO.tetos};
-let metas = load('tf_metas',null) || metasPadrao();
+let metas = load('tf_metas',null) || (MODO==='demo'?metasPadrao():[]);
 let taxaMeta = load('tf_taxameta',0.8);
 const saveLanc=()=>save('tf_lanc3',lanc);
 const doMes = () => lanc.filter(l=>l.data.startsWith(mesAtual));
@@ -354,6 +358,12 @@ const pn = (titulo, corpo, h='teal', extra='', tag='') => `<div class="pn" style
 /* ===== Telas ===== */
 const T = {};
 function cartaoInfo(c){ const usado=c.fatura+c.parcelasFuturas; return {usado, ...Calc.cartao(c.limite,usado,c.fecha,diaHoje)}; }
+const blocoReal = () => { const d=DEMO;
+  return `<div class="grid g2" style="margin-bottom:14px">
+    ${pn('Plano de pagamento'+info('Montado a partir do que você informou. Os valores não foram confirmados pelo banco.'),d.plano.map(x=>`<div class="ins"><div class="d ok" style="width:auto;min-width:52px;padding:0 6px">${x.data.slice(8)}/${x.data.slice(5,7)}</div><div class="small">${x.texto}</div></div>`).join('')+`<div class="kv" style="margin-top:12px"><span>Sobra depois de pagar tudo</span><span>${brl(d.sobra)}</span></div>`,'teal')}
+    ${pn('Falta informar',d.pendentes.length?d.pendentes.map(t=>`<div class="ins"><div class="d at">⚠</div><div class="small" style="padding-top:5px">${t}</div></div>`).join('')+'<div class="disc">Enquanto isso, o app não estima esses valores.</div>':'<div class="mu">Nada pendente.</div>','vio')}
+  </div>
+  ${pn('Como a projeção é feita',d.suposicoes.map(x=>`<div class="ins"><div class="d ne">·</div><div class="small" style="padding-top:5px">${x}</div></div>`).join(''),'sky','margin-bottom:14px')}`; };
 function proximasContas(){
   return DEMO.agenda.filter(a=>!isPago(a)).map(a=>({...a,dias:Calc.diasAte(a.dia,diaHoje)})).sort((x,y)=>(x.dias<0?999+x.dias:x.dias)-(y.dias<0?999+y.dias:y.dias));
 }
@@ -364,7 +374,7 @@ T.hoje = () => {
   const lzCls = pct<=.75?'ok':pct<=1?'at':'ru';
   const ritmo = gasto/Math.max(diaHoje,1)*diasMes;
   const cob = d.caixinha/d.essencial;
-  const c1 = cartaoInfo(d.cartoes[0]), c1cls=stCls(c1.status);
+  const c1 = cartaoInfo(d.cartoes[0]), semLim=!d.cartoes[0].limite, c1cls=semLim?'ne':stCls(c1.status);
   const aPagar = DEMO.agenda.filter(a=>!isPago(a)&&a.dia>=diaHoje).reduce((s,a)=>s+a.valor,0);
   const caixa=d.caixinha+d.conta;
   const frases = {ok:'Se o plano seguir, em janeiro você fica '+brl0(jan-d.meta)+' acima da meta.',at:'Em janeiro você fica entre o piso e a meta: faltam '+brl0(d.meta-jan)+' para a meta.',ru:'Em janeiro você fica abaixo do piso. Vale rever os gastos.'};
@@ -385,11 +395,12 @@ T.hoje = () => {
     <div style="text-align:right" class="small mu">Contas até o fim do mês<div class="mid" style="color:var(--tx)">${brl0(aPagar)}</div><span class="tag ${caixa>=aPagar?'ok':'ru'}">${caixa>=aPagar?'✔ O caixa cobre':'✖ Caixa não cobre'}</span></div>
   </div>
   <div class="grid g4" style="margin-bottom:14px">
-    ${pn('Caixa hoje'+info('Caixinha (reserva) mais o saldo da conta corrente. O rótulo à direita mostra quantos meses do gasto essencial a caixinha cobre.'),`<div class="big">${brl0(caixa)}</div><div class="mu small">caixinha ${brl0(d.caixinha)} + conta ${brl0(d.conta)}</div>`,'teal','','reserva '+num1(cob)+' m')}
-    ${pn('Limite do cartão usado'+info('Quanto do limite total você já comprometeu: fatura atual mais parcelas que ainda vêm. Até 30% é considerado saudável; acima de 60%, risco.'),`<div class="big">${pc(c1.utilizacao,0)}</div><div class="bar" style="--h:${COR[c1cls]}"><span style="width:${Math.min(c1.utilizacao,1)*100}%"></span><i style="left:30%"></i></div><div class="mu small">disponível ${brl0(c1.disponivel)} · ideal até 30%</div>`,'vio')}
+    ${pn('Caixa hoje'+info('Caixinha (reserva) mais o saldo da conta corrente. O rótulo à direita mostra quantos meses do gasto essencial a caixinha cobre.'),`<div class="big">${brl(caixa)}</div><div class="mu small">caixinha ${brl(d.caixinha)} + conta ${brl(d.conta)}</div>`,'teal','','reserva '+num1(cob)+' m')}
+    ${semLim?pn('Fatura do cartão'+info('Fatura fechada em ' + d.cartoes[0].fecha + '. Informe o limite na tela Cartão para ver o quanto dele você usa.'),`<div class="big">${brl(d.cartoes[0].fatura)}</div><div class="mu small">vence dia ${d.cartoes[0].vence} · parcelas que ainda vêm ${brl0(d.cartoes[0].parcelasFuturas)}</div><span class="tag ne" style="margin-top:6px">Limite a informar</span>`,'vio'):pn('Limite do cartão usado'+info('Quanto do limite total você já comprometeu: fatura atual mais parcelas que ainda vêm. Até 30% é considerado saudável; acima de 60%, risco.'),`<div class="big">${pc(c1.utilizacao,0)}</div><div class="bar" style="--h:${COR[c1cls]}"><span style="width:${Math.min(c1.utilizacao,1)*100}%"></span><i style="left:30%"></i></div><div class="mu small">disponível ${brl0(c1.disponivel)} · ideal até 30%</div>`,'vio')}
     ${pn('Lazer restante'+info('Teto de lazer do mês menos o que você já gastou em lançamentos marcados como lazer.'),`<div class="big">${brl0(Math.max(restante,0))}</div><div class="bar" style="--h:${COR[lzCls]}"><span style="width:${Math.min(pct,1)*100}%"></span></div><div class="mu small">gasto ${brl0(gasto)} de ${brl0(d.tetoLazer)}</div>`,'pink')}
     ${pn('Saldo em janeiro',`<div class="big">${brl0(jan)}</div><div class="mu small">meta ${brl0(d.meta)}</div><span class="tag ${cls}" style="margin-top:6px">${icn} ${txt}</span>`,'sky')}
   </div>
+  ${DEMO.real?blocoReal():''}
   ${pn('Faixa do mês'+info('Um quadrado por dia. Quanto mais forte o rosa, mais você gastou naquele dia. O ponto violeta marca conta que vence.'),`<div class="strip" style="grid-template-columns:repeat(${diasMes},1fr)">${faixa}</div><div class="legend"><span><i style="background:#FF6EB4"></i>dia com gasto (quanto mais forte, mais gasto)</span><span><i style="background:#9B8CFF;height:7px;width:7px;border-radius:50%"></i>conta vence</span><span><i style="background:transparent;border:1px dashed #2B3A5C;height:9px;width:14px"></i>dias que vêm</span><span>clique num dia para ver o que houve</span></div><div id="diadet" style="margin-top:14px"></div>`,'pink','margin-bottom:14px',hoje.toLocaleDateString('pt-BR',{month:'long'}))}
   <div class="grid g32" style="margin-bottom:14px">
     ${pn('Saldo previsto (cenário Base)',lineChart(d.meses,[{name:'Base',values:base,c:'#4CC9FF',area:true,w:3}],[{v:d.meta,t:'Meta (17/01)',c:'#3DDC97'},{v:d.piso,t:'Piso (17/01)',c:'#FFC53D'},{v:d.alerta,t:'Alerta (fim de dez)',c:'#FF6B80'}],250,CW(.66),{zones:zonesFut()}),'sky')}
@@ -397,7 +408,7 @@ T.hoje = () => {
   </div>
   <div class="grid g2">
     ${pn('O que eu percebi',`
-      <div class="ins"><div class="d ${c1cls}">${ST[c1cls][0]}</div><div><b>Você usa ${pc(c1.utilizacao,0)} do limite do cartão</b><div class="mu small">${c1.utilizacao>.3?'O ideal é até 30% ('+brl0(c1.limiteSaudavel)+'). Reduzir o uso ajuda no score de crédito.':'Uso dentro do ideal.'}</div></div></div>
+      ${semLim?'':`<div class="ins"><div class="d ${c1cls}">${ST[c1cls][0]}</div><div><b>Você usa ${pc(c1.utilizacao,0)} do limite do cartão</b><div class="mu small">${c1.utilizacao>.3?'O ideal é até 30% ('+brl0(c1.limiteSaudavel)+'). Reduzir o uso ajuda no score de crédito.':'Uso dentro do ideal.'}</div></div></div>`}
       <div class="ins"><div class="d ${ritmo>d.tetoLazer?'at':'ok'}">${ritmo>d.tetoLazer?'⚠':'✔'}</div><div><b>${ritmo>d.tetoLazer?'Neste ritmo o lazer passa do teto':'Neste ritmo o lazer fecha dentro do teto'}</b><div class="mu small">Projeção do mês: ${brl0(ritmo)} de ${brl0(d.tetoLazer)}.</div></div></div>
       <div class="ins"><div class="d at">⚠</div><div><b>Mês mais apertado: ${d.meses[mesesMax]}</b><div class="mu small">Saldo previsto de ${brl0(Math.min(...base))}. Evite compras grandes até lá.</div></div></div>`,'teal')}
     ${pn('Para onde foi o dinheiro este mês',catBars(),'pink')}
@@ -469,8 +480,9 @@ function bindLancar(){
   $('#mprev').onclick=()=>{ mesVer=mesMove(mesVer,-1); drawLista(); };
   $('#mnext').onclick=()=>{ mesVer=mesMove(mesVer,1); drawLista(); };
   $('#exp').onclick=()=>{
-    const rows=['data;descricao;categoria;valor;forma;essencial;conta_no_lazer',...lanc.map(l=>[l.data,l.desc,l.cat,String(l.valor).replace('.',','),l.forma,l.essencial?'Sim':'Não',l.lazer?'Sim':'Não'].join(';'))];
-    const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['\ufeff'+rows.join('\n')],{type:'text/csv'})); a.download='lancamentos.csv'; a.click();
+    const q=t=>/[",\n]/.test(t)?'"'+String(t).replace(/"/g,'""')+'"':t;
+    const rows=['data,descricao,categoria,valor,forma,essencial,mes,conta_no_lazer',...lanc.slice().sort((x,y)=>x.data.localeCompare(y.data)).map(l=>[l.data,q(l.desc),l.cat,l.valor.toFixed(2),l.forma||'',l.essencial?'Sim':'Não',l.data.slice(0,7),l.lazer?'Sim':'Não'].join(','))];
+    const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['\ufeff'+rows.join('\n')],{type:'text/csv'})); a.download='lancamentos_reais_'+mesAtual+'.csv'; a.click();
   };
   drawLista();
 }
@@ -491,14 +503,15 @@ function drawLista(){
 let cartSel='c1';
 T.cartao = () => `
   <div class="head"><div><h1>Cartão de crédito</h1><div class="sub">Limite, fatura e o melhor dia para comprar.</div></div>
-    <div class="chips" id="cts" style="--h:var(--vio)">${DEMO.cartoes.map(c=>`<button class="chip" aria-pressed="${c.id===cartSel}" data-c="${c.id}">${c.nome} ••${c.final}</button>`).join('')}</div></div>
+    <div class="chips" id="cts" style="--h:var(--vio)">${DEMO.cartoes.map(c=>`<button class="chip" aria-pressed="${c.id===cartSel}" data-c="${c.id}">${c.nome}${c.final?' ••'+c.final:''}</button>`).join('')}</div></div>
   <div id="cart"></div>`;
 function drawCartao(){
   const c=DEMO.cartoes.find(x=>x.id===cartSel), i=cartaoInfo(c), cls=stCls(i.status);
   const ehPrincipal = c.id==='c1';
   $('#cart').innerHTML=`
+  ${c.limite||!DEMO.real?'':pn('Informe o limite do cartão'+info('Não veio no seu arquivo. Com o limite, o app calcula o uso (ideal até 30%) e o quanto cabe de nova compra.'),`<div class="row" style="gap:12px;align-items:end"><div class="field" style="flex:1;margin:0"><label>Limite total (R$)</label><input type="number" id="lim_v" min="0" step="50" placeholder="ex.: 3000"></div><button class="btn" id="lim_ok">SALVAR LIMITE</button></div>`,'vio','margin-bottom:14px')}
   <div class="grid g3" style="margin-bottom:14px">
-    <div class="card3d"><div class="chip2"></div><div class="mu small">${c.nome}</div><div class="mid" style="letter-spacing:.15em">•••• •••• •••• ${c.final}</div><div class="row" style="margin-top:22px"><div><div class="mu small">Fecha dia</div><div class="mid">${c.fecha}</div></div><div><div class="mu small">Vence dia</div><div class="mid">${c.vence}</div></div><div><div class="mu small">Melhor dia de compra</div><div class="mid" style="color:var(--vio)">${i.melhorDiaCompra}</div></div></div></div>
+    <div class="card3d"><div class="chip2"></div><div class="mu small">${c.nome}</div><div class="mid" style="letter-spacing:.15em">${c.final?'•••• •••• •••• '+c.final:'cartão de crédito'}</div><div class="row" style="margin-top:22px"><div><div class="mu small">Fecha dia</div><div class="mid">${c.fecha}</div></div><div><div class="mu small">Vence dia</div><div class="mid">${c.vence}</div></div><div><div class="mu small">Melhor dia de compra</div><div class="mid" style="color:var(--vio)">${i.melhorDiaCompra}</div></div></div></div>
     ${pn('Limite'+info('A barra mostra quanto do limite você usa. O traço branco marca 30%, o uso considerado saudável. Usar muito do limite pesa no seu score de crédito.'),`<div class="row"><div><div class="mu small">Disponível</div><div class="big">${brl0(i.disponivel)}</div></div><div style="text-align:right"><div class="mu small">Limite total</div><div class="mid">${brl0(c.limite)}</div></div></div>
       <div class="bar" style="--h:${COR[cls]};margin-top:16px"><span style="width:${Math.min(i.utilizacao,1)*100}%"></span><i style="left:30%"></i></div>
       <div class="row small"><span class="mu">usado ${brl0(i.usado)} (${pc(i.utilizacao,0)})</span><span class="mu">| ideal até ${brl0(i.limiteSaudavel)}</span></div>
@@ -508,13 +521,13 @@ function drawCartao(){
   </div>
   <div class="grid g2">
     ${pn('Cabe esta compra?'+info('Digite um valor e veja quanto do limite você passaria a usar e se continua dentro do ideal.'),`<div class="field"><label>Valor da compra (R$)</label><input type="number" id="sim_v" value="800" min="0" step="50"></div><div id="sim_out"></div>`,'vio')}
-    ${pn('Parcelas que ainda vêm',ehPrincipal?`<table><tr><th>Compra</th><th class="n">Parcela</th><th class="n">Faltam</th><th class="n">Total</th></tr>${DEMO.parcelamentos.map(p=>`<tr><td>${p.nome}</td><td class="n">${brl0(p.parcela)}</td><td class="n">${p.restam} de ${p.total}</td><td class="n">${brl0(p.parcela*p.restam)}</td></tr>`).join('')}</table>`:'<div class="mu">Sem parcelamentos neste cartão.</div>','vio')}
+    ${pn('Parcelas que ainda vêm',c.serie?serieTabela(c):ehPrincipal?`<table><tr><th>Compra</th><th class="n">Parcela</th><th class="n">Faltam</th><th class="n">Total</th></tr>${DEMO.parcelamentos.map(p=>`<tr><td>${p.nome}</td><td class="n">${brl0(p.parcela)}</td><td class="n">${p.restam} de ${p.total}</td><td class="n">${brl0(p.parcela*p.restam)}</td></tr>`).join('')}</table>`:'<div class="mu">Sem parcelamentos neste cartão.</div>','vio')}
   </div>
   <div class="grid g2" style="margin-top:14px">
-    ${pn('Quanto o cartão pesa nos próximos meses',(()=>{ const v=[0,1,2,3,4,5].map(k=>(k===0?c.fatura:0)+(ehPrincipal?DEMO.parcelamentos.filter(p=>p.restam>k).reduce((s,p)=>s+p.parcela,0):0)); const mx=Math.max(...v,1);
+    ${pn('Quanto o cartão pesa nos próximos meses',(()=>{ const v=c.serie?[c.fatura,...c.serie.slice(0,5).map(f=>f.fatura_total)]:[0,1,2,3,4,5].map(k=>(k===0?c.fatura:0)+(ehPrincipal?DEMO.parcelamentos.filter(p=>p.restam>k).reduce((s,p)=>s+p.parcela,0):0)); const mx=Math.max(...v,1);
       return `<div class="vb">${v.map((x,k)=>`<div><em>${brl0(x)}</em><span style="height:${Math.max(x/mx*100,2)}%"></span><small>${mesNome(k)}</small></div>`).join('')}</div><div class="hint">Fatura do mês mais as parcelas que ainda estão rodando. Sem novas compras, o peso cai a cada mês.</div>`; })(),'vio')}
     ${pn('Regras de ouro do cartão',`<div class="ins"><div class="d ok">1</div><div class="small" style="padding-top:5px"><b>Pague sempre o total da fatura.</b> Pagar só o mínimo joga o resto no rotativo, a dívida mais cara que existe.</div></div>
-      <div class="ins"><div class="d ok">2</div><div class="small" style="padding-top:5px"><b>Mantenha o uso abaixo de 30% do limite</b> (${brl0(c.limite*0.3)} neste cartão). Ajuda no seu score de crédito.</div></div>
+      <div class="ins"><div class="d ok">2</div><div class="small" style="padding-top:5px"><b>Mantenha o uso abaixo de 30% do limite</b> (${c.limite?brl0(c.limite*0.3)+' neste cartão':'30% do limite informado'}). Ajuda no seu score de crédito.</div></div>
       <div class="ins"><div class="d ok">3</div><div class="small" style="padding-top:5px"><b>Compre depois do fechamento</b> (dia ${i.melhorDiaCompra}) para ter até ~40 dias até pagar.</div></div>
       <div class="ins"><div class="d at">4</div><div class="small" style="padding-top:5px"><b>Parcelar sem juros também ocupa limite.</b> Some as parcelas que ainda vêm antes de uma nova compra.</div></div>`,'vio')}
   </div>`;
@@ -522,7 +535,9 @@ function drawCartao(){
     $('#sim_out').innerHTML=`<div class="res" style="--h:${COR[k]}"><div class="mu small">Com esta compra você usaria</div><div class="big">${pc(n.utilizacao,0)} <span class="mid mu">do limite</span></div><div class="mu">Sobram ${brl0(n.disponivel)} de limite.</div></div>
     <span class="tag ${k}">${ST[k][0]} ${k==='ok'?'Dentro do ideal (até 30%)':k==='at'?'Acima do ideal de 30%':'Uso muito alto'}</span>${i.usado+v>c.limite?'<div class="tag ru" style="margin-top:8px">✖ Passa do limite do cartão</div>':''}`; };
   $('#sim_v').oninput=sim; sim();
+  const lb=$('#lim_ok'); if(lb) lb.onclick=()=>{ const v=parseFloat($('#lim_v').value); if(!(v>0)) return; real.cartao.limite=v; Object.assign(DEMO,Real.derivar(real)); save('tf_real',real); ir('cartao'); };
 }
+function serieTabela(c){ return `<table><tr><th>Fatura de</th><th class="n">Parcelas antigas</th><th class="n">Parte da mãe</th></tr>${c.serie.map(f=>`<tr><td>${f.mes.slice(5)}/${f.mes.slice(2,4)}</td><td class="n">${brl(f.fatura_total)}</td><td class="n">${f.parte_mae?brl(f.parte_mae):'—'}</td></tr>`).join('')}</table><div class="hint">Parcelas antigas já contratadas. A parte da mãe só conta quando ela repassa.</div>`; }
 
 /* --- Agenda --- */
 T.agenda = () => {
@@ -654,7 +669,7 @@ const CALCS = {
     $('#out').innerHTML=`<div class="res"><div class="mu small">Você devolve no total</div><div class="big">${brl(r.total)}</div><div class="mu">${brl(r.juros)} só de juros, ${pc(r.juros/v,1)} sobre o valor pego</div></div>
      <div class="kv"><span>Parcela${$('#e_s').value==='sac'?' (primeira)':''}</span><span>${brl(r.primeira)}</span>${$('#e_s').value==='sac'?`<span>Parcela (última)</span><span>${brl(r.ultima)}</span>`:''}<span>Custo efetivo (CET)</span><span>${pc(r.cetMensal)} a.m. · ${pc(r.cetAnual)} a.a.</span></div>
      <div style="margin-top:14px">${lineChart(r.parcelas.map(p=>p.n),[{name:'Falta pagar',values:r.parcelas.map(p=>p.saldo),c:'#2DE0C9',area:true}],[],200,440)}</div><div class="hint">Quanto ainda falta pagar, mês a mês.</div>
-     <div class="hint" style="margin-top:8px">Parcela de ${brl0(r.primeira)} cabe no seu orçamento? Sua renda de exemplo é ${brl0(DEMO.renda)}: ${pc(r.primeira/DEMO.renda,0)} dela.</div>`; }},
+     <div class="hint" style="margin-top:8px">Parcela de ${brl0(r.primeira)} cabe no seu orçamento? Sua renda estimada é ${brl0(DEMO.renda)}: ${pc(r.primeira/DEMO.renda,0)} dela.</div>`; }},
  con:{ form:()=>pn('Simular consórcio',`
    ${numField('c_c','Valor da carta de crédito (R$)',60000,'1000')}${numField('c_n','Prazo (meses)',60)}
    ${numField('c_a','Taxa de administração total (%)',15,'0.5','Está no contrato; costuma ser de 10% a 25% no total.')}${numField('c_f','Fundo de reserva total (%)',2,'0.5')}${numField('c_s','Seguro por mês (% da carta)',0.04,'0.01')}
@@ -873,8 +888,8 @@ document.addEventListener('mousemove',e=>{
 
 /* ===== Sincronização com o Google Drive =====
    Fonte única: dados.json na pasta "Tutor Financeiro" do Drive. Cada aparelho guarda uma cópia local e junta por item. */
-const estado = () => ({lanc, pagos, tetos, metas, taxa:taxaMeta});
-const BASE = TFSync.baseItens({lanc:seed(), pagos:{}, tetos:{...DEMO.tetos}, metas:metasPadrao(), taxa:0.8});
+const estado = () => ({lanc, pagos, tetos, metas, taxa:taxaMeta, real:MODO==='real'?real:undefined});
+const BASE = TFSync.baseItens({lanc:MODO==='demo'?seed():[], pagos:{}, tetos:{...DEMO.tetos}, metas:MODO==='demo'?metasPadrao():[], taxa:0.8});
 const arm = {get:k=>load(k,null), set:save0, del:k=>{ try{ localStorage.removeItem(k); }catch(e){} }};
 const Drive = TFSync.criarDrive(window.TF_CONFIG||{}, arm);
 let sincStatus = {t:'off'}, sincOcupado = false, sincTimer = null;
@@ -885,6 +900,7 @@ function capturar(){
 }
 function aplicarEstado(st){
   lanc=st.lanc; pagos=st.pagos; tetos=st.tetos; metas=st.metas; taxaMeta=st.taxa==null?0.8:st.taxa;
+  if(st.real!==undefined){ real=st.real; save0('tf_real',real); if(MODO==='real') Object.assign(DEMO, Real.derivar(real)); }
   save0('tf_lanc3',lanc); save0('tf_pagos',pagos); save0('tf_tetos',tetos); save0('tf_metas',metas); save0('tf_taxameta',taxaMeta);
 }
 function pintaSync(){
@@ -898,6 +914,7 @@ function mudou(){
 }
 async function sincronizar(){
   if(sincOcupado) return;
+  if(MODO==='demo'){ sincStatus={t:'off',msg:'Modo de exemplo: não sincroniza, para não misturar com seus dados reais.'}; pintaSync(); return; }
   if(!Drive.configurado()){ sincStatus={t:'cfg',msg:'Preencha o clientId em config.js (veja o LEIAME).'}; pintaSync(); return; }
   if(!Drive.conectado()){ sincStatus={t:Drive.jaConectou()?'at':'off',msg:'Toque para entrar com a conta Google.'}; pintaSync(); return; }
   sincOcupado=true; sincStatus={t:'go'}; pintaSync();
@@ -907,6 +924,7 @@ async function sincronizar(){
     const local=capturar();
     const junto=TFSync.semBase(TFSync.juntar(local,remoto));
     const novo=TFSync.montar(TFSync.juntar(BASE,junto));
+    if(MODO!=='real' && novo.real){ aplicarEstado(novo); save0('tf_modo','real'); save0('tf_items',junto); sincOcupado=false; location.reload(); return; }
     const mudouTela=!TFSync.igual(novo,estado());
     if(mudouTela){ aplicarEstado(novo); }
     if(!TFSync.igual(junto,remoto)) await Drive.escrever(id,TFSync.doc(junto));
@@ -931,11 +949,34 @@ function chipSync(){ if(!Drive.configurado()||Drive.conectado()) sincronizar(); 
   window.addEventListener('online',sincronizar);
 })();
 
+/* ===== Primeira abertura: importar os dados reais ===== */
+function telaImportar(){
+  return `<div class="head"><div><h1>Bem-vindo ao Tutor Financeiro</h1><div class="sub">Falta trazer os seus números. Eles ficam só neste aparelho e no seu Google Drive.</div></div></div>
+  <div class="grid g2">
+    ${pn('Importar dados reais',`<div class="small" style="margin-bottom:12px">Escolha o arquivo <b>dados_reais_AAAA-MM-DD.json</b> que está na pasta Financeiro do computador. O app lê o arquivo aqui no aparelho e não envia para nenhum site.</div><input type="file" id="imp_f" accept=".json,application/json"><div class="small" id="imp_m" style="margin-top:12px"></div>`,'teal')}
+    ${pn('Já importou em outro aparelho?',`<div class="small">Toque na pílula no topo e entre com a conta Google. Os dados chegam sozinhos pelo Drive.</div><div style="margin-top:14px"><button class="btn ghost" id="imp_demo">Só olhar com dados de exemplo</button></div><div class="hint">O modo de exemplo usa números fictícios e não sincroniza.</div>`,'vio')}
+  </div>`;
+}
+function bindImportar(){
+  $('#imp_f').onchange=async e=>{
+    const f=e.target.files[0]; if(!f) return; const m=$('#imp_m');
+    try{
+      const j=JSON.parse(await f.text());
+      if(!(j&&j._meta&&j.liquidez&&j.cartao&&j.pendencias_novembro&&j.gastos_fixos_mensais&&j.faturas_futuras_parcelas_antigas&&j.regras_e_metas&&j.entradas_esperadas)) throw new Error('faltam campos');
+      Real.derivar(j);
+      save0('tf_real',j); save0('tf_modo','real'); location.reload();
+    }catch(err){ m.innerHTML='<span class="tag ru">✖ Arquivo não reconhecido</span> Confira se é o dados_reais_*.json ('+err.message+').'; }
+  };
+  $('#imp_demo').onclick=()=>{ save0('tf_modo','demo'); location.reload(); };
+}
+
 /* ===== Navegação ===== */
 let atual = 'hoje';
 function ir(k){
-  atual=k; $('#nav').innerHTML=`<div class="brand"><i>$</i>Tutor Financeiro</div>`+TELAS.map(([id,n,h])=>`<button data-k="${id}" aria-current="${id===k}" style="--h:${hue(h)}">${ic[id]}<span>${n}</span></button>`).join('')+`<div class="demo">Dados de exemplo (fictícios) até ligarmos a planilha. Tecle N para lançar.</div>`;
+  atual=k; $('#nav').innerHTML=`<div class="brand"><i>$</i>Tutor Financeiro</div>`+TELAS.map(([id,n,h])=>`<button data-k="${id}" aria-current="${id===k}" style="--h:${hue(h)}">${ic[id]}<span>${n}</span></button>`).join('')+`<div class="demo">${MODO==='real'?'Dados informados por você em '+new Date(DEMO.asOf+'T12:00').toLocaleDateString('pt-BR')+'. Tecle N para lançar.<br><a href="#" id="reimp" style="color:var(--teal)">Reimportar dados</a>':'Dados de exemplo (fictícios). Nada aqui é seu dinheiro real.<br><a href="#" id="reimp" style="color:var(--teal)">Importar dados reais</a>'}</div>`;
   $$('#nav button').forEach(b=>b.onclick=()=>ir(b.dataset.k));
+  const ri=$('#reimp'); if(ri) ri.onclick=e=>{ e.preventDefault(); save0('tf_modo',null); location.reload(); };
+  if(!MODO){ $('#main').innerHTML=telaImportar(); bindImportar(); return; }
   const scroll=window.scrollY; $('#main').innerHTML=T[k]();
   if(k==='hoje') bindHoje();
   if(k==='lancar') bindLancar();

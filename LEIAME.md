@@ -5,7 +5,8 @@ O app é um site comum (HTML + JavaScript), sem servidor seu. Os **dados** ficam
 ## O que vai para a internet e o que não vai
 - **Pública (GitHub Pages):** só o código do app (`index.html`, `calc.js`, `sync.js`, ícones). Não contém nenhum dado seu.
 - **Só no seu Google Drive:** `dados.json` com lançamentos, metas e tetos. O app só enxerga arquivos que ele mesmo criou (permissão `drive.file`), nunca o resto do Drive.
-- **Planilha:** continua somente leitura e fora daqui. Hoje o app usa dados de exemplo fictícios (veja o aviso na barra lateral).
+- **Dados reais:** na primeira abertura, o app pede o arquivo `dados_reais_AAAA-MM-DD.json` (fica só na pasta Financeiro do PC, nunca no repositório). Ele é lido no próprio aparelho e vai para o Drive. O celular recebe tudo pelo Drive, sem importar de novo.
+- **Planilha:** continua somente leitura e fora daqui. O Power BI ainda reflete o plano antigo (29/10) até a planilha ser atualizada.
 
 ## Passo a passo (uma vez só)
 
@@ -39,10 +40,12 @@ No PC, abrir o mesmo endereço (ou `index.html` localmente) e conectar com a mes
 ## Pontos de atenção
 - No iPhone, o login do Google pode abrir numa janela do Safari e não voltar para o app da Tela de Início. Se isso acontecer, entrar uma vez pelo Safari e depois usar o ícone normalmente. Precisa ser testado no aparelho real.
 - Dados de exemplo (fictícios) só viram itens quando você os altera; os que você não mexer não vão para o Drive.
-- Ainda não existe leitura da planilha: o orçamento e as metas partem de exemplos.
+- A projeção do Futuro é conta do app a partir do JSON (salário estimado, ajuda em casa, parcelas antigas, assinaturas, faculdade, teto de lazer). Mercado e transporte do dia a dia ainda não entram. As suposições aparecem na tela Hoje.
+- O limite do cartão não veio no arquivo: o app pede na tela Cartão.
 
 ## Testes
 ```
 node test_calc.js    # cálculos financeiros
 node test_sync.js    # junção de dados entre aparelhos
+node test_real.js    # projeção e números a partir dos dados reais
 ```
