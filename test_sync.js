@@ -83,5 +83,15 @@ const vazio = () => ({ lanc: [], pagos: {}, tetos: {}, metas: [], taxa: 0.8 });
   t('estável sem mudanças', S.igual(a, b));
 }
 
+/* 9. números (item único) vai e volta, e a edição mais recente vence */
+{
+  const a = Object.assign(vazio(), { numeros: { mercado: 500 } });
+  const it = S.atualizar(a, {}, 1000);
+  t('numeros ida e volta', S.montar(it).numeros.mercado === 500);
+  const b = Object.assign(vazio(), { numeros: { mercado: 600 } });
+  const it2 = S.atualizar(b, it, 2000);
+  t('numeros edição recente vence', S.montar(S.juntar(it, it2)).numeros.mercado === 600 && S.montar(S.juntar(it2, it)).numeros.mercado === 600);
+}
+
 console.log(falhas ? falhas + ' falha(s)' : 'Todos os ' + ok + ' testes de junção passaram.');
 process.exit(falhas ? 1 : 0);

@@ -2,6 +2,7 @@
 (function (root) {
   var MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
   var r2 = function (x) { return Math.round(x * 100) / 100; };
+  var pad = function (n) { return String(n).padStart(2, '0'); };
   var soma = function (o) { return Object.keys(o || {}).reduce(function (s, k) { return s + (+o[k] || 0); }, 0); };
 
   function rotulosMeses(asOf) {
@@ -10,25 +11,77 @@
     return out;
   }
 
+  /* ---------- dia útil e salário ---------- */
+  function pascoa(y) {   // algoritmo de Meeus/Jones/Butcher
+    var a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25),
+      g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4,
+      l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451),
+      mes = Math.floor((h + l - 7 * m + 114) / 31), dia = ((h + l - 7 * m + 114) % 31) + 1;
+    return new Date(Date.UTC(y, mes - 1, dia));
+  }
+  function iso(dt) { return dt.getUTCFullYear() + '-' + pad(dt.getUTCMonth() + 1) + '-' + pad(dt.getUTCDate()); }
+  /* feriados nacionais fixos, Sexta-feira Santa e Corpus Christi (este só para conferência: não é feriado nacional por lei) */
+  function feriados(y) {
+    var set = {};
+    ['01-01', '04-21', '05-01', '09-07', '10-12', '11-02', '11-15', '11-20', '12-25'].forEach(function (md) { set[y + '-' + md] = true; });
+    var p = pascoa(y); set[iso(new Date(p.getTime() - 2 * 86400000))] = true;
+    return set;
+  }
+  function quintoDiaUtil(y, m) {   // m de 1 a 12; segunda a sexta, sem feriados nacionais
+    var fer = feriados(y), n = 0;
+    for (var d = 1; d <= 31; d++) {
+      var dt = new Date(Date.UTC(y, m - 1, d)); if (dt.getUTCMonth() !== m - 1) break;
+      var w = dt.getUTCDay();
+      if (w === 0 || w === 6 || fer[iso(dt)]) continue;
+      if (++n === 5) return d;
+    }
+    return null;
+  }
+
+  /* ---------- média do mercado a partir dos lançamentos ---------- */
+  /* Só existe média depois de pelo menos 28 dias desde o primeiro lançamento (qualquer categoria). */
+  function mediaMercado(lanc, hojeISO) {
+    if (!lanc || !lanc.length) return null;
+    var datas = lanc.map(function (l) { return l.data; }).sort();
+    var ini = new Date(datas[0] + 'T12:00:00Z'), fim = new Date(hojeISO + 'T12:00:00Z');
+    var dias = Math.round((fim - ini) / 86400000) + 1;
+    if (dias < 28) return null;
+    var tot = lanc.filter(function (l) { return l.cat === 'Mercado' && l.valor > 0; }).reduce(function (s, l) { return s + l.valor; }, 0);
+    return r2(tot / dias * 30);
+  }
+
+  function salarioEstimado(real) {
+    return (real.entradas_esperadas.filter(function (e) { return /sal/i.test(e.descricao); })[0] || {}).valor_estimado || 0;
+  }
+
   /* Saldo previsto no fim de cada mês (12 meses a partir do mês de as_of).
-     Mês 0: liquidez de hoje menos as pendências do mês e o teto de lazer.
-     Meses seguintes: + salário estimado, - ajuda em casa, - fatura das parcelas antigas, - assinaturas, - faculdade, - teto de lazer.
-     opt.repasseMae: soma a parte da mãe de cada fatura (só entra quando você escolher o cenário "recebido"). */
-  function projetar(real, opt) {
-    opt = opt || {};
+     Mês 0: liquidez de hoje menos as pendências do mês, o teto de lazer e o mercado do mês.
+     Meses seguintes: + salário, - ajuda em casa, - fatura das parcelas antigas, - assinaturas, - faculdade, - lazer, - mercado, - gastos periódicos.
+     opt.repasseMae: soma a parte da mãe de todas as faturas. Sem isso, só os meses marcados como recebidos em num.repasse.
+     num (números do dono, opcional): salario, mercado, mercadoMedia, repasse {'AAAA-MM': true}, periodicos. */
+  function projetar(real, opt, num) {
+    opt = opt || {}; num = num || {};
     var fx = real.gastos_fixos_mensais, ass = soma(fx.assinaturas_no_cartao), lazer = fx.teto_lazer_mes;
-    var salario = (real.entradas_esperadas.filter(function (e) { return /sal/i.test(e.descricao); })[0] || {}).valor_estimado || 0;
+    var salario = num.salario > 0 ? +num.salario : salarioEstimado(real);
+    var mercado = num.mercado > 0 ? +num.mercado : (num.mercadoMedia > 0 ? +num.mercadoMedia : 0);
+    var periodicos = num.periodicos || real.gastos_periodicos || [];
     var pend = real.pendencias_novembro.reduce(function (s, p) { return s + p.valor; }, 0);
     var fut = {}; real.faturas_futuras_parcelas_antigas.forEach(function (f) { fut[f.mes] = f; });
     var p = real._meta.as_of.split('-'), y = +p[0], m = +p[1] - 1;
-    var saldo = r2(real.liquidez.total - pend - lazer), out = [saldo];
+    var saldo = r2(real.liquidez.total - pend - lazer - mercado), out = [saldo];
     for (var i = 1; i < 12; i++) {
       var mm = (m + i) % 12, yy = y + Math.floor((m + i) / 12);
-      var chave = yy + '-' + String(mm + 1).padStart(2, '0');
+      var chave = yy + '-' + pad(mm + 1);
       var f = fut[chave] || { fatura_total: 0, parte_mae: 0 };
       var fac = yy >= 2027 ? fx.faculdade_2027_estimado : fx.faculdade_2026;
-      var entra = salario + (opt.repasseMae ? f.parte_mae : 0);
-      var sai = fx.ajuda_em_casa_a_partir_de_dezembro + f.fatura_total + ass + fac + lazer;
+      var recebeu = opt.repasseMae || (num.repasse && num.repasse[chave]);
+      var entra = salario + (recebeu ? f.parte_mae : 0);
+      var per = 0;
+      periodicos.forEach(function (g) {
+        var q = g.primeiro.split('-'), idx = (yy - +q[0]) * 12 + (mm + 1 - +q[1]);
+        if (idx >= 0 && idx % g.a_cada_meses === 0) per += g.valor;
+      });
+      var sai = fx.ajuda_em_casa_a_partir_de_dezembro + f.fatura_total + ass + fac + lazer + mercado + per;
       saldo = r2(saldo + entra - sai); out.push(saldo);
     }
     return out;
@@ -44,40 +97,67 @@
     return a.acao;
   }
 
-  /* Objeto no formato que as telas esperam (DEMO) */
-  function derivar(real) {
+  /* Objeto no formato que as telas esperam.
+     num: números do dono (veja projetar). ctx: {lanc, hojeISO} para a média do mercado. */
+  function derivar(real, num, ctx) {
+    num = num || {}; ctx = ctx || {};
     var fx = real.gastos_fixos_mensais, c = real.cartao, rg = real.regras_e_metas;
-    var salario = (real.entradas_esperadas.filter(function (e) { return /sal/i.test(e.descricao); })[0] || {}).valor_estimado || 0;
+    var estimado = salarioEstimado(real), salario = num.salario > 0 ? +num.salario : estimado;
+    var media = ctx.lanc && ctx.hojeISO ? mediaMercado(ctx.lanc, ctx.hojeISO) : null;
+    var n2 = Object.assign({}, num, { mercadoMedia: media });
     var essencial = r2(fx.ajuda_em_casa_a_partir_de_dezembro + fx.faculdade_2026 + (fx.assinaturas_no_cartao.dados_moveis || 0));
     var futuras = real.faturas_futuras_parcelas_antigas;
-    var diaPag = {};   // dia de pagamento planejado de cada pendência
     var ven = function (s) { return +s.slice(8); };
     var agenda = real.pendencias_novembro.map(function (p, i) {
       var d = ven(p.vence), nota = p.nota || '';
       if (/friday/i.test(nota)) { var m = nota.match(/\d{4}-\d{2}-(\d{2})/); if (m) d = +m[1]; }
       return { id: 'a' + (i + 1), nome: p.descricao + (d !== ven(p.vence) ? ' (vence dia ' + ven(p.vence) + ')' : ''), dia: d, valor: p.valor };
     });
-    var base = projetar(real), com = projetar(real, { repasseMae: true });
+    var lim = num.limites || {};
+    var cartoes = [{ id: 'c1', nome: c.emissor, final: '', limite: +lim.c1 || c.limite || 0, fatura: c.fatura_atual.total, parcelasFuturas: r2(futuras.reduce(function (s, f) { return s + f.fatura_total; }, 0)), fecha: c.fechamento_dia, vence: ven(c.fatura_atual.vence_em), serie: futuras }];
+    (real.cartoes_extra || []).forEach(function (x, i) {
+      var id = x.id || 'c' + (i + 2);
+      cartoes.push({ id: id, nome: x.nome, final: '', limite: +lim[id] || x.limite || 0, fatura: x.fatura || 0, parcelasFuturas: x.parcelasFuturas || 0, fecha: x.fechamento_dia || null, vence: x.vence_dia || null, serie: null });
+    });
+    var base = projetar(real, {}, n2), com = projetar(real, { repasseMae: true }, n2);
+    var origemMercado = num.mercado > 0 ? 'informado' : (media > 0 ? 'média dos lançamentos' : 'ainda sem valor');
+    var ano = +real._meta.as_of.slice(0, 4), mes = +real._meta.as_of.slice(5, 7);
+    var prox = mes === 12 ? [ano + 1, 1] : [ano, mes + 1];
+    var salarioDia = quintoDiaUtil(prox[0], prox[1]);
+    var sup = [
+      salario === estimado && !(num.salario > 0) ? 'Salário líquido estimado em ' + fmt(salario) + ' a partir de dezembro (ainda sem holerite).' : 'Salário líquido informado: ' + fmt(salario) + ' por mês.',
+      'Entram as parcelas antigas do cartão, as assinaturas (' + fmt(soma(fx.assinaturas_no_cartao)) + ' por mês), a ajuda em casa, a faculdade e o teto de lazer.',
+      'Transporte pelo vale-transporte da empresa: o desconto é feito na folha e não sai do caixa. Se o salário líquido já vem depois do desconto, nada muda.',
+      origemMercado === 'ainda sem valor' ? 'Mercado do dia a dia ainda não foi informado, então não está na projeção.' : 'Mercado entra na projeção: ' + fmt(num.mercado > 0 ? +num.mercado : media) + ' por mês (' + origemMercado + ').',
+      'Repasse da mãe e venda da cama só contam quando recebidos.'
+    ];
+    if ((num.periodicos || real.gastos_periodicos || []).length) sup.push('Gastos periódicos entram no mês em que caem.');
     return {
       real: true, asOf: real._meta.as_of,
       caixinha: real.liquidez.total, conta: real.liquidez.conta_corrente, essencial: essencial, renda: salario,
+      salarioEstimado: !(num.salario > 0), salarioDiaProximo: salarioDia,
       meta: rg.meta_17_01_2027, piso: rg.piso_17_01_2027, alerta: rg.alerta_dezembro, tetoLazer: fx.teto_lazer_mes,
+      pisoNovo: num.piso > 0 ? +num.piso : null,
       meses: rotulosMeses(real._meta.as_of),
       cenarios: { 'Base': base, 'Com repasse da mãe': com },
-      cores: { 'Base': '#4CC9FF', 'Com repasse da mãe': '#3DDC97' },
       carteira: [{ nome: String(real.liquidez.onde || 'Liquidez').split('(')[0].trim() + ' (liquidez diária)', classe: 'Renda fixa', valor: real.liquidez.total, liquidez: 'diaria' }],
-      cartoes: [{ id: 'c1', nome: c.emissor, final: '', limite: c.limite || 0, fatura: c.fatura_atual.total, parcelasFuturas: r2(futuras.reduce(function (s, f) { return s + f.fatura_total; }, 0)), fecha: c.fechamento_dia, vence: ven(c.fatura_atual.vence_em), serie: futuras }],
+      cartoes: cartoes,
       parcelamentos: [],
       agenda: agenda,
       tetos: { Mercado: 0, Transporte: 0, Estudos: 0, 'Saúde': 0, Outros: 0 },
-      pendentes: (real.pendente_do_usuario || []).map(function (t) { return (real._traducoes || {})[t] || t; }),
+      pendentes: (real.pendente_do_usuario || []).map(function (t) { return (real._traducoes || {})[t] || t; }).filter(function (t) {
+        if (num.salario > 0 && /holerite|sal[aá]rio/i.test(t)) return false;
+        if (num.piso > 0 && /piso/i.test(t)) return false;
+        return true;
+      }),
       plano: (real.plano_de_pagamento || []).map(function (a) { return { data: a.data, texto: planoTexto(a) }; }),
       sobra: real.sobra_apos_pagar_tudo,
-      pisoDefinido: !/NOT yet defined/i.test(rg.piso_absoluto_status || ''),
-      suposicoes: ['Salário cheio estimado em ' + fmt(salario) + ' a partir de dezembro (ainda sem holerite).', 'Entram só as parcelas antigas do cartão, as assinaturas (' + fmt(soma(fx.assinaturas_no_cartao)) + ' por mês), a ajuda em casa, a faculdade e o teto de lazer.', 'Transporte pelo vale-transporte da empresa: o desconto é feito na folha e não sai do caixa. Se o salário líquido estimado já vem depois do desconto, nada muda.', 'Mercado do dia a dia ainda não foi informado, então não está na projeção.', 'Repasse da mãe e venda da cama só contam quando recebidos.']
+      pisoDefinido: !/NOT yet defined/i.test(rg.piso_absoluto_status || '') || num.piso > 0,
+      mercadoOrigem: origemMercado, mercadoMedia: media,
+      suposicoes: sup
     };
   }
 
-  var api = { projetar: projetar, derivar: derivar, rotulosMeses: rotulosMeses };
+  var api = { projetar: projetar, derivar: derivar, rotulosMeses: rotulosMeses, quintoDiaUtil: quintoDiaUtil, feriados: feriados, mediaMercado: mediaMercado, salarioEstimado: salarioEstimado, fmt: fmt };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.Real = api;
 })(typeof window !== 'undefined' ? window : this);

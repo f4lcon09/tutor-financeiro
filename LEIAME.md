@@ -43,9 +43,20 @@ No PC, abrir o mesmo endereço (ou `index.html` localmente) e conectar com a mes
 - A projeção do Futuro é conta do app a partir do JSON (salário estimado, ajuda em casa, parcelas antigas, assinaturas, faculdade, teto de lazer). Mercado e transporte do dia a dia ainda não entram. As suposições aparecem na tela Hoje.
 - O limite do cartão não veio no arquivo: o app pede na tela Cartão.
 
+## Telas
+Hoje, Lançar (com lançamento rápido por texto), Cartão, Agenda, Orçamento, Metas, Futuro, Decidir, Patrimônio e Meus números. Tema escuro e claro (botão no menu). O visual vem do design em `app/design/` (tokens verificados por contraste).
+
+## Arquivos
+- `index.html`: telas e interface. `tokens.css`: cores, espaços e tipografia do design.
+- `store.js`: dados e regras (lançar, editar, apagar, metas, tetos, números, texto rápido). `real.js`: previsão a partir dos dados reais. `calc.js`: contas de empréstimo, consórcio, cartão e investimento. `sync.js`: junção entre aparelhos e Google Drive.
+- `sw.js`, `manifest.webmanifest`, ícones: modo app e offline.
+
 ## Testes
 ```
 node test_calc.js    # cálculos financeiros
 node test_sync.js    # junção de dados entre aparelhos
-node test_real.js    # projeção e números a partir dos dados reais
+node test_real.js    # previsão e números a partir dos dados reais
+node test_store.js   # lançamentos, metas, tetos, números, texto rápido, CSV
+node test_ui.js      # interface: cada tela e cada função, num navegador simulado
 ```
+O `test_ui.js` precisa do jsdom (uma vez): `cd dev && npm install`. Os testes de dados reais e da interface ficam só no seu computador, porque usam números reais.

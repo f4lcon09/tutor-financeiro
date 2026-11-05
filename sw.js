@@ -1,6 +1,6 @@
 /* Offline: guarda o "casco" do app. Os dados ficam no aparelho e no Drive, nunca aqui. */
-const V = 'tf-v2';
-const CASCO = ['./', 'index.html', 'calc.js', 'sync.js', 'real.js', 'config.js', 'manifest.webmanifest', 'icon.svg', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
+const V = 'tf-v3';
+const CASCO = ['./', 'index.html', 'calc.js', 'sync.js', 'real.js', 'store.js', 'tokens.css', 'config.js', 'manifest.webmanifest', 'icon.svg', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(V).then(c => c.addAll(CASCO)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== V).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', e => {

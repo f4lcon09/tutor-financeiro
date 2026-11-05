@@ -15,6 +15,7 @@
     (st.metas || []).forEach(x => { m['meta:' + x.id] = x; });
     m['taxa'] = st.taxa;
     if (st.real !== undefined) m['real'] = st.real;
+    if (st.numeros !== undefined) m['numeros'] = st.numeros;
     return m;
   }
 
@@ -29,6 +30,7 @@
       else if (k.startsWith('meta:')) st.metas.push(it.v);
       else if (k === 'taxa') st.taxa = it.v;
       else if (k === 'real') st.real = it.v;
+      else if (k === 'numeros') st.numeros = it.v;
     });
     return st;
   }
