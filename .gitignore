@@ -6,3 +6,25 @@ dev/
 node_modules/
 test_ui.js
 test_ui_casos.js
+
+# Esta pasta tambem guarda dados pessoais e a planilha: nada entra sem estar liberado aqui.
+/*
+!/.gitignore
+!/LEIAME.md
+!/calc.js
+!/config.js
+!/icon-180.png
+!/icon-192.png
+!/icon-512.png
+!/icon.svg
+!/index.html
+!/manifest.webmanifest
+!/privacidade.html
+!/real.js
+!/store.js
+!/sw.js
+!/sync.js
+!/tokens.css
+!/test_calc.js
+!/test_store.js
+!/test_sync.js
