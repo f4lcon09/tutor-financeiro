@@ -6,6 +6,17 @@
   var FORMAS = ['Pix', 'Débito', 'Crédito', 'Dinheiro'];
   var pad = function (n) { return String(n).padStart(2, '0'); };
   var r2 = function (x) { return Math.round(x * 100) / 100; };
+  var RITMO_MIN_DIAS = 7;   // antes disso a projeção do mês é ruído
+
+  /* Ritmo do mês: gasto até hoje / dias passados * dias do mês, em centavos inteiros.
+     poucos = ainda não passou o mínimo de dias; semGasto = nada lançado. */
+  function ritmoMes(gasto, dia, diasMes, minDias) {
+    var c = Math.round(Number(gasto) * 100), d = Math.max(1, Math.floor(dia) || 1), dm = Math.max(d, Math.floor(diasMes) || d);
+    var min = minDias == null ? RITMO_MIN_DIAS : minDias, poucos = d < min;
+    if (!(c > 0)) return { semGasto: true, poucos: poucos, projetadoCentavos: 0, projetado: 0 };
+    var p = Math.round(c * dm / d);
+    return { semGasto: false, poucos: poucos, projetadoCentavos: p, projetado: p / 100 };
+  }
 
   function lerNumero(txt) {   // aceita "12,06" e "1.234,56" e "12.06"
     if (typeof txt === 'number') return txt;
@@ -201,6 +212,6 @@
     return S;
   }
 
-  var api = { criarStore: criarStore, lerNumero: lerNumero, dataValida: dataValida, sugerir: sugerir, validarLancamento: validarLancamento, interpretarTexto: interpretarTexto, CATEGORIAS: CATEGORIAS, FORMAS: FORMAS };
+  var api = { criarStore: criarStore, lerNumero: lerNumero, dataValida: dataValida, sugerir: sugerir, validarLancamento: validarLancamento, interpretarTexto: interpretarTexto, ritmoMes: ritmoMes, RITMO_MIN_DIAS: RITMO_MIN_DIAS, CATEGORIAS: CATEGORIAS, FORMAS: FORMAS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TFStore = api;
 })(typeof window !== 'undefined' ? window : this);
