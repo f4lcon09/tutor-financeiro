@@ -82,7 +82,7 @@
 
   function criarDrive(cfg, arm) {
     // arm: {get(k), set(k,v), del(k)} sobre localStorage
-    const redirect = () => location.origin + location.pathname;
+    const redirect = () => location.origin + location.pathname.replace(/\/$/, '/index.html');   // tem de ser igual ao cadastrado no Google
     const tok = () => { const t = arm.get('tf_gtoken'); return t && t.exp > Date.now() + 30000 ? t.v : null; };
     const api = async (url, opt) => {
       const t = tok(); if (!t) throw new Error('sem-token');
