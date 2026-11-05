@@ -14,7 +14,7 @@
 <link rel="apple-touch-icon" href="icon-180.png">
 <style>
 :root{
-  --bg:#070B14; --p1:#0C1322; --p2:#121B2E; --ln:#1B2740; --ln2:#2B3A5C;
+  --bg:#070B14; --p1:#0C1322; --p2:#121B2E; --ln:#1B2740; --ln2:#62759E;
   --tx:#EAF0FA; --mu:#94A3C4;
   --teal:#2DE0C9; --vio:#9B8CFF; --pink:#FF6EB4; --sky:#4CC9FF;
   --ok:#3DDC97; --at:#FFC53D; --ru:#FF6B80;
@@ -46,8 +46,8 @@ h1{font-family:var(--fn);font-size:28px;font-weight:600;letter-spacing:.005em}
 .g32{grid-template-columns:2fr 1fr}
 .g23{grid-template-columns:1fr 1.6fr}
 .pn{background:var(--p1);border:1px solid var(--ln);border-left:3px solid var(--h,var(--ln2));border-radius:3px;padding:18px 18px 18px 20px;position:relative}
-.pn h3{font-family:var(--fn);font-size:12.5px;font-weight:500;color:var(--mu);text-transform:uppercase;letter-spacing:.12em;margin-bottom:12px;display:flex;justify-content:space-between;gap:10px}
-.pn h3 em{font-style:normal;color:var(--h,var(--mu))}
+.pn>h2{font-family:var(--fn);font-size:12.5px;font-weight:500;color:var(--mu);text-transform:uppercase;letter-spacing:.12em;margin-bottom:12px;display:flex;justify-content:space-between;gap:10px}
+.pn>h2 em{font-style:normal;color:var(--h,var(--mu))}
 .big{font-family:var(--fn);font-size:34px;font-weight:600;letter-spacing:-.005em;line-height:1.05}
 .mid{font-family:var(--fn);font-size:22px;font-weight:600}
 .mu{color:var(--mu)} .small{font-size:13px}
@@ -58,7 +58,7 @@ h1{font-family:var(--fn);font-size:28px;font-weight:600;letter-spacing:.005em}
 .verdict h2{font-family:var(--fn);font-size:26px;font-weight:600}
 .bar{height:8px;border-radius:99px;background:var(--p2);margin:10px 0 6px;position:relative}
 .bar>span{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,color-mix(in srgb,var(--h,var(--teal)) 55%,transparent),var(--h,var(--teal)))}
-.info{display:inline-grid;place-items:center;width:16px;height:16px;border-radius:50%;border:1px solid var(--ln2);color:var(--mu);font-size:10.5px;font-style:normal;font-family:var(--fn);font-weight:600;cursor:help;margin-left:7px;position:relative;vertical-align:middle;text-transform:none;letter-spacing:0}
+.info{display:inline-grid;place-items:center;width:16px;height:16px;border-radius:50%;border:1px solid var(--ln2);color:var(--mu);font-size:12px;font-style:normal;font-family:var(--fn);font-weight:600;cursor:help;margin-left:7px;position:relative;vertical-align:middle;text-transform:none;letter-spacing:0}
 .info:hover,.info:focus{color:var(--tx);border-color:var(--teal);outline:none}
 .info:hover::after,.info:focus::after{content:attr(data-t);position:absolute;left:-8px;top:24px;width:270px;background:var(--p2);border:1px solid var(--ln2);padding:10px 12px;border-radius:3px;color:var(--tx);font-size:12.5px;font-family:var(--f);font-weight:400;line-height:1.45;z-index:40;white-space:normal;text-align:left;box-shadow:0 8px 24px rgba(0,0,0,.45)}
 .info.r:hover::after,.info.r:focus::after{left:auto;right:-8px}
@@ -89,6 +89,7 @@ label{display:block;font-size:13px;color:var(--mu);margin:0 0 6px}
 .field{margin-bottom:14px}
 input[type=text],input[type=number],input[type=date],select{width:100%;background:var(--p2);border:1px solid var(--ln2);border-radius:3px;padding:10px 12px;outline:none}
 input:focus,select:focus{border-color:var(--h,var(--teal))}
+button:focus-visible,.chip:focus-visible,nav button:focus-visible,.sync:focus-visible,[tabindex]:focus-visible,summary:focus-visible,input[type=checkbox]:focus-visible,input[type=range]:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
 input[type=number]{font-family:var(--fn);font-size:16px}
 .rate{display:grid;grid-template-columns:1fr 112px;gap:8px}
 .hint{font-size:12.5px;color:var(--mu);margin-top:5px}
@@ -107,7 +108,7 @@ input[type=number]{font-family:var(--fn);font-size:16px}
 .toggle label{flex:1;display:flex;align-items:center;gap:8px;margin:0;background:var(--p2);border:1px solid var(--ln2);border-radius:3px;padding:10px 12px;cursor:pointer;color:var(--tx);font-size:14px}
 .toggle input{accent-color:var(--h,var(--teal))}
 table{width:100%;border-collapse:collapse;font-size:14px}
-th{font-family:var(--fn);font-size:11.5px;color:var(--mu);text-transform:uppercase;letter-spacing:.1em;font-weight:500;text-align:left;padding:8px 8px;border-bottom:1px solid var(--ln2)}
+th{font-family:var(--fn);font-size:12px;color:var(--mu);text-transform:uppercase;letter-spacing:.1em;font-weight:500;text-align:left;padding:8px 8px;border-bottom:1px solid var(--ln2)}
 td{padding:10px 8px;border-bottom:1px solid var(--ln)}
 td.n,th.n{text-align:right;font-family:var(--fn);font-size:15px}
 tr:last-child td{border-bottom:0}
@@ -136,22 +137,23 @@ tr.clk.sel td{background:var(--p2)}
 tr.clk.sel td:first-child{box-shadow:inset 3px 0 0 var(--teal)}
 .strip .c.fut{background:transparent;border:1px dashed var(--ln2)}
 .strip .c b{position:absolute;left:50%;top:5px;width:7px;height:7px;margin-left:-3px;border-radius:50%;background:var(--vio)}
-.strip .l{font-family:var(--fn);font-size:11px;color:var(--mu);text-align:center;margin-top:4px}
+.strip .l{font-family:var(--fn);font-size:12px;color:var(--mu);text-align:center;margin-top:4px}
+.strip .l span{display:none}.strip .l span.key{display:inline}
 /* cartão */
 .card3d{border-radius:6px;padding:20px;background:var(--p2);border:1px solid var(--ln2);position:relative;overflow:hidden;min-height:170px}
 .card3d .chip2{width:38px;height:28px;border-radius:5px;border:1px solid var(--ln2);background:var(--p1);margin-bottom:18px}
 .card3d:after{content:"";position:absolute;right:-40px;top:-40px;width:150px;height:150px;border-radius:50%;border:26px solid rgba(155,140,255,.14)}
 .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
-.cal .w{font-family:var(--fn);font-size:11px;color:var(--mu);text-align:center;letter-spacing:.08em;padding-bottom:2px}
+.cal .w{font-family:var(--fn);font-size:12px;color:var(--mu);text-align:center;letter-spacing:.08em;padding-bottom:2px}
 .cal .d{min-height:56px;border:1px solid var(--ln);border-radius:2px;padding:4px 6px;font-family:var(--fn);font-size:12px;color:var(--mu)}
 .cal .d.hj{border-color:var(--tx);color:var(--tx)}
 .cal .d.v{background:var(--p2)}
-.cal .d b{display:block;font-weight:500;font-size:10.5px;color:var(--vio);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.cal .d b{display:block;font-weight:500;font-size:12px;color:var(--vio);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .cal .d b.pg{color:var(--ok)}
 .vb{display:flex;gap:10px;align-items:flex-end;height:170px;padding-top:8px}
 .vb>div{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:6px;height:100%}
 .vb>div>span{width:100%;border-radius:2px 2px 0 0;background:var(--h,var(--vio))}
-.vb small{font-family:var(--fn);font-size:11.5px;color:var(--mu)}
+.vb small{font-family:var(--fn);font-size:12px;color:var(--mu)}
 .vb em{font-style:normal;font-family:var(--fn);font-size:12px}
 .gl{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px 26px}
 .gl b{display:block;font-family:var(--fn);font-weight:600;letter-spacing:.02em}
@@ -171,14 +173,16 @@ tr.clk.sel td:first-child{box-shadow:inset 3px 0 0 var(--teal)}
   table{font-size:13px}
   .pn{overflow-x:auto}
   th,td{padding-left:6px !important;padding-right:6px !important}
-  th{font-size:10.5px !important;letter-spacing:.04em}
+  th{font-size:12px !important;letter-spacing:.04em}
   table:has(tr[data-cat]) th:nth-child(2),table:has(tr[data-cat]) td:nth-child(2){display:none}
   table input[type=number]{width:72px !important}
   .verdict .ico,.verdict>div:first-child svg{max-width:64px}
+  .strip{grid-template-columns:repeat(10,minmax(0,1fr)) !important;row-gap:4px}
+  .strip .l span{display:inline}
   .app{grid-template-columns:minmax(0,1fr)}
   main{min-width:0;overflow-x:hidden}
   nav{position:fixed;bottom:0;top:auto;left:0;right:0;height:auto;flex-direction:row;padding:6px 4px;border-right:0;border-top:1px solid var(--ln);z-index:5;overflow-x:auto;gap:0}
-  nav button{flex-direction:column;gap:3px;font-size:11px;padding:7px 10px;border-left:0;border-top:3px solid transparent;min-width:64px;align-items:center}
+  nav button{flex-direction:column;gap:3px;font-size:12px;padding:7px 10px;border-left:0;border-top:3px solid transparent;min-width:64px;align-items:center}
   nav button[aria-current=true]{border-left-color:transparent;border-top-color:var(--h,var(--teal))}
   .brand,.demo{display:none}
   .g32,.g23{grid-template-columns:1fr}
@@ -361,7 +365,7 @@ function sugerir(cat,desc){
   }
   return {ess:false,laz:false,t:'<b>Em dúvida?</b> Pergunte: se eu não pagar isso este mês, o que acontece? Se algo importante quebra, é essencial. Se só perde o prazer, é lazer.'};
 }
-const pn = (titulo, corpo, h='teal', extra='', tag='') => `<div class="pn" style="--h:${hue(h)};${extra}"><h3><span>${titulo}</span>${tag?`<em>${tag}</em>`:''}</h3>${corpo}</div>`;
+const pn = (titulo, corpo, h='teal', extra='', tag='') => `<div class="pn" style="--h:${hue(h)};${extra}"><h2><span>${titulo}</span>${tag?`<em>${tag}</em>`:''}</h2>${corpo}</div>`;
 
 /* ===== Telas ===== */
 const T = {};
@@ -392,7 +396,7 @@ T.hoje = () => {
   const cont={}; DEMO.agenda.forEach(a=>{cont[a.dia]=(cont[a.dia]||[]).concat(a.nome+' '+brl0(a.valor));});
   let faixa=''; for(let i=1;i<=diasMes;i++){
     const v=porDia[i]||0, passado=i<=diaHoje, a=passado&&v>0?(.25+.75*v/maxDia):0;
-    faixa+=`<div><div data-d="${i}" class="c ${i===diaHoje?'hj':''} ${passado?'':'fut'}" style="${a?`background:rgba(255,110,180,${a.toFixed(2)})`:''}" title="Dia ${i}${v?': gasto '+brl(v):''}${cont[i]?' | Vence: '+cont[i].join(', '):''}">${cont[i]?'<b></b>':''}</div><div class="l">${[1,5,10,15,20,25,diasMes].includes(i)?i:''}</div></div>`;
+    faixa+=`<div><div data-d="${i}" class="c ${i===diaHoje?'hj':''} ${passado?'':'fut'}" style="${a?`background:rgba(255,110,180,${a.toFixed(2)})`:''}" title="Dia ${i}${v?': gasto '+brl(v):''}${cont[i]?' | Vence: '+cont[i].join(', '):''}">${cont[i]?'<b></b>':''}</div><div class="l"><span class="${[1,5,10,15,20,25,diasMes].includes(i)?'key':''}">${i}</span></div></div>`;
   }
   const prox = proximasContas().slice(0,3);
   return `
@@ -559,7 +563,7 @@ T.agenda = () => {
     ${pn('Ainda a vencer',`<div class="big">${brl0(aVencer)}</div><span class="tag ${caixa>=aVencer?'ok':'ru'}">${caixa>=aVencer?'✔ O caixa cobre ('+brl0(caixa)+')':'✖ Falta caixa'}</span>`,'vio')}
   </div>
   <div class="grid g32">${pn('Contas do mês',`<table><tr><th></th><th>Conta</th><th>Vencimento</th><th class="n">Valor</th><th>Situação</th></tr>${l.map(a=>{const k=a.pago?'ok':a.dias<0?'ru':a.dias<=3?'at':'ne', t=a.pago?'✔ Pago':a.dias<0?'✖ Atrasada '+(-a.dias)+'d':a.dias===0?'⚠ Vence hoje':a.dias<=3?'⚠ Em '+a.dias+' dias':'Em '+a.dias+' dias';
-    return `<tr><td style="width:34px"><input type="checkbox" data-id="${a.id}" ${a.pago?'checked':''} style="width:18px;height:18px;accent-color:#9B8CFF"></td><td><b>${a.nome}</b></td><td>dia ${a.dia}</td><td class="n">${brl(a.valor)}</td><td><span class="tag ${k}">${t}</span></td></tr>`}).join('')}</table>`,'vio')}${pn('Calendário do mês',calendario(l),'vio')}</div>
+    return `<tr><td style="width:34px"><input type="checkbox" data-id="${a.id}" ${a.pago?'checked':''} style="width:24px;height:24px;accent-color:#9B8CFF"></td><td><b>${a.nome}</b></td><td>dia ${a.dia}</td><td class="n">${brl(a.valor)}</td><td><span class="tag ${k}">${t}</span></td></tr>`}).join('')}</table>`,'vio')}${pn('Calendário do mês',calendario(l),'vio')}</div>
   ${pn('Peso das contas na sua renda',(()=>{ const pr=total/DEMO.renda, k=pr<=.5?'ok':pr<=.7?'at':'ru'; return `<div class="row" style="margin-bottom:12px"><div><span class="big">${pc(pr,0)}</span> <span class="mu">da renda de ${brl0(DEMO.renda)} vai para contas do mês</span></div><span class="tag ${k}">${ST[k][0]} ${k==='ok'?'Peso confortável':k==='at'?'Peso alto':'Peso muito alto'}</span></div><div style="display:flex;height:16px;border-radius:99px;overflow:hidden;gap:2px">${l.map((a,i)=>`<span style="flex:${a.valor};background:${PAL[i%6]}" title="${a.nome}"></span>`).join('')}</div><div class="legend">${l.map((a,i)=>`<span><i style="background:${PAL[i%6]}"></i>${a.nome} ${pc(a.valor/total,0)}</span>`).join('')}</div><div class="hint" style="margin-top:10px">Contas fixas até 50% da renda deixam espaço para lazer e reserva. Acima de 70% o mês fica sem folga.</div>`; })(),'vio','margin-top:14px')}`;
 };
 function bindAgenda(){ $$('#main input[type=checkbox]').forEach(c=>c.onchange=()=>{ const a=DEMO.agenda.find(x=>x.id===c.dataset.id); pagos[pagoKey(a)]=c.checked; save('tf_pagos',pagos); ir('agenda'); }); }
@@ -977,6 +981,29 @@ function bindImportar(){
   };
   $('#imp_demo').onclick=()=>{ save0('tf_modo','demo'); location.reload(); };
 }
+
+/* ===== Acessibilidade: liga cada rótulo ao seu campo e dá nome aos campos sem rótulo ===== */
+let rotN = 0;
+function ligarRotulos(){
+  $$('main label').forEach(l=>{
+    if(l.htmlFor||l.querySelector('input,select,textarea')) return;
+    let c=l.nextElementSibling; while(c&&!/^(INPUT|SELECT|TEXTAREA)$/.test(c.tagName)){ c=c.nextElementSibling; }
+    if(!c){ const par=l.parentElement; c=par&&par.querySelector('input,select,textarea'); }
+    if(c&&!c.getAttribute('aria-label')){ if(!c.id) c.id='auto'+(++rotN); l.htmlFor=c.id; }
+  });
+  $$('main input,main select,main textarea').forEach(c=>{
+    if(c.type==='hidden'||c.getAttribute('aria-label')||c.getAttribute('aria-labelledby')) return;
+    if(c.closest('label')||(c.id&&$('label[for="'+c.id+'"]'))) return;
+    const lin=c.closest('tr'), nomeLin=lin&&lin.querySelector('b')&&lin.querySelector('b').textContent.trim();
+    const painel=c.closest('.pn'), tit=painel&&painel.querySelector('h2')&&painel.querySelector('h2').textContent.trim();
+    let nome;
+    if(c.type==='checkbox') nome='Marcar como pago'+(nomeLin?': '+nomeLin:'');
+    else if(c.dataset.k) nome='Teto de '+c.dataset.k;
+    else nome=c.placeholder||c.title||(tit?tit+(nomeLin?': '+nomeLin:''):'Campo');
+    c.setAttribute('aria-label',nome);
+  });
+}
+(function(){ let t; new MutationObserver(()=>{ clearTimeout(t); t=setTimeout(ligarRotulos,0); }).observe($('#main'),{childList:true,subtree:true}); })();
 
 /* ===== Navegação ===== */
 let atual = 'hoje';
