@@ -24,6 +24,7 @@ test_ui_casos.js
 !/store.js
 !/sw.js
 !/sync.js
+!/tema.js
 !/tokens.css
 !/test_calc.js
 !/test_store.js

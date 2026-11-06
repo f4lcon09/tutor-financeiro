@@ -1,4 +1,8 @@
-/* brand primary #2DE0C9 */
+/* tokens.css (Fase 1c): cores só por nomes semânticos, uma definição por tema.
+   Escalas de texto, espaço, raio e alvo vieram do tokens.py da design-ui e não mudaram.
+   Temas aprovados em 2026-11-05: cafe (escuro, padrão), ameixa (escuro), nevoa (claro), cha (claro).
+   Regra de lint (testada): nenhum token resolve para #FFF/#FFFFFF/#000/#000000.
+   `attention` está marcado PROPOSTA: valor ainda A Confirmar com o dono. */
 :root {
   color-scheme: light dark;
   --primary-50: #dafef7;
@@ -23,29 +27,6 @@
   --neutral-800: #343938;
   --neutral-900: #202222;
   --neutral-950: #101212;
-  --color-bg: #f6f9f8;
-  --color-surface: #ffffff;
-  --color-border: #e1e6e5;
-  --color-border-strong: #6b7472;
-  --color-text: #202222;
-  --color-text-muted: #6b7472;
-  --color-primary: #007064;
-  --color-primary-hover: #00574d;
-  --color-on-primary: #ffffff;
-  --color-primary-text: #007064;
-  --color-focus-ring: #008b7b;
-  --color-success-fg: #007433;
-  --color-success-bg: #e3fee7;
-  --color-success-border: #87d798;
-  --color-warning-fg: #7a5b00;
-  --color-warning-bg: #fff4de;
-  --color-warning-border: #e4bb61;
-  --color-danger-fg: #9f3a34;
-  --color-danger-bg: #fff2f0;
-  --color-danger-border: #ffa69b;
-  --color-info-fg: #0065a1;
-  --color-info-bg: #edf6ff;
-  --color-info-border: #87c8ff;
   --text-xs: 0.64rem;
   --leading-xs: 1.5;
   --text-sm: 0.8rem;
@@ -87,74 +68,83 @@
   --duration-slow: 320ms;
   --target-min: 2.75rem;
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --color-bg: #101212;
-    --color-surface: #202222;
-    --color-border: #343938;
-    --color-border-strong: #6b7472;
-    --color-text: #f6f9f8;
-    --color-text-muted: #b1bab8;
-    --color-primary: #63d8c5;
-    --color-primary-hover: #97eadb;
-    --color-on-primary: #101212;
-    --color-primary-text: #63d8c5;
-    --color-focus-ring: #63d8c5;
-    --color-success-fg: #ade9b8;
-    --color-success-bg: #152318;
-    --color-success-border: #007433;
-    --color-warning-fg: #f3d392;
-    --color-warning-bg: #261e0e;
-    --color-warning-border: #7a5b00;
-    --color-danger-fg: #ffc8c1;
-    --color-danger-bg: #2c1a17;
-    --color-danger-border: #9f3a34;
-    --color-info-fg: #b5ddff;
-    --color-info-bg: #13212d;
-    --color-info-border: #0065a1;
-  }
-}
-:root[data-theme="dark"] {
-  --color-bg: #101212;
-  --color-surface: #202222;
-  --color-border: #343938;
-  --color-border-strong: #6b7472;
-  --color-text: #f6f9f8;
-  --color-text-muted: #b1bab8;
-  --color-primary: #63d8c5;
-  --color-primary-hover: #97eadb;
-  --color-on-primary: #101212;
-  --color-primary-text: #63d8c5;
-  --color-focus-ring: #63d8c5;
-  --color-success-fg: #ade9b8;
-  --color-success-bg: #152318;
-  --color-success-border: #007433;
-  --color-warning-fg: #f3d392;
-  --color-warning-bg: #261e0e;
-  --color-warning-border: #7a5b00;
-  --color-danger-fg: #ffc8c1;
-  --color-danger-bg: #2c1a17;
-  --color-danger-border: #9f3a34;
-  --color-info-fg: #b5ddff;
-  --color-info-bg: #13212d;
-  --color-info-border: #0065a1;
+
+/* ========== cafe (escuro, padrão) ========== */
+:root, :root[data-theme="cafe"] {
+  color-scheme: dark;
+  --bg: #0F0A07;
+  --card: #1A120C; --card-top: #1A120C; --card-bottom: #1A120C; --card-border: #2C2016;
+  --card-highlight: 0 0 0 0 transparent; --card-shadow: 0 0 0 0 transparent;
+  --nav-top: #1A120C; --nav-bottom: #1A120C;
+  --line: #2C2016;
+  --text: #F7EDE0; --text-muted: #B8A898;
+  --primary: #E9A23B; --on-primary: #1F1300; --primary-tonal: #38270F;
+  --accent-warm: #E0B98A; --accent-cool: #9FBBD6;
+  --ok: #8FD3A0; --risk: #FF9A88;
+  --attention: #C9D26B; /* PROPOSTA, A Confirmar */
+  --bar-from: #C9A57A; --bar-to: #E0B98A;
 }
 
-/* ACENTOS DE AREA: derivados por tokens.py a partir de #9B8CFF, #FF6EB4 e #4CC9FF (texto de cada acento verificado contra a superficie do tema). Acrescentado depois da geracao; nao alterar os valores a mao. */
+/* ========== ameixa (escuro) ========== */
+:root[data-theme="ameixa"] {
+  color-scheme: dark;
+  --bg: #0C050E;
+  --card: #2A1530; --card-top: #2A1530; --card-bottom: #1C0E20; --card-border: #2E1834;
+  --card-highlight: inset 0 1px 0 rgba(255,255,255,.07); --card-shadow: 0 10px 28px rgba(0,0,0,.4);
+  --nav-top: #22112A; --nav-bottom: #170A1B;
+  --line: #35203A;
+  --text: #F8EAF6; --text-muted: #BCA0BC;
+  --primary: #E9A0DA; --on-primary: #2A0A2A; --primary-tonal: #3A1840;
+  --accent-warm: #E8D0A0; --accent-cool: #A8C4E8;
+  --ok: #8FD3A0; --risk: #FF9272;
+  --attention: #E8D65C; /* PROPOSTA, A Confirmar */
+  --bar-from: #B08AB0; --bar-to: #D8B6D8;
+}
+
+/* ========== nevoa (claro) ========== */
+:root[data-theme="nevoa"] {
+  color-scheme: light;
+  --bg: #B4B9D0;
+  --card: #CDD0E2; --card-top: #CDD0E2; --card-bottom: #C4C8DB; --card-border: #A3A9C4;
+  --card-highlight: inset 0 1px 0 rgba(255,255,255,.35); --card-shadow: 0 10px 28px rgba(35,45,105,.16);
+  --nav-top: #C8CCDF; --nav-bottom: #C4C8DB;
+  --line: #A3A9C4;
+  --text: #141A36; --text-muted: #3C446B;
+  --primary: #33428F; --on-primary: #F1F4F8; --primary-tonal: #BCC3E6;
+  --accent-warm: #68420A; --accent-cool: #33428F;
+  --ok: #0C4F2B; --risk: #8C1A14;
+  --attention: #544400; /* PROPOSTA, A Confirmar */
+  --bar-from: #445296; --bar-to: #5967A8;
+}
+
+/* ========== cha (claro) ========== */
+:root[data-theme="cha"] {
+  color-scheme: light;
+  --bg: #B5C7B5;
+  --card: #CCDBCC; --card-top: #CCDBCC; --card-bottom: #C3D3C3; --card-border: #A3B7A3;
+  --card-highlight: inset 0 1px 0 rgba(255,255,255,.35); --card-shadow: 0 10px 28px rgba(30,75,40,.15);
+  --nav-top: #CCDBCC; --nav-bottom: #C3D3C3;
+  --line: #A3B7A3;
+  --text: #122619; --text-muted: #35523C;
+  --primary: #175831; --on-primary: #F1F4F8; --primary-tonal: #B6D0BB;
+  --accent-warm: #6E460B; --accent-cool: #1A4580;
+  --ok: #0C4F2B; --risk: #8C1A14;
+  --attention: #5A4500; /* PROPOSTA, A Confirmar */
+  --bar-from: #38644A; --bar-to: #4C7A5B;
+}
+
+/* ========== derivados (iguais em todos os temas, calculados dos tokens acima) ========== */
 :root {
-  --accent-vio: #5e4eae;
-  --accent-pink: #c43981;
-  --accent-sky: #006a8d;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --accent-vio: #bdb7ff;
-    --accent-pink: #ff9ec8;
-    --accent-sky: #75cdf8;
-  }
-}
-:root[data-theme="dark"] {
-  --accent-vio: #bdb7ff;
-  --accent-pink: #ff9ec8;
-  --accent-sky: #75cdf8;
+  --surface-2: color-mix(in srgb, var(--card) 88%, var(--text) 12%);
+  --line-strong: color-mix(in srgb, var(--line) 30%, var(--text-muted));
+  --ok-bg: color-mix(in srgb, var(--ok) 16%, var(--card));
+  --attention-bg: color-mix(in srgb, var(--attention) 16%, var(--card));
+  --risk-bg: color-mix(in srgb, var(--risk) 16%, var(--card));
+  --accent-mix: color-mix(in srgb, var(--accent-cool) 55%, var(--accent-warm));
+  --shadow-pop: 0 8px 24px rgba(0,0,0,.45);
+  /* amostras do seletor de tema: cada linha mostra as cores do próprio tema, não do tema ativo */
+  --sw-cafe-bg: #0F0A07; --sw-cafe-primary: #E9A23B;
+  --sw-ameixa-bg: #0C050E; --sw-ameixa-primary: #E9A0DA;
+  --sw-nevoa-bg: #B4B9D0; --sw-nevoa-primary: #33428F;
+  --sw-cha-bg: #B5C7B5; --sw-cha-primary: #175831;
 }
