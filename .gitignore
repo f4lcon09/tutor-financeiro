@@ -39,5 +39,6 @@ test_ui_casos.js
 !/test_ui_retorno.js
 !/test_ui_aria.js
 !/test_ui_mes.js
+!/test_ui_iphone.js
 !/app.js
 !/seguranca.js
