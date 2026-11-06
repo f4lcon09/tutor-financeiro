@@ -122,5 +122,49 @@ const barra = (A, id, v) => { const s = A.$(id); s.value = v; s.dispatchEvent(ne
     pc.click('#cmp'); await tick(10);
     t('comparar todos continua no PC', /Todos os cenários/.test(pc.texto()) && !pc.$('.pv-svg'));
   }
+  /* Hoje: mesmo gráfico, versão compacta */
+  {
+    const A = await abrir(FX(), larg); await A.ir('hoje'); await tick(10);
+    A.$$('main details.det').forEach(d => { d.open = true; }); await tick(10);
+    const area = A.$('#hj_area'), panel = area.closest('.pn');
+    t('Hoje: usa o gráfico novo', !!A.$('#hj_area .pv-svg') && A.$$('main svg[data-ch]').length === 1);
+    t('Hoje: nada do desenho antigo', !A.$('main .lc') && !panel.querySelector('.legend'));
+    t('Hoje: mantém o título', panel.querySelector('h2').textContent === 'Saldo previsto (cenário Base)');
+    t('Hoje: sem cabeçalho novo e sem controle de cenário', !A.$('#pv_cab') && !A.$('#pv_modo') && !A.$('.pv-seg'));
+    t('Hoje: só Base', A.$$('#hj_area .pv-base').length === 1 && !A.$('#hj_area .pv-cen') && !A.$('#hj_area .pv-area'));
+    t('Hoje: quatro meses', A.$$('#hj_area .pv-mes').length === 4);
+    t('Hoje: resumo em texto, sem falar de setas', area.getAttribute('role') === 'img' && /Mês mais apertado/.test(area.getAttribute('aria-label')) && !/setas/.test(area.getAttribute('aria-label')));
+    t('Hoje: não entra na ordem de foco', !area.hasAttribute('tabindex'));
+    t('Hoje: valores com ~', /~R\$/.test(A.$('#hj_area svg').textContent));
+    t('Hoje: nota do ~', /~ = projeção/.test(panel.textContent));
+    t('Hoje: sem cor literal', !/#[0-9a-fA-F]{3,8}\b|rgba?\(|hsl\(/.test(A.$('#hj_area svg').outerHTML));
+    A.click('#hj_tab'); await tick(5);
+    t('Hoje: Ver em tabela abre a tabela', !!A.$('#hj_tabela table') && A.$('#hj_area').hidden === true && A.$('#hj_tab').textContent === 'Ver gráfico' && A.$('#hj_tab').getAttribute('aria-pressed') === 'true');
+    t('Hoje: tabela com os quatro meses e ~', A.$$('#hj_tabela tr').length === 5 && /~R\$/.test(A.$('#hj_tabela').textContent));
+    A.click('#hj_tab'); await tick(5);
+    t('Hoje: volta para o gráfico', !A.$('#hj_tabela table') && A.$('#hj_area').hidden === false && A.$('#hj_tab').textContent === 'Ver em tabela');
+    A.w.eval('PRIV=true'); await A.ir('hoje'); await tick(10); A.$$('main details.det').forEach(d => { d.open = true; }); await tick(10);
+    t('Hoje, olho fechado: resumo sem valores', !/R\$\s*\d/.test(A.$('#hj_area').getAttribute('aria-label')));
+    t('Hoje, olho fechado: gráfico sem valores', !/R\$\s*\d|\d{3,}/.test([...A.$$('#hj_area svg text')].filter(x => !x.classList.contains('pv-mes')).map(x => x.textContent).join(' ')));
+    A.w.eval('PRIV=false');
+    const pc = await abrir(FX(), { largura: 1280 }); await pc.ir('hoje'); await tick(10);
+    t('Hoje no PC: mesmo gráfico', !!pc.$('#hj_area .pv-svg') && !pc.$('main .lc'));
+    const sv = pc.$('#hj_area svg'), W = pc.w.eval('hjUlt.m.W'); sv.getBoundingClientRect = () => ({ left: 0, top: 0, right: W, bottom: 264, width: W, height: 264 });
+    sv.dispatchEvent(new pc.w.MouseEvent('mousemove', { bubbles: true, clientX: W / 2, clientY: 50 }));
+    t('Hoje no PC: a dica mostra ~', /~R\$/.test(pc.d.querySelector('.tip').textContent));
+    const neg = await abrir(FX(), larg); neg.w.eval("DEMO.cenarios['Base']=[-6000,2000,9000,16000,18000,20000,22000,24000,26000,28000,30000,32000]; DEMO.asOf=null"); await neg.ir('hoje'); await tick(10);
+    t('Hoje: saldo negativo fica dentro do eixo', neg.w.eval('hjUlt.m.E.lo<=-6000') && neg.w.eval('hjUlt.m.pb[0].y<=hjUlt.m.P.b'));
+    t('Hoje: linha do zero aparece com negativo', !!neg.$('#hj_area line.zero') && [...neg.$$('#hj_area .pv-eixo')].some(x => /^\u2212/.test(x.textContent)));
+  }
+  /* Futuro simples: mesma versão compacta, sete meses */
+  {
+    const r = JSON.parse(JSON.stringify(FICTICIO)); r._meta.as_of = mes + '-01'; r._inicio = true;
+    const A = await abrir({ tf_modo: 'real', tf_real: r }, larg); await A.ir('futuro'); await tick(10);
+    if (A.$('#hj_area')) {
+      t('Futuro simples: usa o gráfico novo', !!A.$('#hj_area .pv-svg') && !A.$('main .lc'));
+      t('Futuro simples: sete meses, como o valor do topo', A.$$('#hj_area .pv-mes').length === 7);
+      t('Futuro simples: Ver em tabela', !!A.$('#hj_tab'));
+    } else t('Futuro simples: tela com o gráfico', false);
+  }
   process.exit(fim());
 })().catch(e => { console.log('ERRO NO TESTE:', e); process.exit(2); });

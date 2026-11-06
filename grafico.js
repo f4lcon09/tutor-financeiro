@@ -60,7 +60,7 @@
   function iconeChip(cls, classe) { return '<svg class="' + (classe || 'pv-ic') + '" viewBox="-8 -8 16 16"' + (classe ? '' : ' width="16" height="16"') + ' aria-hidden="true">' + (cls === 'at' ? '' : ARO) + (TRACO[cls] || '') + '</svg>'; }
 
   /* janela de decisão: mês atual e os 3 seguintes */
-  function janela(meses, ini) { var n = Math.min(4, meses.length), i = Math.max(0, Math.min(ini || 0, meses.length - n)); return { ini: i, n: n }; }
+  function janela(meses, ini, qtd) { var n = Math.min(qtd || 4, meses.length), i = Math.max(0, Math.min(ini || 0, meses.length - n)); return { ini: i, n: n }; }
 
   function menor(vals) { var m = 0; vals.forEach(function (v, i) { if (v < vals[m]) m = i; }); return m; }
 
@@ -216,9 +216,9 @@
     var b = baseJan[i], c = m.pc ? m.pc[i].v : null;
     return { mes: m.meses[i], base: b, cenario: c, dif: c == null ? null : c - b, estado: estado(c == null ? b : c, m.meta, m.piso, m.alerta, m.fmt.fixo) };
   }
-  function resumo(m) {
+  function resumo(m, estatico) {   // estatico: gráfico sem escolha de mês, então não fala das setas
     var a = m.pa, p = a[m.li], t = 'Previsão do saldo de ' + m.meses[0] + ' a ' + m.meses[m.meses.length - 1] + (m.tem ? ', com a simulação' : '') + '. Mês mais apertado: ' + m.meses[m.li] + ', ' + m.fmt.valor(p.v) + '. ';
-    return t + (m.est ? m.est.texto + '. ' : '') + 'Fim de ' + m.meses[m.meses.length - 1] + ': ' + m.fmt.valor(a[a.length - 1].v) + '. Use as setas para ver cada mês.';
+    return t + (m.est ? m.est.texto + '. ' : '') + 'Fim de ' + m.meses[m.meses.length - 1] + ': ' + m.fmt.valor(a[a.length - 1].v) + '.' + (estatico ? '' : ' Use as setas para ver cada mês.');
   }
   var api = { escala: escala, fmtEixo: fmtEixo, estado: estado, janela: janela, montar: montar, svgDe: svgDe, marcos: marcos, leitura: leitura, resumo: resumo, iconeChip: iconeChip, sobre: sobre, cruza: cruza, PX: PX };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TFGrafico = api;

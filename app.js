@@ -195,6 +195,7 @@ function ajustarGraficos(){
   $$('svg[data-ch]').forEach(sv=>{ const c=CHARTS[sv.dataset.ch], w=Math.round(sv.getBoundingClientRect().width), lc=sv.closest('.lc'); if(!c||!w||!lc||Math.abs(w-c.W)<=3) return;
     const [lb,se,rf,h,W,o]=c.args, t=document.createElement('div'); t.innerHTML=lineChart(lb,se,rf,h,w,{...o,exact:true}); lc.replaceWith(t.firstChild); });
   const pa=document.querySelector('#pv_area'); if(pa&&pvUlt&&pa.clientWidth&&Math.abs(pa.clientWidth-pvUlt.m.W)>3) pvDesenha();
+  const ha=document.querySelector('#hj_area'); if(ha&&hjUlt&&ha.clientWidth&&Math.abs(ha.clientWidth-hjUlt.m.W)>3) hjDesenha();
 }
 function ring(pct,color,label,sub,size=150){
   const r=size/2-12, c=2*Math.PI*r, off=c*(1-Math.min(Math.max(pct,0),1));
@@ -258,7 +259,7 @@ T.hoje = () => {
   const pLazer = pn('Lazer restante'+info('Teto de lazer do mês menos o que você já gastou em lançamentos marcados como lazer.'),`<div class="big">${brl0(Math.max(restante,0))}</div><div class="bar" style="--h:${COR[lzCls]}"><span style="width:${Math.min(pct,1)*100}%"></span></div><div class="mu small">gasto ${brl0(gasto)} de ${brl0(d.tetoLazer)}</div>`,'pink');
   const pJan = pn('Saldo em janeiro',`<div class="big">${brl0(jan)}</div><div class="mu small">meta ${brl0(d.meta)}</div><span class="tag ${cls}" style="margin-top:6px">${icn} ${txt}</span>`,'sky');
   const pFaixa = pn('Faixa do mês'+info('Um quadrado por dia. Quanto mais forte o rosa, mais você gastou naquele dia. O ponto violeta marca conta que vence.'),`<div class="strip" style="grid-template-columns:repeat(${diasMes},1fr)">${faixa}</div><div class="legend"><span><i style="background:var(--pink)"></i>dia com gasto (quanto mais forte, mais gasto)</span><span><i style="background:var(--vio);height:7px;width:7px;border-radius:50%"></i>conta vence</span><span><i style="background:transparent;border:1px dashed var(--ln2);height:9px;width:14px"></i>dias que vêm</span><span>clique num dia para ver o que houve</span></div><div id="diadet" style="margin-top:14px"></div>`,'pink','margin-bottom:14px',hoje.toLocaleDateString('pt-BR',{month:'long'}));
-  const pGraf = pn('Saldo previsto (cenário Base)',lineChart(d.meses,[{name:'Base',values:base,c:'var(--sky)',area:true,w:3}],[{v:d.meta,t:'Meta (17/01)',c:'var(--ok)'},{v:d.piso,t:'Piso (17/01)',c:'var(--at)'},{v:d.alerta,t:'Alerta (fim de dez)',c:'var(--ru)'}],250,CW(.66),{zones:zonesFut()}),'sky');
+  const pGraf = pn('Saldo previsto (cenário Base)',hjHtml(),'sky');
   const pProxF = prox => pn('Próximas contas',prox.length?`<table>${prox.map(a=>`<tr><td><b>${esc(a.nome)}</b><div class="mu small">${a.dias<0?'venceu há '+(-a.dias)+' dias':a.dias===0?'vence hoje':'em '+a.dias+' dias, dia '+a.dia}</div></td><td class="n">${brl0(a.valor)}</td></tr>`).join('')}</table>`:'<div class="mu">Tudo pago neste mês.</div>','vio');
   const pPerc = pn('O que eu percebi',`
       ${semLim?'':`<div class="ins"><div class="d ${c1cls}">${ST[c1cls][0]}</div><div><b>Você usa ${pc(c1.utilizacao,0)} do limite do cartão</b><div class="mu small">${c1.utilizacao>.3?'O ideal é até 30% ('+brl0(c1.limiteSaudavel)+'). Reduzir o uso ajuda no score de crédito.':'Uso dentro do ideal.'}</div></div></div>`}
@@ -872,6 +873,7 @@ function bindHoje(){
   $$('#main .strip .c').forEach(c=>c.onclick=()=>diaDetalhe(+c.dataset.d));
   $$('#main [data-ir]').forEach(b=>b.onclick=()=>ir(b.dataset.ir));
   diaDetalhe(diaHoje);
+  hjLiga();
 }
 function detalheOrc(rows){
   const lz=orcSel==='Lazer', es=gastosMes().filter(l=>lz?l.lazer:(!l.lazer&&l.cat===orcSel)).sort((a,b)=>b.data.localeCompare(a.data));
@@ -884,7 +886,7 @@ const pvFamilia=()=>getComputedStyle(document.documentElement).getPropertyValue(
 const pvMede=(t,px,peso)=>{ if(!pvTinta||!pvTinta.measureText) return 0; pvTinta.font=peso+' '+px+'px '+pvFamilia(); return pvTinta.measureText(t).width; };
 if(document.fonts&&document.fonts.load){   // o gráfico mede o texto real, então só desenha com a fonte pronta (ou depois de 1,5 s, para nunca ficar vazio)
   pvFontes=false; const carrega=Promise.all([400,600].map(p=>document.fonts.load(p+' 13px '+pvFamilia())));
-  Promise.race([carrega,new Promise(r=>setTimeout(r,1500))]).catch(()=>{}).then(()=>{ pvFontes=true; pvDesenha(); });
+  Promise.race([carrega,new Promise(r=>setTimeout(r,1500))]).catch(()=>{}).then(()=>{ pvFontes=true; pvDesenha(); hjDesenha(); });
 }
 const pvNum=v=>Math.round(Math.abs(v)).toLocaleString('pt-BR');
 const pvValor=v=>PRIV?MASK:'~R$ '+(v<0?'−':'')+pvNum(v);
@@ -950,6 +952,27 @@ function pvBind(){
     else if(e.key==='Escape'&&pvSel!=null){ pvSel=null; pvDesenha(); const vv=$('#pv_vivo'); if(vv) vv.textContent=''; } };
 }
 document.addEventListener('pointerdown',e=>{ if(pvSel==null||!e.target.closest||e.target.closest('#pv_area')) return; pvSel=null; pvDesenha(); const vv=$('#pv_vivo'); if(vv) vv.textContent=''; });
+/* --- Versão compacta do mesmo gráfico: só Base, sem cabeçalho nem escolha de mês. A leitura mês a mês fica na tabela e, no PC, na dica. --- */
+let hjTabela=false, hjUlt=null;
+function hjMonta(area){
+  const d=DEMO, qtd=+area.dataset.n||4, j=TFGrafico.janela(d.meses,qtd>4?0:pvInicio(d),qtd), corta=a=>a.slice(j.ini,j.ini+j.n), base=corta(d.cenarios['Base']);
+  const W=Math.max(area.clientWidth||(MOB()?CW(1):CW(.66)),240);
+  return {base,m:TFGrafico.montar({meses:corta(d.meses),base,cenario:null,meta:d.meta,piso:d.piso,alerta:d.alerta,W,H:MOB()?220:264,mede:pvMede,fmt:{valor:pvValor,fixo:pvFixo,curto:pvCurto}})};
+}
+function hjDesenha(){
+  const area=$('#hj_area'); if(!area||!pvFontes) return;
+  const x=hjMonta(area), m=x.m; hjUlt=x;
+  area.setAttribute('aria-label',TFGrafico.resumo(m,true));
+  area.innerHTML=TFGrafico.svgDe(m,{id:'hjch',priv:PRIV});
+  CHARTS.hjch={labels:m.meses,series:[{name:'Base',values:x.base,c:'var(--mu)',fmt:pvValor}],W:m.W,L:m.P.l,R:m.W-m.P.r,args:[]};
+  const tb=$('#hj_tabela'), bt=$('#hj_tab');
+  area.hidden=hjTabela; tb.hidden=!hjTabela; tb.innerHTML=hjTabela?pvTabelaHtml(x):''; bt.textContent=hjTabela?'Ver gráfico':'Ver em tabela'; bt.setAttribute('aria-pressed',String(hjTabela));
+}
+function hjHtml(qtd){
+  return `<div id="hj_area" class="pv-grafico"${qtd?` data-n="${qtd}"`:''} role="img"></div><div id="hj_tabela" hidden></div>
+    <div class="pv-pe"><button type="button" class="btn ghost pv-tab" id="hj_tab" aria-pressed="false">Ver em tabela</button><span class="pv-nota">~ = projeção com base no que você lançou.</span></div>`;
+}
+function hjLiga(){ const bt=$('#hj_tab'); if(!bt) return; bt.onclick=()=>{ hjTabela=!hjTabela; hjDesenha(); }; hjDesenha(); }
 function simHtml(){
   const d=DEMO;
   return `<div class="grid g3">
@@ -998,7 +1021,7 @@ document.addEventListener('mousemove',e=>{
   const i=Math.max(0,Math.min(n-1,Math.round((vx-c.L)/(c.W-c.L-c.R)*(n-1)))), px=c.L+(c.W-c.L-c.R)*i/(n-1);
   const vh=sv.viewBox.baseVal.height;
   const ln=document.createElementNS('http://www.w3.org/2000/svg','line'); ln.setAttribute('class','hv'); ln.setAttribute('x1',px); ln.setAttribute('x2',px); ln.setAttribute('y1',10); ln.setAttribute('y2',vh-34); ln.setAttribute('stroke','var(--mu)'); ln.setAttribute('stroke-dasharray','3 4'); sv.appendChild(ln);
-  tip.innerHTML='<b>'+esc(c.labels[i])+'</b>'+c.series.filter(s=>s.name).map(s=>`<div><i style="background:${s.c}"></i>${esc(s.name)}: <span style="font-family:var(--fn)">${brl0(s.values[i])}</span></div>`).join('');
+  tip.innerHTML='<b>'+esc(c.labels[i])+'</b>'+c.series.filter(s=>s.name).map(s=>`<div><i style="background:${s.c}"></i>${esc(s.name)}: <span style="font-family:var(--fn)">${(s.fmt||brl0)(s.values[i])}</span></div>`).join('');
   tip.style.display='block'; tip.style.left=Math.min(e.clientX+16,window.innerWidth-220)+'px'; tip.style.top=(e.clientY+16)+'px';
 });
 
@@ -1205,7 +1228,7 @@ function telaVazia(k){
     cartao:['Cartão','vio','Com o limite e a fatura, o app mostra quanto do limite você usa, quando a fatura fecha e o melhor dia de comprar.',num('lim','Limite do cartão (R$)')+num('fat','Fatura atual (R$)')+num('fec','Dia de fechamento','min="1" max="28" step="1"')+num('ven','Dia de vencimento','min="1" max="28" step="1"')+salvar('Salvar cartão')],
     agenda:['Agenda','vio','Com as contas e os vencimentos, o app lembra o que vence e mostra se o caixa cobre. Cadastre uma de cada vez.',`<div class="field"><label for="vz_nome">Nome da conta</label><input id="vz_nome" type="text" maxlength="60" placeholder="Ex.: internet"></div>`+num('val','Valor (R$)')+num('dia','Dia de vencimento','min="1" max="28" step="1"')+salvar('Salvar conta')],
     orcamento:['Orçamento','pink','Com um teto por área, o app mostra quanto ainda dá para gastar em cada uma. Preencha só as que quiser.',Object.keys({Mercado:1,Transporte:1,Estudos:1,'Saúde':1,Outros:1}).map(c=>`<div class="field"><label for="vz_t_${c}">${c} (R$ por mês)</label><input id="vz_t_${c}" data-cat="${c}" type="number" inputmode="decimal" step="10" min="0"></div>`).join('')+salvar('Salvar tetos')],
-    futuro:['Futuro','sky','Com a renda e os gastos fixos que você informou, esta é uma previsão simples do saldo. Com cartão e contas, ela fica mais completa.',(()=>{ const d=DEMO, b=d.cenarios['Base'].slice(0,7); return `<div class="mid">${aprox(b[b.length-1])}</div><div class="mu small">saldo previsto em ${d.meses[6]}</div>${lineChart(d.meses.slice(0,7),[{name:'Saldo previsto',values:b,c:'var(--sky)',area:true,w:3}],[],220,CW(1))}<div class="disc">Previsão com os números que você informou. Não é promessa.</div>`; })()],
+    futuro:['Futuro','sky','Com a renda e os gastos fixos que você informou, esta é uma previsão simples do saldo. Com cartão e contas, ela fica mais completa.',(()=>{ const d=DEMO, b=d.cenarios['Base'].slice(0,7); return `<div class="mid">${aprox(b[b.length-1])}</div><div class="mu small">saldo previsto em ${d.meses[6]}</div>${hjHtml(7)}<div class="disc">Previsão com os números que você informou. Não é promessa.</div>`; })()],
     saude:['Patrimônio','sky','Com investimentos e dívidas, o app mostra o que você tem em comparação com o que deve.','<div class="mu small">Ainda não dá para cadastrar isso aqui.</div>']
   }[k];
   return `<div class="head"><div><h1>${t[0]}</h1></div></div>${pn('O que você ganha',`<div class="small" style="margin-bottom:12px">${t[2]}</div>${t[3]}${pular}`,t[1])}`;
@@ -1329,7 +1352,7 @@ function ir(k){
   const ia=$('#inst_ab'); if(ia) ia.onclick=()=>ir('instalar');
   if(!MODO){ $('#main').innerHTML=telaImportar(); bindImportar(); return; }
   const scroll=window.scrollY;
-  if(telaVaziaDe(k)){ $('#main').innerHTML=telaVazia(k); fecharMais(); bindVazia(k); window.scrollTo(0,0); return; }
+  if(telaVaziaDe(k)){ $('#main').innerHTML=telaVazia(k); fecharMais(); bindVazia(k); hjLiga(); window.scrollTo(0,0); return; }
   $('#main').innerHTML=T[k](); fecharMais();
   if(k==='instalar') bindInstalar();
   if(k==='hoje'){ if(SIMPLES()) bindHojeSimples(); else bindHoje(); }

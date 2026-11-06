@@ -56,6 +56,7 @@ const monta = (nome, W, meses) => { const x = FIX[nome], n = (meses || M4).lengt
 t('janela: quatro meses', G.janela(['a', 'b', 'c', 'd', 'e', 'f'], 1).n === 4 && G.janela(['a', 'b', 'c', 'd', 'e', 'f'], 1).ini === 1);
 t('janela: não passa do fim', G.janela(['a', 'b', 'c', 'd', 'e', 'f'], 5).ini === 2);
 t('janela: menos de quatro meses', G.janela(['a', 'b'], 0).n === 2);
+t('janela: pode pedir outra quantidade', G.janela(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'], 0, 7).n === 7);
 
 /* colisão, nas larguras reais de 360 e 390 px */
 const OMITE = { 'faixa estreita': ['meta', 'piso'], 'linhas cruzadas': ['alerta'] };   // divisórias a 6 px, ou linhas de dados por toda a faixa: não há onde pôr texto sem cruzar linha
@@ -158,6 +159,22 @@ for (const k of [1, 2, 3]) {
   const u = monta('subindo', 328), l2 = G.leitura(u, 0, FIX.subindo.base);
   t('leitura: sem cenário', l2.cenario === null && l2.dif === null);
   t('resumo: fala o mês mais apertado', /Mês mais apertado: jan\/27/.test(G.resumo(m)) && /~/.test(G.resumo(m)));
+  t('resumo sem escolha de mês não fala das setas', !/setas/.test(G.resumo(m, true)) && /Mês mais apertado/.test(G.resumo(m, true)) && /setas/.test(G.resumo(m)));
+}
+/* versão compacta (Hoje): só Base, altura 220, ponto mais baixo em qualquer mês */
+{
+  const fmtC = { valor: v => '~R$ ' + (v < 0 ? '−' : '') + Math.round(Math.abs(v)), fixo: v => 'R$ ' + Math.round(v), curto: v => String(Math.round(Math.abs(v))) };
+  const CASOS = { a: [3000, 2500, 1500, [400, 1300, 2700, 3500]], b: [15000, 8000, 3000, [-6000, 2000, 9000, 16000]], c: [3000, 2500, 1500, [5200, 5400, 5600, 5800]], d: [3000, 2500, 1500, [1800, -350, 900, 2900]], e: [9000, 6000, 2000, [7000, 5200, 1100, 4300]] };
+  for (const W of [298, 328, 360]) for (const k of Object.keys(CASOS)) {
+    const [meta, piso, alerta, base] = CASOS[k], m = G.montar({ meses: ['nov/26', 'dez/26', 'jan/27', 'fev/27'], base, cenario: null, meta, piso, alerta, W, H: 220, fmt: fmtC });
+    const cx = [m.fim, m.baixo && m.baixo.ic, m.baixo && m.baixo.pill].concat(m.refs.map(r => r.caixa));
+    t('compacto ' + k + ' ' + W + ': nada omitido', cx.every(Boolean) && !m.omitidos.length);
+    t('compacto ' + k + ' ' + W + ': caixas não se tocam', cx.every((a, i) => cx.slice(i + 1).every(b => !G.sobre(a, b))));
+    t('compacto ' + k + ' ' + W + ': caixas não cruzam a linha', cx.every(c => !m.segs.some(s => G.cruza(s, c))));
+    t('compacto ' + k + ' ' + W + ': só Base', !m.pc && !m.tem && !/pv-cen|pv-area/.test(G.svgDe(m, { id: 'hj' })));
+    const y = m.y; t('compacto ' + k + ' ' + W + ': o valor mais baixo fica dentro do eixo', base.every(v => y(v) >= m.P.t && y(v) <= m.P.b));
+    if (Math.min(...base) < 0) t('compacto ' + k + ' ' + W + ': eixo mostra o negativo', m.E.lo < Math.min(...base) + 1 && m.E.ticks.some(v => v < 0));
+  }
 }
 console.log(f ? f + ' falha(s) de ' + (ok + f) : 'Todos os ' + ok + ' testes do gráfico de previsão passaram.');
 process.exit(f ? 1 : 0);
