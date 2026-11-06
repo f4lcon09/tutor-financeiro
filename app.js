@@ -888,7 +888,7 @@ function pvInicio(d){ if(!d.asOf) return 0; const a=d.asOf.split('-'); return Ma
 function pvMonta(){
   const d=DEMO, v=d.cenarios[cenSel], adj=pvAplicado(v), mudou=adj.some((x,i)=>x!==v[i]), se=pvModo==='se'&&mudou, j=TFGrafico.janela(d.meses,pvInicio(d)), corta=a=>a.slice(j.ini,j.ini+j.n), el=$('#pv_area');
   const W=Math.max((el&&el.clientWidth)||(MOB()?CW(1):CW(.66)),240), base=corta(v);
-  return {d,v,adj,j,se,mudou,base,m:TFGrafico.montar({meses:corta(d.meses),base,cenario:se?corta(adj):null,meta:d.meta,piso:d.piso,alerta:d.alerta,W,H:MOB()?256:300,fmt:{valor:pvValor,fixo:pvFixo,curto:pvCurto}})};
+  return {d,v,adj,j,se,mudou,base,m:TFGrafico.montar({meses:corta(d.meses),base,cenario:se?corta(adj):null,meta:d.meta,piso:d.piso,alerta:d.alerta,W,H:MOB()?264:308,fmt:{valor:pvValor,fixo:pvFixo,curto:pvCurto}})};
 }
 const pvChip=e=>e?`<span class="tag ${e.cls}">${TFGrafico.iconeChip(e.cls)}${esc(e.texto)}</span>`:'';
 function pvCabecalho(x){

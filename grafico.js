@@ -4,7 +4,7 @@
   var Seg = (typeof require === 'function' && typeof module !== 'undefined') ? require('./seguranca.js') : root.TFSeg;
   var esc = Seg.esc;
   var PX = { valor: 13, rotulo: 12, eixo: 12 };                 // no máximo três tamanhos, nunca abaixo de 12
-  var M = { l: 42, r: 16, t: 8, b: 26 };
+  var M = { l: 42, r: 16, t: 8, b: 34 };   // embaixo cabem meia marca do eixo e a linha dos meses, sem se tocarem
   var PASSOS = [500, 1000, 2000, 2500, 5000];
   var LIMITE = { dx: 2, dy: 2 };                                 // nada encosta na borda da área do gráfico
 
@@ -79,7 +79,7 @@
     return m;
   }
   function desenho(o, E) {
-    var W = o.W, H = o.H || 256, n = o.meses.length, ativa = o.cenario || o.base, tem = !!o.cenario;
+    var W = o.W, H = o.H || 264, n = o.meses.length, ativa = o.cenario || o.base, tem = !!o.cenario;
     var P = { l: M.l, r: W - M.r, t: M.t, b: H - M.b };
     var y = function (v) { return P.b - (v - E.lo) / (E.hi - E.lo) * (P.b - P.t); };
     var x = function (i) { return n < 2 ? (P.l + P.r) / 2 : P.l + (P.r - P.l) * i / (n - 1); };
@@ -144,7 +144,8 @@
       return lugares.some(function (l) { var c = { x: l.x, y: l.y, w: wf, h: ALT, tipo: 'pilula' }; if (livre(c, 2) && (!cuidaLinha || semLinha(c))) { fim = c; return true; } return false; });
     });
     if (fim) { fim.texto = tf; caixas.push(fim); }
-    return { W: W, H: H, P: P, E: E, y: y, x: x, horizontais: horizontais, eixo: eixo, pb: pb, pc: pc, pa: pa, tem: tem, meses: o.meses, fim: fim, baixo: baixo, li: li, refs: refs, omitidos: omitidos, caixas: caixas, segs: segs, est: est, meta: o.meta, piso: o.piso, alerta: o.alerta, fmt: o.fmt };
+    var mesesCx = o.meses.map(function (lb, i) { var w = largura(lb, PX.eixo), ultimo = i === n - 1 && n > 1; return { x: ultimo ? W - 2 - w : x(i) - w / 2, y: H - 19, w: w, h: 14 }; });
+    return { W: W, H: H, P: P, E: E, y: y, x: x, horizontais: horizontais, eixo: eixo, mesesCx: mesesCx, pb: pb, pc: pc, pa: pa, tem: tem, meses: o.meses, fim: fim, baixo: baixo, li: li, refs: refs, omitidos: omitidos, caixas: caixas, segs: segs, est: est, meta: o.meta, piso: o.piso, alerta: o.alerta, fmt: o.fmt };
   }
 
   var forma = function (tipo, x, y) {

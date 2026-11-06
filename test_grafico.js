@@ -24,7 +24,7 @@ const FIX = {
   'queda forte no fim': { base: [4000, 3900, 3800, 3700], cenario: [4000, 3900, 3800, -2500] },
   'sem meta': { base: [1000, 1200, 1400, 1600], R: { meta: 0, piso: 0, alerta: 0 } }
 };
-const monta = (nome, W, meses) => { const x = FIX[nome], n = (meses || M4).length, r = x.R || R; return G.montar({ meses: (meses || M4), base: x.base.slice(0, n), cenario: x.cenario ? x.cenario.slice(0, n) : null, ...r, W, H: 256, fmt }); };
+const monta = (nome, W, meses) => { const x = FIX[nome], n = (meses || M4).length, r = x.R || R; return G.montar({ meses: (meses || M4), base: x.base.slice(0, n), cenario: x.cenario ? x.cenario.slice(0, n) : null, ...r, W, H: 264, fmt }); };
 
 /* escala */
 {
@@ -80,6 +80,7 @@ for (const [W, rot] of [[300, 360], [330, 390], [640, 'pc']]) {
     t(tag + ': texto de rótulo não atravessa divisória', rotLinha === 0);
     t(tag + ': etiqueta do fim existe', !!m.fim);
     t(tag + ': ícone e etiqueta do mínimo existem', !!m.baixo && m.baixo.pill.w > 0);
+    t(tag + ': rótulos do eixo longe dos meses', m.eixo.every(a => m.mesesCx.every(b => !G.sobre(a, b, 2))));
     t(tag + ': rótulos do eixo não se tocam', m.eixo.every((a, i) => m.eixo.slice(i + 1).every(b => !G.sobre(a, b))));
     t(tag + ': só some o rótulo que não cabe entre as linhas', m.omitidos.every(o => (OMITE[nome] || []).includes(o)));
     t(tag + ': no máximo 5 rótulos no eixo', m.E.ticks.length <= 5);
@@ -103,10 +104,10 @@ for (const W of [300, 330]) {
   t('mínimo no último mês: etiqueta do lado com espaço em ' + W, u.baixo.ic.x + u.baixo.ic.w <= u.P.r - 2 && u.baixo.pill.x < u.baixo.ic.x);
 }
 {
-  const c = G.montar({ meses: M4, base: [900, 1000, 1100, 1200], cenario: null, meta: 1250, piso: 1200, alerta: 1150, W: 300, H: 256, fmt });
+  const c = G.montar({ meses: M4, base: [900, 1000, 1100, 1200], cenario: null, meta: 1250, piso: 1200, alerta: 1150, W: 300, H: 264, fmt });
   t('divisórias coladas: nenhum texto atravessa linha, mesmo sem caber', c.caixas.filter(x => x.tipo === 'rotulo').every(a => !c.horizontais.some(l => G.cruza(l, a))));
   t('divisórias coladas: o que não cabe fica registrado', c.refs.filter(r => !r.caixa).length === c.omitidos.length);
-  const s = G.montar({ meses: M4, base: [2600, 2700, 2800, 2900], cenario: null, meta: 3000, piso: 1600, alerta: 300, W: 300, H: 256, fmt });
+  const s = G.montar({ meses: M4, base: [2600, 2700, 2800, 2900], cenario: null, meta: 3000, piso: 1600, alerta: 300, W: 300, H: 264, fmt });
   t('alerta perto do zero nunca fica sobre o zero', !s.horizontais.some(l => l.tipo === 'zero' && G.cruza(l, s.refs.find(r => r.tipo === 'alerta').caixa)));
 }
 
