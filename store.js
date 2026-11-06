@@ -66,11 +66,13 @@
   var FORMAS_TXT = [['Crédito', /\b(cr[eé]dito|cart[aã]o)\b/i], ['Débito', /\bd[eé]bito\b/i], ['Dinheiro', /\b(dinheiro|esp[eé]cie)\b/i], ['Pix', /\bpix\b/i]];
   function somarDias(iso, n) { var p = iso.split('-').map(Number), d = new Date(Date.UTC(p[0], p[1] - 1, p[2] + n)); return d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate()); }
   var RE_NUM = /\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d+(?:[.,]\d{1,2})?/g;
-  var RE_UNIDADE = /^\s*(?:tb|gb|mb|kb|kg|mg|ml|km|cm|mm|g|l|m|un|und|unid|unidades?|cx|pct|p[cç]s?|itens?)(?![a-zà-ÿ0-9])/i;
-  var RE_VEZES = /^\s*x(?![a-zà-ÿ0-9])/i;
+  var RE_UNIDADE = /^\s*(?:tb|gb|mb|kb|kg|mg|ml|km|cm|mm|g|l|m|un|und|unid|unidades?|cx|pct|p[cç]s?|itens?|pessoas?|vez|vezes)(?![a-zà-ÿ0-9])/i;
+  var RE_VEZES = /^\s*(?:x|vez|vezes)(?![a-zà-ÿ0-9])/i;
+  /* \b do JavaScript não vê letra acentuada ("ônibus", "café"); só para achar palavras: as posições e a descrição usam o texto digitado. */
+  function semAcento(t) { return String(t).normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
   /* "1.200" no texto é milhar pt-BR. lerNumero segue tratando "12.06" como decimal (campos numéricos). */
   function lerValorTexto(t) { return lerNumero(/^\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?$/.test(t) ? t.replace(/\./g, '') : t); }
-  /* Acha o valor no texto. Não contam: "3x" (parcelas), número seguido de unidade ("1tb", "4 un"), número colado em
+  /* Acha o valor no texto. Não contam: "3x" e "3 vezes" (parcelas), número seguido de unidade ou quantidade ("1tb", "4 un", "2 pessoas"), número colado em
      palavra ("ps5") e partes de data ("10/11"). Entre os que sobram, vence o marcado com R$ ou "reais", depois o que tem
      centavos ou milhar e, por fim, o último número solto ("2 pizzas 40"). */
   function acharValor(base) {
@@ -98,8 +100,9 @@
     if (!(valor > 0)) return { ok: false, erro: 'Não achei o valor. Escreva o número, como em "45 mercado pix".' };
     var tipo = /\b(recebi|recebido|entrada|sal[aá]rio|ganhei)\b/i.test(s) ? 'entrada' : 'gasto';
     var cat = 'Outros', padroes = [], achouCat = false, achouForma = false;
-    for (var i = 0; i < PALAVRAS.length; i++) { if (PALAVRAS[i][1].test(s)) { cat = PALAVRAS[i][0]; achouCat = true; break; } }
-    var forma = 'Pix'; for (var j = 0; j < FORMAS_TXT.length; j++) { if (FORMAS_TXT[j][1].test(s)) { forma = FORMAS_TXT[j][0]; achouForma = true; break; } }
+    var plano = semAcento(s);
+    for (var i = 0; i < PALAVRAS.length; i++) { if (PALAVRAS[i][1].test(plano)) { cat = PALAVRAS[i][0]; achouCat = true; break; } }
+    var forma = 'Pix'; for (var j = 0; j < FORMAS_TXT.length; j++) { if (FORMAS_TXT[j][1].test(plano)) { forma = FORMAS_TXT[j][0]; achouForma = true; break; } }
     if (!achouForma) padroes.push('forma');   // a tela pode avisar que Pix ou Outros foram supostos
     if (!achouCat) padroes.push('cat');
     var v = achado.vezes, parcelas = v && tipo === 'gasto' && forma === 'Crédito' && v.n >= 2 ? v.n : null;   // sem cartão, "3x" é ignorado

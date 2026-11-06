@@ -160,6 +160,28 @@ t('categoria inválida é erro', S.validarLancamento({ ...base, cat: 'Xis' }).er
   t('texto: 45 mercado pix', a.ok && a.valor === 45 && a.cat === 'Mercado' && a.forma === 'Pix' && a.data === '2026-11-05' && a.tipo === 'gasto' && a.desc === 'Mercado');
   const b = it('13,07 uber ontem');
   t('texto: ontem e vírgula decimal', b.valor === 13.07 && b.cat === 'Transporte' && b.data === '2026-11-04' && b.desc === 'Uber');
+  /* acentos: \b do JavaScript não enxerga letra acentuada, então o texto é comparado sem acento */
+  t('texto: ônibus e onibus dão a mesma categoria', it('30 ônibus').cat === 'Transporte' && it('30 onibus').cat === 'Transporte');
+  t('texto: ônibus não fica em padrão de categoria', it('30 ônibus').padroes.indexOf('cat') < 0);
+  t('texto: maiúsculas com acento', it('30 ÔNIBUS').cat === 'Transporte');
+  t('texto: acento composto em dois caracteres', it('30 o\u0302nibus').cat === 'Transporte' && it('30 o\u0302nibus').valor === 30);
+  t('texto: café no fim da palavra', it('12 café').cat === 'Comida' && it('12 cafe').cat === 'Comida');
+  t('texto: almoço com e sem cedilha', it('25 almoço').cat === 'Comida' && it('25 almoco').cat === 'Comida');
+  t('texto: remédio e farmácia', it('15 remédio').cat === 'Saúde' && it('15 remedio').cat === 'Saúde' && it('15 farmácia').cat === 'Saúde');
+  t('texto: a descrição mantém o acento digitado', it('30 ônibus').desc === 'Ônibus');
+  t('texto: forma com acento', it('30 ônibus débito').forma === 'Débito' && it('30 onibus debito').forma === 'Débito' && it('30 onibus cartão').forma === 'Crédito');
+  /* quantidade: número seguido de pessoa, vezes, x ou unidade não é o valor */
+  t('texto: 50 mercado para 2 pessoas', it('50 mercado para 2 pessoas').valor === 50 && it('50 mercado para 2 pessoas').cat === 'Mercado');
+  t('texto: a quantidade fica na descrição', it('50 mercado para 2 pessoas').desc === 'Mercado para 2 pessoas');
+  t('texto: pessoa no singular', it('20 almoço 1 pessoa').valor === 20);
+  t('texto: pessoas antes do valor', it('2 pessoas jantar 80').valor === 80);
+  t('texto: mesmo com valor sem centavos no meio', it('jantar 120 para 4 pessoas').valor === 120);
+  t('texto: R$ continua vencendo', it('R$ 90 jantar 3 pessoas').valor === 90);
+  t('texto: 3 vezes no cartão é parcela', it('300 tv 3 vezes cartão').valor === 300 && it('300 tv 3 vezes cartão').parcelas === 3);
+  t('texto: 1 vez não vira valor', it('40 corte 1 vez').valor === 40 && it('40 corte 1 vez').parcelas === null);
+  t('texto: vezes sem cartão não vira parcela', it('300 tv 3 vezes pix').valor === 300 && it('300 tv 3 vezes pix').parcelas === null);
+  t('texto: só a quantidade não é valor', it('2 pessoas').ok === false);
+  t('texto: palavra parecida não é quantidade', it('35 pessoal').valor === 35 && it('10 mercado 20 vezeiro').valor === 20);
   t('texto: anteontem atravessa o mês', S.interpretarTexto('10 mercado anteontem', '2026-11-01').data === '2026-10-30');
   const c = it('recebi 250 do cliente');
   t('texto: entrada', c.tipo === 'entrada' && c.valor === 250 && c.desc === 'Do cliente');
