@@ -1,8 +1,8 @@
 /* Offline: guarda só o "casco" do app (lista fixa abaixo). Nada mais é guardado:
    respostas do Google/Drive (outra origem) vão direto à rede e nunca entram no cache; os dados do usuário
    ficam no localStorage e no Drive, nunca aqui. Atualização: rede primeiro; versão nova de sw.js assume sozinha. */
-const V = 'tf-v7';
-const CASCO = ['./', 'index.html', 'app.js', 'calc.js', 'sync.js', 'real.js', 'store.js', 'seguranca.js', 'tokens.css', 'tema.js', 'config.js', 'manifest.webmanifest', 'icon.svg', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
+const V = 'tf-v8';
+const CASCO = ['./', 'index.html', 'app.js', 'calc.js', 'sync.js', 'real.js', 'store.js', 'seguranca.js', 'grafico.js', 'tokens.css', 'tema.js', 'config.js', 'manifest.webmanifest', 'icon.svg', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
 const base = new URL('./', self.location).pathname;
 const doCasco = u => CASCO.some(a => u.pathname === base + (a === './' ? '' : a));   // só estes caminhos podem ser guardados
 self.addEventListener('install', e => { e.waitUntil(caches.open(V).then(c => c.addAll(CASCO.map(a => new Request(a, { cache: 'reload' })))).then(() => self.skipWaiting())); });
