@@ -57,7 +57,7 @@
     ru: '<path d="M-3.4-3.4L3.4 3.4M3.4-3.4L-3.4 3.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'
   };
   var ARO = '<circle r="7" fill="none" stroke="currentColor" stroke-width="1.5"/>';
-  function iconeChip(cls) { return '<svg class="pv-ic" viewBox="-8 -8 16 16" width="16" height="16" aria-hidden="true">' + (cls === 'at' ? '' : ARO) + (TRACO[cls] || '') + '</svg>'; }
+  function iconeChip(cls, classe) { return '<svg class="' + (classe || 'pv-ic') + '" viewBox="-8 -8 16 16"' + (classe ? '' : ' width="16" height="16"') + ' aria-hidden="true">' + (cls === 'at' ? '' : ARO) + (TRACO[cls] || '') + '</svg>'; }
 
   /* janela de decisão: mês atual e os 3 seguintes */
   function janela(meses, ini) { var n = Math.min(4, meses.length), i = Math.max(0, Math.min(ini || 0, meses.length - n)); return { ini: i, n: n }; }

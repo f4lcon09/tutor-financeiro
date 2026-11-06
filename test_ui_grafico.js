@@ -10,7 +10,7 @@ const barra = (A, id, v) => { const s = A.$(id); s.value = v; s.dispatchEvent(ne
   {
     const A = await abrir(FX(), larg); await A.ir('futuro'); await tick(10);
     t('um gráfico só na tela', A.$$('#fut svg[data-ch]').length === 1 && A.$$('#pv_area svg').length === 1);
-    t('o simulador não tem gráfico próprio', !A.$('#simout svg'));
+    t('o simulador não tem gráfico próprio', !A.$('#simout svg[data-ch]'));
     t('os controles do simulador continuam', ['#s_g', '#s_e', '#s_c', '#s_m'].every(s => !!A.$(s)));
     t('controle Base e E se...', A.$$('#pv_modo button').map(b => b.textContent).join() === 'Base,E se...');
     t('começa em Base', A.$('#pv_modo [data-m="base"]').getAttribute('aria-pressed') === 'true');
@@ -118,7 +118,7 @@ const barra = (A, id, v) => { const s = A.$(id); s.value = v; s.dispatchEvent(ne
     const ex = await abrir({ tf_modo: 'demo' }, larg); await ex.ir('futuro'); await tick(10);
     t('modo exemplo também usa o gráfico', !!ex.$('.pv-svg') && ex.erros.length === 0);
     const pc = await abrir(FX()); await pc.ir('futuro'); await tick(10);
-    t('no PC o gráfico é o mesmo', !!pc.$('.pv-svg') && !pc.$('#simout svg'));
+    t('no PC o gráfico é o mesmo', !!pc.$('.pv-svg') && !pc.$('#simout svg[data-ch]'));
     pc.click('#cmp'); await tick(10);
     t('comparar todos continua no PC', /Todos os cenários/.test(pc.texto()) && !pc.$('.pv-svg'));
   }

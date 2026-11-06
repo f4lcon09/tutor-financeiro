@@ -64,8 +64,9 @@ const $ = (s,r=document)=>r.querySelector(s);
 const $$ = (s,r=document)=>[...r.querySelectorAll(s)];
 const esc = TFSeg.esc;   // todo texto vindo do usuário, do JSON importado ou do Drive passa por aqui antes de entrar em innerHTML
 /* sinal de atenção desenhado: herda a cor do tema. O caractere vira emoji colorido em alguns navegadores (fica só como texto de apoio, não desenhado) */
-const AV = '<svg class="gl" viewBox="0 0 24 24" aria-hidden="true"><desc>⚠</desc><path fill-rule="evenodd" d="M12 2.5L1.5 21h21L12 2.5zM11 9.5h2v6h-2v-6zm0 7.5h2v2h-2v-2z"/></svg>';
-const ST = {ok:['✔','Tudo certo'],at:[AV,'Atenção'],ru:['✖','Risco']};
+const AV = TFGrafico.iconeChip('at','gl'), IOK = TFGrafico.iconeChip('ok','gl'), IX = TFGrafico.iconeChip('ru','gl');   // desenhados: caractere de símbolo pode virar emoji no iPhone
+const ISOBE = '<svg class="gl" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>', IDESCE = '<svg class="gl" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>', ILAPIS = '<svg class="gl" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const ST = {ok:[IOK,'Tudo certo'],at:[AV,'Atenção'],ru:[IX,'Risco']};
 const stCls = s => s==='atencao'?'at':s==='ruim'?'ru':s;
 
 /* ===== Armazenamento da maquete (versão real: arquivos do app, no computador) ===== */
@@ -199,7 +200,7 @@ function ring(pct,color,label,sub,size=150){
   const r=size/2-12, c=2*Math.PI*r, off=c*(1-Math.min(Math.max(pct,0),1));
   return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" role="img" aria-label="${esc('Progresso: '+label+(sub?' '+sub:''))}"><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--p2)" stroke-width="12"/><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="12" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${off}" transform="rotate(-90 ${size/2} ${size/2})"/><text x="50%" y="${sub?'47%':'54%'}" text-anchor="middle" font-size="${size/4.2}" font-weight="600" fill="var(--tx)">${label}</text>${sub?`<text x="50%" y="69%" text-anchor="middle" font-size="12" fill="var(--mu)">${sub}</text>`:''}</svg>`;
 }
-function status(v, meta, piso){ return v>=meta ? ['ok','✔','Acima da meta'] : v>=piso ? ['at',AV,'Entre piso e meta'] : ['ru','✖','Abaixo do piso']; }
+function status(v, meta, piso){ return v>=meta ? ['ok',IOK,'Acima da meta'] : v>=piso ? ['at',AV,'Entre piso e meta'] : ['ru',IX,'Abaixo do piso']; }
 const COR = {ok:'var(--ok)',at:'var(--at)',ru:'var(--ru)'};
 const info = (t,r) => `<i class="info${r?' r':''}" tabindex="0" data-t="${esc(t)}">i</i>`;
 function sugerir(cat,desc){
@@ -261,7 +262,7 @@ T.hoje = () => {
   const pProxF = prox => pn('Próximas contas',prox.length?`<table>${prox.map(a=>`<tr><td><b>${esc(a.nome)}</b><div class="mu small">${a.dias<0?'venceu há '+(-a.dias)+' dias':a.dias===0?'vence hoje':'em '+a.dias+' dias, dia '+a.dia}</div></td><td class="n">${brl0(a.valor)}</td></tr>`).join('')}</table>`:'<div class="mu">Tudo pago neste mês.</div>','vio');
   const pPerc = pn('O que eu percebi',`
       ${semLim?'':`<div class="ins"><div class="d ${c1cls}">${ST[c1cls][0]}</div><div><b>Você usa ${pc(c1.utilizacao,0)} do limite do cartão</b><div class="mu small">${c1.utilizacao>.3?'O ideal é até 30% ('+brl0(c1.limiteSaudavel)+'). Reduzir o uso ajuda no score de crédito.':'Uso dentro do ideal.'}</div></div></div>`}
-      ${semLanc?`<div class="ins"><div class="d ne">·</div><div><b>Nenhum lançamento este mês ainda</b><div class="mu small">Quando você lançar gastos, a projeção do lazer aparece aqui.</div></div></div>`:rtz.poucos?`<div class="ins"><div class="d ne">·</div><div><b>Poucos dados para projetar o lazer</b><div class="mu small">A projeção aparece a partir do dia ${TFStore.RITMO_MIN_DIAS} do mês. Até agora: ${brl0(gasto)} de ${brl0(d.tetoLazer)}.</div></div></div>`:`<div class="ins"><div class="d ${ritmo>d.tetoLazer?'at':'ok'}">${ritmo>d.tetoLazer?AV:'✔'}</div><div><b>${ritmo>d.tetoLazer?'Neste ritmo o lazer passa do teto':'Neste ritmo o lazer fecha dentro do teto'}</b><div class="mu small">Projeção do mês: ${brl0(ritmo)} de ${brl0(d.tetoLazer)}.</div></div></div>`}
+      ${semLanc?`<div class="ins"><div class="d ne">·</div><div><b>Nenhum lançamento este mês ainda</b><div class="mu small">Quando você lançar gastos, a projeção do lazer aparece aqui.</div></div></div>`:rtz.poucos?`<div class="ins"><div class="d ne">·</div><div><b>Poucos dados para projetar o lazer</b><div class="mu small">A projeção aparece a partir do dia ${TFStore.RITMO_MIN_DIAS} do mês. Até agora: ${brl0(gasto)} de ${brl0(d.tetoLazer)}.</div></div></div>`:`<div class="ins"><div class="d ${ritmo>d.tetoLazer?'at':'ok'}">${ritmo>d.tetoLazer?AV:IOK}</div><div><b>${ritmo>d.tetoLazer?'Neste ritmo o lazer passa do teto':'Neste ritmo o lazer fecha dentro do teto'}</b><div class="mu small">Projeção do mês: ${brl0(ritmo)} de ${brl0(d.tetoLazer)}.</div></div></div>`}
       <div class="ins"><div class="d at">${AV}</div><div><b>Mês mais apertado: ${d.meses[mesesMax]}</b><div class="mu small">Saldo previsto de ${brl0(Math.min(...base))}. Evite compras grandes até lá.</div></div></div>`,'teal');
   const pCat = pn('Para onde foi o dinheiro este mês',catBars(),'pink');
   if(MOB()){
@@ -280,7 +281,7 @@ T.hoje = () => {
       <div><span class="tag ${cls}">${icn} ${txt}</span><h2 style="margin-top:8px">${cls==='ok'?'Você está no caminho certo':cls==='at'?'Atenção: dá para melhorar':'Alerta: o plano está apertado'}</h2><div class="mu">${frases[cls]}</div></div>
     </div>
     ${alertas(al)}
-    ${pn('Caixa hoje'+info('Caixinha (reserva) mais o saldo da conta corrente. O rótulo à direita mostra quantos meses do gasto essencial a caixinha cobre.'),`<div class="big hero">${brl(caixa)}</div><div class="mu small">caixinha ${brl(d.caixinha)} + conta ${brl(d.conta)}</div><div class="mu small" style="margin-top:6px">Contas até o fim do mês: <b style="color:var(--tx)">${brl0(aPagar)}</b> <span class="tag ${caixa>=aPagar?'ok':'ru'}">${caixa>=aPagar?'✔ Caixa cobre':'✖ Não cobre'}</span></div>`,'teal','','reserva '+num1(cob)+' m')}
+    ${pn('Caixa hoje'+info('Caixinha (reserva) mais o saldo da conta corrente. O rótulo à direita mostra quantos meses do gasto essencial a caixinha cobre.'),`<div class="big hero">${brl(caixa)}</div><div class="mu small">caixinha ${brl(d.caixinha)} + conta ${brl(d.conta)}</div><div class="mu small" style="margin-top:6px">Contas até o fim do mês: <b style="color:var(--tx)">${brl0(aPagar)}</b> <span class="tag ${caixa>=aPagar?'ok':'ru'}">${caixa>=aPagar?IOK+' Caixa cobre':IX+' Não cobre'}</span></div>`,'teal','','reserva '+num1(cob)+' m')}
     ${vazio}
     ${pProxF(prox.slice(0,2))}
     ${det('hoje','det','Ver detalhes',mini+(DEMO.real?blocoReal():'')+pFaixa+pGraf+pPerc,'teal')}`;
@@ -290,7 +291,7 @@ T.hoje = () => {
   <div class="pn verdict" style="--h:${COR[cls]}">
     <div class="ico ${cls}">${icn}</div>
     <div><span class="tag ${cls}">${icn} ${txt}</span><h2 style="margin-top:8px">${cls==='ok'?'Você está no caminho certo':cls==='at'?'Atenção: dá para melhorar':'Alerta: o plano está apertado'}</h2><div class="mu">${frases[cls]}</div></div>
-    <div style="text-align:right" class="small mu">Contas até o fim do mês<div class="mid" style="color:var(--tx)">${brl0(aPagar)}</div><span class="tag ${caixa>=aPagar?'ok':'ru'}">${caixa>=aPagar?'✔ O caixa cobre':'✖ Caixa não cobre'}</span></div>
+    <div style="text-align:right" class="small mu">Contas até o fim do mês<div class="mid" style="color:var(--tx)">${brl0(aPagar)}</div><span class="tag ${caixa>=aPagar?'ok':'ru'}">${caixa>=aPagar?IOK+' O caixa cobre':IX+' Caixa não cobre'}</span></div>
   </div>
   <div class="grid g4" style="margin-bottom:14px">
     ${pCaixa}
@@ -340,7 +341,7 @@ function lancarM(){
       <div class="g"><span class="tag ne">Teste</span><div class="small"><b>Se eu não pagar isso este mês, o que acontece?</b> <span class="mu">Algo importante quebra: essencial. Só perco o prazer: lazer.</span></div></div></div>`,'teal')}`;
 }
 T.lancar = () => MOB() ? lancarM() : `
-  <div class="head"><div><h1>Lançar gasto ou entrada</h1><div class="sub">Rápido: valor, o que foi e pronto. Errou algo? Toque no lápis ✎ da lista para corrigir.</div></div></div>
+  <div class="head"><div><h1>Lançar gasto ou entrada</h1><div class="sub">Rápido: valor, o que foi e pronto. Errou algo? Toque no lápis ${ILAPIS} da lista para corrigir.</div></div></div>
   <div class="grid g2">
     ${pn('<span id="ftitle">Novo lançamento</span>',`
       <div class="seg" id="tipo" role="group" aria-label="Tipo de lançamento"><button aria-pressed="true" data-t="saida">Gasto</button><button aria-pressed="false" data-t="entrada">Entrada</button></div>
@@ -392,17 +393,17 @@ function bindLancar(){
     const dados={tipo:tipo==='entrada'?'entrada':'gasto',valor:$('#f_valor').value,desc:$('#f_desc').value,cat,data:$('#f_data').value,forma:$('#f_forma').value,essencial:$('#f_ess').checked,lazer:$('#f_laz').checked};
     const editando=editId!=null, r=editando?S.editar(editId,dados):S.lancar(dados);
     ['valor','data'].forEach(k=>{ const el=$('#f_'+k); if(el) el.setAttribute('aria-invalid',r.ok||!r.erros[k]?'false':'true'); });
-    if(!r.ok){ $('#f_msg').innerHTML='<span class="tag ru" role="alert">✖ '+esc(r.erros.valor||r.erros.data||r.erros.cat||r.erros.geral)+'</span>'; return; }
-    mesVer=dados.data.slice(0,7); reset(); $('#f_msg').textContent=editando?'✔ Alteração salva.':'✔ Salvo.'; drawLista();
+    if(!r.ok){ $('#f_msg').innerHTML='<span class="tag ru" role="alert">'+IX+' '+esc(r.erros.valor||r.erros.data||r.erros.cat||r.erros.geral)+'</span>'; return; }
+    mesVer=dados.data.slice(0,7); reset(); $('#f_msg').innerHTML=IOK+(editando?' Alteração salva.':' Salvo.'); drawLista();
   };
   const rapido=()=>{
     const r=TFStore.interpretarTexto($('#q_txt').value,S.hojeISO());
-    if(!r.ok){ $('#q_msg').innerHTML='<span class="tag ru" role="alert">✖ '+esc(r.erro)+'</span>'; return; }
+    if(!r.ok){ $('#q_msg').innerHTML='<span class="tag ru" role="alert">'+IX+' '+esc(r.erro)+'</span>'; return; }
     reset(); setTipo(r.tipo==='entrada'?'entrada':'saida'); setCat(r.cat);
     $('#f_valor').value=r.valor; $('#f_desc').value=r.desc; $('#f_forma').value=r.forma; sincForma(); $('#f_data').value=r.data;
     if(r.tipo==='entrada'){ $('#f_ess').checked=false; $('#f_laz').checked=false; } else { const sg=sugerir(r.cat,r.desc); $('#f_ess').checked=sg.ess; $('#f_laz').checked=sg.laz; $('#dica').innerHTML=sg.t; }
     clasTxt();
-    $('#q_msg').innerHTML='<span class="tag ok">✔ Preenchido. Confira e toque em Salvar.</span>'; $('#q_txt').value=''; $('#f_ok').focus();
+    $('#q_msg').innerHTML='<span class="tag ok">'+IOK+' Preenchido. Confira e toque em Salvar.</span>'; $('#q_txt').value=''; $('#f_ok').focus();
   };
   $('#q_ok').onclick=rapido; $('#q_txt').onkeydown=e=>{ if(e.key==='Enter'){ e.preventDefault(); rapido(); } };
   if(rapidoPendente){ $('#q_txt').value=rapidoPendente; rapidoPendente=''; rapido(); }
@@ -430,7 +431,7 @@ function drawLista(){
   if(q) $('#lista').insertAdjacentHTML('beforeend',`<div class="hint">${rows.length} resultado(s) · total ${brl(rows.reduce((s,l)=>s+Math.abs(l.valor),0))}</div>`);
   $$('#lista [data-ed]').forEach(b=>b.onclick=()=>startEditFn&&startEditFn(b.dataset.ed));
   $$('#lista [data-id]').forEach(b=>b.onclick=()=>{ lastDel=S.apagar(b.dataset.id); if(String(editId)===b.dataset.id) editId=null; drawLista();
-    $('#f_msg').innerHTML='Lançamento apagado. <a href="#" id="undo" style="color:var(--teal)">Desfazer</a>'; $('#undo').onclick=e=>{ e.preventDefault(); if(lastDel){ S.desfazerApagar(lastDel); lastDel=null; drawLista(); $('#f_msg').textContent='✔ Desfeito.'; } }; });
+    $('#f_msg').innerHTML='Lançamento apagado. <a href="#" id="undo" style="color:var(--teal)">Desfazer</a>'; $('#undo').onclick=e=>{ e.preventDefault(); if(lastDel){ S.desfazerApagar(lastDel); lastDel=null; drawLista(); $('#f_msg').textContent=IOK+' Desfeito.'; } }; });
 }
 
 /* --- Cartão --- */
@@ -481,7 +482,7 @@ function drawCartao(){
   $('#cart').innerHTML=html;
   const sim=()=>{ const v=parseFloat($('#sim_v').value)||0, n=Calc.cartao(c.limite,i.usado+v,c.fecha,diaHoje), k=stCls(n.status);
     $('#sim_out').innerHTML=`<div class="res" style="--h:${COR[k]}"><div class="mu small">Com esta compra você usaria</div><div class="big">${pc(n.utilizacao,0)} <span class="mid mu">do limite</span></div><div class="mu">Sobram ${brl0(n.disponivel)} de limite.</div></div>
-    <span class="tag ${k}">${ST[k][0]} ${k==='ok'?'Dentro do ideal (até 30%)':k==='at'?'Acima do ideal de 30%':'Uso muito alto'}</span>${i.usado+v>c.limite?'<div class="tag ru" style="margin-top:8px">✖ Passa do limite do cartão</div>':''}`; };
+    <span class="tag ${k}">${ST[k][0]} ${k==='ok'?'Dentro do ideal (até 30%)':k==='at'?'Acima do ideal de 30%':'Uso muito alto'}</span>${i.usado+v>c.limite?'<div class="tag ru" style="margin-top:8px">'+IX+' Passa do limite do cartão</div>':''}`; };
   $('#sim_v').oninput=sim; sim();
   const lb=$('#lim_ok'); if(lb) lb.onclick=()=>{ const r=S.setNumeros({limites:{[c.id]:$('#lim_v').value}}); if(!r.ok){ $('#lim_v').setAttribute('aria-invalid','true'); return; } recalcDemo(); ir('cartao'); };
 }
@@ -498,12 +499,12 @@ T.agenda = () => {
     const al=[], atras=l.filter(a=>!a.pago&&a.dias<0);
     if(atras.length) al.push([3, alerta('ru', atras.length+(atras.length>1?' contas atrasadas: ':' conta atrasada: ')+atras.map(a=>esc(a.nome)).join(', ')+'.')]);
     if(caixa<aVencer) al.push([2, alerta('ru','O caixa não cobre o que ainda vence neste mês.')]);
-    const lista = l.length ? l.map(a=>{ const k=a.pago?'ok':a.dias<0?'ru':a.dias<=3?'at':'ne', t=a.pago?'✔ Pago':a.dias<0?'✖ Atrasada '+(-a.dias)+'d':a.dias===0?AV+' Vence hoje':a.dias<=3?AV+' Em '+a.dias+' dias':'Em '+a.dias+' dias';
+    const lista = l.length ? l.map(a=>{ const k=a.pago?'ok':a.dias<0?'ru':a.dias<=3?'at':'ne', t=a.pago?IOK+' Pago':a.dias<0?IX+' Atrasada '+(-a.dias)+'d':a.dias===0?AV+' Vence hoje':a.dias<=3?AV+' Em '+a.dias+' dias':'Em '+a.dias+' dias';
       return `<div class="ag"><label class="linha-check" style="--h:var(--vio);color:var(--tx);font-size:inherit"><input type="checkbox" data-id="${esc(a.id)}" ${a.pago?'checked':''} aria-label="Marcar como pago: ${esc(a.nome)}"><b>${esc(a.nome)}</b></label><span class="agv">${brl(a.valor)}</span><div class="ag2 small mu">dia ${esc(a.dia)} · <span class="tag ${k}">${t}</span></div></div>`; }).join('')
       : '<div class="mu">Nenhuma conta cadastrada neste mês.</div><button class="btn ghost" data-ir="numeros" style="margin-top:12px;width:100%">Abrir Meus números</button>';
     return `<div class="head"><div><h1>Agenda</h1><div class="sub">O que vence e o que já foi pago.</div></div></div>
     ${alertas(al)}
-    ${pn('Ainda a vencer',`<div class="big">${brl(aVencer)}</div><span class="tag ${caixa>=aVencer?'ok':'ru'}" style="margin-top:6px">${caixa>=aVencer?'✔ O caixa cobre ('+brl0(caixa)+')':'✖ Falta caixa'}</span><div class="mu small" style="margin-top:8px">Total do mês ${brl0(total)} · já pago ${brl0(pagoV)}</div>`,'vio')}
+    ${pn('Ainda a vencer',`<div class="big">${brl(aVencer)}</div><span class="tag ${caixa>=aVencer?'ok':'ru'}" style="margin-top:6px">${caixa>=aVencer?IOK+' O caixa cobre ('+brl0(caixa)+')':IX+' Falta caixa'}</span><div class="mu small" style="margin-top:8px">Total do mês ${brl0(total)} · já pago ${brl0(pagoV)}</div>`,'vio')}
     ${pn('Contas do mês',lista,'vio')}
     ${det('agenda','det','Ver detalhes',pCal+pPesoAg,'vio')}`;
   }
@@ -511,9 +512,9 @@ T.agenda = () => {
   <div class="grid g3" style="margin-bottom:14px">
     ${pn('Total do mês',`<div class="big">${brl0(total)}</div><div class="mu small">${l.length} contas</div>`,'vio')}
     ${pn('Já pago',`<div class="big" style="color:var(--ok)">${brl0(pagoV)}</div><div class="bar" style="--h:var(--ok)"><span style="width:${total?pagoV/total*100:0}%"></span></div>`,'vio')}
-    ${pn('Ainda a vencer',`<div class="big">${brl0(aVencer)}</div><span class="tag ${caixa>=aVencer?'ok':'ru'}">${caixa>=aVencer?'✔ O caixa cobre ('+brl0(caixa)+')':'✖ Falta caixa'}</span>`,'vio')}
+    ${pn('Ainda a vencer',`<div class="big">${brl0(aVencer)}</div><span class="tag ${caixa>=aVencer?'ok':'ru'}">${caixa>=aVencer?IOK+' O caixa cobre ('+brl0(caixa)+')':IX+' Falta caixa'}</span>`,'vio')}
   </div>
-  <div class="grid g32">${pn('Contas do mês',`<table class="rt"><tr><th>Conta</th><th>Vencimento</th><th class="n">Valor</th><th>Situação</th></tr>${l.map(a=>{const k=a.pago?'ok':a.dias<0?'ru':a.dias<=3?'at':'ne', t=a.pago?'✔ Pago':a.dias<0?'✖ Atrasada '+(-a.dias)+'d':a.dias===0?AV+' Vence hoje':a.dias<=3?AV+' Em '+a.dias+' dias':'Em '+a.dias+' dias';
+  <div class="grid g32">${pn('Contas do mês',`<table class="rt"><tr><th>Conta</th><th>Vencimento</th><th class="n">Valor</th><th>Situação</th></tr>${l.map(a=>{const k=a.pago?'ok':a.dias<0?'ru':a.dias<=3?'at':'ne', t=a.pago?IOK+' Pago':a.dias<0?IX+' Atrasada '+(-a.dias)+'d':a.dias===0?AV+' Vence hoje':a.dias<=3?AV+' Em '+a.dias+' dias':'Em '+a.dias+' dias';
     return `<tr><td class="tt"><label class="linha-check" style="--h:var(--vio);color:var(--tx);font-size:inherit"><input type="checkbox" data-id="${esc(a.id)}" ${a.pago?'checked':''} aria-label="Marcar como pago: ${esc(a.nome)}"><b>${esc(a.nome)}</b></label></td><td data-l="Vencimento">dia ${esc(a.dia)}</td><td class="n" data-l="Valor">${brl(a.valor)}</td><td data-l="Situação"><span class="tag ${k}">${t}</span></td></tr>`}).join('')}</table>`,'vio')}${pCal}</div>
   ${pPesoAg}`;
 };
@@ -550,7 +551,7 @@ T.orcamento = () => {
     ${pn('Ritmo do mês'+info('Projeção simples: o gasto até hoje dividido pelos dias passados, vezes os dias do mês. Só aparece depois de '+TFStore.RITMO_MIN_DIAS+' dias do mês.'),vazio?`<div class="big">—</div><div class="mu small">sem lançamentos este mês</div>`:rt.poucos?`<div class="big" style="font-size:22px">poucos dados</div><div class="mu small">a projeção aparece a partir do dia ${TFStore.RITMO_MIN_DIAS} do mês</div>`:`<div class="big">${brl0(rt.projetado)}</div><div class="mu small">projeção de gasto até dia ${diasMes}</div>`,'pink')}
   </div>
   ${pn('Por categoria'+info('Cada linha compara o que você gastou com o teto do mês. Verde: até 75% do teto. Amarelo: perto do teto. Vermelho: passou. O teto de lazer vem dos seus números; nas outras você ajusta o teto.'),`<table class="rt"><tr><th>Categoria</th><th style="width:34%">Uso</th><th class="n">Gasto</th><th class="n">Teto</th><th>Situação</th></tr>${rows.map(r=>{const p=r.teto?r.gasto/r.teto:0, k=p<=.75?'ok':p<=1?'at':'ru';
-    return `<tr class="clk${orcSel===r.nome?' sel':''}" data-cat="${esc(r.nome)}"><td class="tt"><b>${esc(r.nome)}</b>${r.fixo?info('Inclui lazer, jogos e comida fora de casa.'):''}${orcSel===r.nome?' <span class="tag ne">aberto ▾</span>':''}</td><td class="uso"><div class="bar" style="--h:${COR[k]};margin:0"><span style="width:${Math.min(p,1)*100}%"></span></div></td><td class="n" data-l="Gasto">${brl0(r.gasto)}</td><td class="n" data-l="Teto">${r.fixo?brl0(r.teto):`<input type="number" data-k="${esc(r.nome)}" value="${esc(r.teto)}" min="0" step="10" style="width:90px;text-align:right;padding:5px 8px">`}</td><td data-l="Situação">${vazio?'<span class="mu">—</span>':`<span class="tag ${k}">${ST[k][0]} ${k==='ok'?'No ritmo':k==='at'?'Perto do teto':'Passou'}</span>`}</td></tr>`}).join('')}</table><div class="hint">O teto de lazer vem da planilha; os das outras categorias você ajusta aqui. Clique numa linha para ver os lançamentos dela.</div>`,'pink')}
+    return `<tr class="clk${orcSel===r.nome?' sel':''}" data-cat="${esc(r.nome)}"><td class="tt"><b>${esc(r.nome)}</b>${r.fixo?info('Inclui lazer, jogos e comida fora de casa.'):''}${orcSel===r.nome?' <span class="tag ne">aberto '+IDESCE+'</span>':''}</td><td class="uso"><div class="bar" style="--h:${COR[k]};margin:0"><span style="width:${Math.min(p,1)*100}%"></span></div></td><td class="n" data-l="Gasto">${brl0(r.gasto)}</td><td class="n" data-l="Teto">${r.fixo?brl0(r.teto):`<input type="number" data-k="${esc(r.nome)}" value="${esc(r.teto)}" min="0" step="10" style="width:90px;text-align:right;padding:5px 8px">`}</td><td data-l="Situação">${vazio?'<span class="mu">—</span>':`<span class="tag ${k}">${ST[k][0]} ${k==='ok'?'No ritmo':k==='at'?'Perto do teto':'Passou'}</span>`}</td></tr>`}).join('')}</table><div class="hint">O teto de lazer vem da planilha; os das outras categorias você ajusta aqui. Clique numa linha para ver os lançamentos dela.</div>`,'pink')}
   ${orcSel?detalheOrc(rows):''}
   <div class="grid g2" style="margin-top:14px">${pn('Distribuição do gasto',shareHtml(rows,tG),'pink')}${pn('Onde dá para economizar',vazio?'<div class="mu">Sem lançamentos ainda: nada para comparar.</div>':economiaHtml(rows,tG),'pink')}</div>`;
 };
@@ -566,7 +567,7 @@ T.metas = () => {
     const [ay,am]=m.prazo.split('-').map(Number), n=Math.max((ay-hoje.getFullYear())*12+(am-1-hoje.getMonth()),0);
     const need=Calc.metaAporte(m.alvo,m.guardado,i,n), eta=Calc.mesesParaMeta(m.alvo,m.guardado,m.aporte,i);
     const k = m.guardado>=m.alvo?'ok': m.aporte>=need*.999?'ok': m.aporte>=need*.7?'at':'ru', pct=m.guardado/m.alvo;
-    const txt = m.guardado>=m.alvo?'✔ Meta atingida': k==='ok'?'✔ No ritmo': k==='at'?AV+' Um pouco abaixo':'✖ Fora do ritmo';
+    const txt = m.guardado>=m.alvo?IOK+' Meta atingida': k==='ok'?IOK+' No ritmo': k==='at'?AV+' Um pouco abaixo':IX+' Fora do ritmo';
     return pn(esc(m.nome),`<div class="row" style="align-items:center;gap:16px"><div>${ring(Math.min(pct,1),HUE.sky,Math.round(pct*100)+'%','',110)}</div>
       <div style="flex:1"><div class="mu small">Guardado</div><div class="mid">${brl0(m.guardado)} <span class="mu small">de ${brl0(m.alvo)}</span></div><span class="tag ${k}" style="margin-top:8px">${txt}</span></div></div>
       <div class="kv" style="margin-top:14px"><span>Prazo</span><span>${String(am).padStart(2,'0')}/${ay} (${n} meses)</span><span>Precisa guardar por mês</span><span>${brl0(need)}</span><span>Você planeja guardar</span><span>${brl0(m.aporte)}</span><span>Chega lá em</span><span>${eta==null?'—':eta+' meses'}</span></div>
@@ -577,7 +578,7 @@ T.metas = () => {
   if(MOB()){
     const info1=m=>{ const [ay,am]=m.prazo.split('-').map(Number), n=Math.max((ay-hoje.getFullYear())*12+(am-1-hoje.getMonth()),0), need=Calc.metaAporte(m.alvo,m.guardado,i,n), eta=Calc.mesesParaMeta(m.alvo,m.guardado,m.aporte,i);
       const k=m.guardado>=m.alvo?'ok':m.aporte>=need*.999?'ok':m.aporte>=need*.7?'at':'ru', pct=m.guardado/m.alvo;
-      return {ay,am,n,need,eta,k,pct,txt:m.guardado>=m.alvo?'✔ Meta atingida':k==='ok'?'✔ No ritmo':k==='at'?AV+' Um pouco abaixo':'✖ Fora do ritmo'}; };
+      return {ay,am,n,need,eta,k,pct,txt:m.guardado>=m.alvo?IOK+' Meta atingida':k==='ok'?IOK+' No ritmo':k==='at'?AV+' Um pouco abaixo':IX+' Fora do ritmo'}; };
     const somaA=metas.reduce((t,m)=>t+m.aporte,0), somaN=metas.reduce((t,m)=>t+info1(m).need,0), pr=DEMO.renda?somaA/DEMO.renda:0, kk=pr<=.2?'ok':pr<=.35?'at':'ru';
     const fora=metas.filter(m=>info1(m).k==='ru');
     const al=[]; if(fora.length) al.push([2, alerta('ru', fora.length>1?fora.length+' metas fora do ritmo: '+fora.map(m=>esc(m.nome)).join(', ')+'.':'A meta '+esc(fora[0].nome)+' está fora do ritmo.')]);
@@ -645,11 +646,11 @@ function drawFuturo(){
     return `${alertas(al)}
     ${pn('Saldo no fim de janeiro',`<div class="big" style="color:${COR[cls]}">${aprox(jan)}</div><span class="tag ${cls}" style="margin-top:6px">${icn} ${txt}</span><div class="mu small" style="margin-top:8px">Fim de dez ${brl0(dez)} · ${jan-d.meta>=0?'folga de '+brl0(jan-d.meta)+' sobre a meta':'faltam '+brl0(d.meta-jan)+' para a meta'}${alvo<0?'':' · passa da meta em '+d.meses[alvo]}</div>`,'sky')}
     ${pn('Saldo previsto',pvHtml(),'sky')}
-    ${pn('Leitura do cenário',`<div class="ins"><div class="d ${cls}">${icn}</div><div class="small"><b>Janeiro termina ${jan>=d.meta?'acima da meta':jan>=d.piso?'entre o piso e a meta':'abaixo do piso'}</b></div></div><div class="ins"><div class="d ${dfa>=0?'ok':'ru'}">${dfa>=0?'✔':'✖'}</div><div class="small"><b>Mês mais apertado: ${d.meses[minI]}</b><div class="mu">Saldo de ${brl0(minV)}, ${dfa>=0?brl0(dfa)+' acima':brl0(-dfa)+' abaixo'} do alerta.</div></div></div>`,'sky')}
+    ${pn('Leitura do cenário',`<div class="ins"><div class="d ${cls}">${icn}</div><div class="small"><b>Janeiro termina ${jan>=d.meta?'acima da meta':jan>=d.piso?'entre o piso e a meta':'abaixo do piso'}</b></div></div><div class="ins"><div class="d ${dfa>=0?'ok':'ru'}">${dfa>=0?IOK:IX}</div><div class="small"><b>Mês mais apertado: ${d.meses[minI]}</b><div class="mu">Saldo de ${brl0(minV)}, ${dfa>=0?brl0(dfa)+' acima':brl0(-dfa)+' abaixo'} do alerta.</div></div></div>`,'sky')}
     ${det('futuro','det','Ver detalhes',pSim+pCen,'sky')}`; })() : null;
   $('#fut').innerHTML=mobHtml||`
   <div class="grid g4" style="margin-bottom:14px">
-    ${pn('Saldo fim de dez',`<div class="big">${brl0(dez)}</div><span class="tag ${dez>=d.alerta?'ok':'ru'}">${dez>=d.alerta?'✔ Acima do alerta':'✖ Abaixo do alerta'}</span>`,'sky')}
+    ${pn('Saldo fim de dez',`<div class="big">${brl0(dez)}</div><span class="tag ${dez>=d.alerta?'ok':'ru'}">${dez>=d.alerta?IOK+' Acima do alerta':IX+' Abaixo do alerta'}</span>`,'sky')}
     ${pn('Saldo fim de jan',`<div class="big" style="color:${COR[cls]}">${brl0(jan)}</div><span class="tag ${cls}">${icn} ${txt}</span>`,'sky')}
     ${pn('Folga contra a meta',`<div class="big" style="color:${jan-d.meta>=0?COR.ok:COR.ru}">${jan-d.meta>=0?'+':''}${brl0(jan-d.meta)}</div><div class="mu small">meta ${brl0(d.meta)}</div>`,'sky')}
     ${pn('Atinge a meta em',`<div class="big">${alvo<0?'depois de '+d.meses[11]:d.meses[alvo]}</div><div class="mu small">primeiro mês acima da meta</div>`,'sky')}
@@ -658,8 +659,8 @@ function drawFuturo(){
     ${!cmpOn?pn('Saldo previsto',pvHtml(),'sky'):pn('Todos os cenários',lineChart(d.meses,series,refs,360,CW(.66),{zones:zonesFut(),marks})+`<div class="legend"><span><i style="background:var(--ok);height:10px;opacity:.5"></i>acima da meta</span><span><i style="background:var(--at);height:10px;opacity:.5"></i>entre piso e meta</span><span><i style="background:var(--ru);height:10px;opacity:.5"></i>abaixo do piso</span>${todos.map(c=>`<span><i style="background:${d.cores[c]}"></i>${esc(c)}</span>`).join('')}</div>`,'sky')}
     ${pn('Leitura do cenário'+info('Meta e piso vêm dos seus números: a meta é o saldo que você quer ter em 17/01 e o piso é o mínimo aceitável. O alerta é o saldo mínimo de segurança em dezembro.',true),`
       <div class="ins"><div class="d ${cls}">${icn}</div><div class="small"><b>Janeiro termina ${jan>=d.meta?'acima da meta':jan>=d.piso?'entre o piso e a meta':'abaixo do piso'}</b><div class="mu">${jan-d.meta>=0?'Sobram '+brl0(jan-d.meta)+' além da meta.':'Faltam '+brl0(d.meta-jan)+' para a meta e '+(jan>=d.piso?'você está '+brl0(jan-d.piso)+' acima do piso.':brl0(d.piso-jan)+' para o piso.')}</div></div></div>
-      <div class="ins"><div class="d ${dfa>=0?'ok':'ru'}">${dfa>=0?'✔':'✖'}</div><div class="small"><b>Mês mais apertado: ${d.meses[minI]}</b><div class="mu">Saldo de ${brl0(minV)}, ${dfa>=0?brl0(dfa)+' acima':brl0(-dfa)+' abaixo'} do alerta. Evite compras grandes nesse mês.</div></div></div>
-      <div class="ins"><div class="d ne">↗</div><div class="small"><b>Depois de janeiro o saldo cresce ${brl0(cresc)} por mês</b><div class="mu">Em média, de jan/27 até ${d.meses[11]}. Chega a ${brl0(v[11])} no fim.</div></div></div>
+      <div class="ins"><div class="d ${dfa>=0?'ok':'ru'}">${dfa>=0?IOK:IX}</div><div class="small"><b>Mês mais apertado: ${d.meses[minI]}</b><div class="mu">Saldo de ${brl0(minV)}, ${dfa>=0?brl0(dfa)+' acima':brl0(-dfa)+' abaixo'} do alerta. Evite compras grandes nesse mês.</div></div></div>
+      <div class="ins"><div class="d ne">${ISOBE}</div><div class="small"><b>Depois de janeiro o saldo cresce ${brl0(cresc)} por mês</b><div class="mu">Em média, de jan/27 até ${d.meses[11]}. Chega a ${brl0(v[11])} no fim.</div></div></div>
       <div class="disc">Previsão do app com as premissas de cada cenário. Não é promessa.</div>`,'sky')}
   </div>
   ${pSim}
@@ -710,7 +711,7 @@ const CALCS = {
               {k:'Empréstimo pessoal em '+n+'x de '+brl0(pmtE),total:pmtE*n,det:n+' meses'}];
     const val=op.filter(o=>o.total!=null), min=Math.min(...val.map(o=>o.total)), max=Math.max(...val.map(o=>o.total));
     $('#out').innerHTML=`<div class="res" style="--h:var(--vio)"><div class="mu small">Menor custo total</div><div class="big">${brl0(min)}</div><div class="mu">${val.find(o=>o.total===min).k}</div></div>
-     ${op.map(o=>`<div style="margin-bottom:14px"><div class="row"><b style="font-size:14px">${o.k}</b><span class="${o.total==null?'tag ru':o.total===min?'tag ok':'mu'}">${o.total==null?'✖ não quita':o.total===min?'✔ menor custo':''}</span></div>
+     ${op.map(o=>`<div style="margin-bottom:14px"><div class="row"><b style="font-size:14px">${o.k}</b><span class="${o.total==null?'tag ru':o.total===min?'tag ok':'mu'}">${o.total==null?IX+' não quita':o.total===min?IOK+' menor custo':''}</span></div>
        <div class="bar" style="--h:${o.total==null?COR.ru:o.total===min?COR.ok:'var(--vio)'}"><span style="width:${o.total==null?100:o.total/max*100}%"></span></div>
        <div class="mu small">${o.total==null?'A parcela não cobre nem os juros do mês.':brl(o.total)+' no total · '+brl(o.total-s)+' de juros · '+o.det}</div></div>`).join('')}
      <div class="hint">Confira também se a parcela cabe no seu mês. O menor custo total nem sempre é a menor parcela.</div>`; }},
@@ -755,9 +756,9 @@ T.saude = () => {
     .map(f=>`<div class="ins"><div class="d ${stCls(f.status)}" style="width:auto;min-width:46px;padding:0 6px">+${f.perde}</div><div class="small"><b>${f.nome}</b><div class="mu">${dicas[f.nome]?dicas[f.nome]():f.explicacao}</div></div></div>`).join('')||'<div class="mu small">Você já está com a nota máxima nos fatores.</div>';
   const cc=ct.porClasse, palette=['var(--sky)','var(--vio)','var(--teal)','var(--pink)']; let ci=0;
   const aviso=[];
-  aviso.push(ct.concentracao>.6?['at',AV,'Concentração alta em '+esc(ct.maiorClasse)+' ('+pc(ct.concentracao,0)+'). Diversificar reduz o risco de uma única queda pesar demais.']:['ok','✔','Nenhuma classe passa de 60% da carteira.']);
-  aviso.push(ct.mesesLiquidos>=3?['ok','✔','Você tem '+num1(ct.mesesLiquidos)+' meses do essencial em ativos de liquidez diária.']:['at',AV,'Só '+num1(ct.mesesLiquidos)+' meses do essencial estão em liquidez diária. Reserva precisa estar disponível.']);
-  aviso.push(ct.classes>=3?['ok','✔','Você tem '+ct.classes+' tipos de ativo.']:['at',AV,'Apenas '+ct.classes+' tipo(s) de ativo.']);
+  aviso.push(ct.concentracao>.6?['at',AV,'Concentração alta em '+esc(ct.maiorClasse)+' ('+pc(ct.concentracao,0)+'). Diversificar reduz o risco de uma única queda pesar demais.']:['ok',IOK,'Nenhuma classe passa de 60% da carteira.']);
+  aviso.push(ct.mesesLiquidos>=3?['ok',IOK,'Você tem '+num1(ct.mesesLiquidos)+' meses do essencial em ativos de liquidez diária.']:['at',AV,'Só '+num1(ct.mesesLiquidos)+' meses do essencial estão em liquidez diária. Reserva precisa estar disponível.']);
+  aviso.push(ct.classes>=3?['ok',IOK,'Você tem '+ct.classes+' tipos de ativo.']:['at',AV,'Apenas '+ct.classes+' tipo(s) de ativo.']);
   const pFat = pn('De onde vem a nota',s.fatores.map(f=>`<div class="factor"><div><b>${f.nome}</b><div class="mu small">${f.explicacao}</div></div><span class="tag ${stCls(f.status)}">${ST[stCls(f.status)][0]} ${Math.round(f.ponto*f.peso)}/${f.peso}</span><div class="bar" style="--h:${COR[stCls(f.status)]}"><span style="width:${f.ponto*100}%"></span></div></div>`).join(''),'teal');
   const pCarteira = pn('Minha carteira (exemplo)',`<div class="big">${brl0(ct.total)}</div>
       <div style="display:flex;height:12px;border-radius:99px;overflow:hidden;margin:14px 0 10px;gap:2px">${Object.keys(cc).map(k=>`<span style="flex:${+cc[k]||0};background:${palette[ci++%4]}"></span>`).join('')}</div>
@@ -770,7 +771,7 @@ T.saude = () => {
     return `<div class="head"><div><h1>Patrimônio</h1><div class="sub">O que você tem, o que deve e uma nota simples.</div></div></div>
     ${alertas(al)}
     ${pn('Patrimônio líquido',`<div class="big" style="color:${liquido>=0?'var(--tx)':COR.ru}">${brl(liquido)}</div><div class="kv" style="margin-top:8px"><span>Tenho</span><span>${brl(ativos)}</span><span>Devo</span><span>${brl(divida)}</span></div>`,'sky')}
-    ${pn('Sua nota'+info('Soma de 5 fatores: reserva de emergência, meta de janeiro, dívida do cartão, lazer dentro do teto e hábito de registrar. Não é o score de crédito do Serasa ou do SPC.'),`<div class="row" style="gap:16px;align-items:center;justify-content:flex-start">${ring(s.nota/100,COR[cor],String(s.nota),'de 100',104)}<div><span class="tag ${cor}">${cor==='ok'?'✔ Saudável':cor==='at'?AV+' Pode melhorar':'✖ Precisa de atenção'}</span></div></div>`,'teal')}
+    ${pn('Sua nota'+info('Soma de 5 fatores: reserva de emergência, meta de janeiro, dívida do cartão, lazer dentro do teto e hábito de registrar. Não é o score de crédito do Serasa ou do SPC.'),`<div class="row" style="gap:16px;align-items:center;justify-content:flex-start">${ring(s.nota/100,COR[cor],String(s.nota),'de 100',104)}<div><span class="tag ${cor}">${cor==='ok'?IOK+' Saudável':cor==='at'?AV+' Pode melhorar':IX+' Precisa de atenção'}</span></div></div>`,'teal')}
     ${det('saude','det','Ver detalhes',pn('Onde dá para ganhar pontos',ganhos,'teal')+pFat+pCarteira+pSaudeC+pReserva,'sky')}`;
   }
   return `
@@ -782,7 +783,7 @@ T.saude = () => {
   </div>
   <div class="grid g23" style="margin-bottom:14px">
     ${pn('Sua nota'+info('Soma de 5 fatores: reserva de emergência (30), meta de janeiro (25), dívida do cartão (20), lazer dentro do teto (15) e hábito de registrar (10). Não é o score de crédito do Serasa ou do SPC.'),`<div class="row" style="gap:20px;align-items:center;justify-content:flex-start">${ring(s.nota/100,COR[cor],String(s.nota),'de 100',128)}
-      <div><span class="tag ${cor}">${cor==='ok'?'✔ Saudável':cor==='at'?AV+' Pode melhorar':'✖ Precisa de atenção'}</span><div class="mu small" style="margin-top:10px">Nota do app, com regras visíveis ao lado. Não é o score de crédito do Serasa ou do SPC.</div></div></div>
+      <div><span class="tag ${cor}">${cor==='ok'?IOK+' Saudável':cor==='at'?AV+' Pode melhorar':IX+' Precisa de atenção'}</span><div class="mu small" style="margin-top:10px">Nota do app, com regras visíveis ao lado. Não é o score de crédito do Serasa ou do SPC.</div></div></div>
       <div style="margin-top:20px;border-top:1px solid var(--ln);padding-top:16px"><div class="mu small" style="margin-bottom:6px;font-family:var(--fn)">Onde dá para ganhar pontos</div>${ganhos}</div>`,'teal')}
     ${pFat}
   </div>
@@ -809,7 +810,7 @@ function calendario(l){
   l.forEach(a=>{ (por[a.dia]=por[a.dia]||[]).push(a); });
   let h=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(x=>`<div class="w">${x}</div>`).join('')+'<div></div>'.repeat(off);
   for(let i=1;i<=diasMes;i++){ const b=(por[i]||[]);
-    h+=`<div class="d ${i===diaHoje?'hj':''} ${b.length?'v':''}" title="${esc(b.map(a=>a.nome+' '+brl0(a.valor)).join(', '))}">${i}${b.map(a=>`<b class="${a.pago?'pg':''}">${a.pago?'<span class="ck">✔ </span>':''}<span class="rs">R$ </span>${brl0(a.valor).replace(/^R\$\s?/,'')}</b>`).join('')}</div>`; }
+    h+=`<div class="d ${i===diaHoje?'hj':''} ${b.length?'v':''}" title="${esc(b.map(a=>a.nome+' '+brl0(a.valor)).join(', '))}">${i}${b.map(a=>`<b class="${a.pago?'pg':''}">${a.pago?'<span class="ck">'+IOK+' </span>':''}<span class="rs">R$ </span>${brl0(a.valor).replace(/^R\$\s?/,'')}</b>`).join('')}</div>`; }
   return `<div class="cal">${h}</div><div class="legend"><span><i style="background:var(--vio);height:8px"></i>a pagar</span><span><i style="background:var(--ok);height:8px"></i>pago</span><span>valores em R$</span></div>`;
 }
 function shareHtml(rows,tG){
@@ -820,8 +821,8 @@ function shareHtml(rows,tG){
 function economiaHtml(rows,tG){
   const ord=[...rows].sort((a,b)=>b.gasto-a.gasto), top=ord[0], itens=[];
   if(top&&top.gasto>0) itens.push(['ne','i','<b>Maior fatia: '+esc(top.nome.split(' (')[0])+'</b> ('+pc(top.gasto/tG,0)+' do gasto). Cortar 10% dela libera '+brl0(top.gasto*0.1)+' por mês.']);
-  rows.filter(r=>r.teto&&r.gasto/r.teto>.75).forEach(r=>itens.push([r.gasto>r.teto?'ru':'at',r.gasto>r.teto?'✖':AV,'<b>'+esc(r.nome.split(' (')[0])+'</b> já usou '+pc(r.gasto/r.teto,0)+' do teto.']));
-  if(!itens.some(x=>x[0]!=='ne')) itens.push(['ok','✔','<b>Nenhuma categoria perto do teto.</b> Bom ritmo.']);
+  rows.filter(r=>r.teto&&r.gasto/r.teto>.75).forEach(r=>itens.push([r.gasto>r.teto?'ru':'at',r.gasto>r.teto?IX:AV,'<b>'+esc(r.nome.split(' (')[0])+'</b> já usou '+pc(r.gasto/r.teto,0)+' do teto.']));
+  if(!itens.some(x=>x[0]!=='ne')) itens.push(['ok',IOK,'<b>Nenhuma categoria perto do teto.</b> Bom ritmo.']);
   return itens.map(a=>`<div class="ins"><div class="d ${a[0]}">${a[1]}</div><div class="small" style="padding-top:5px">${a[2]}</div></div>`).join('');
 }
 function metasResumo(i){
@@ -861,7 +862,7 @@ function diaDetalhe(i){
   const gs=gastosMes().filter(l=>+l.data.slice(8)===i), bs=DEMO.agenda.filter(a=>a.dia===i), el=$('#diadet'); if(!el) return;
   const nome=new Date(hoje.getFullYear(),hoje.getMonth(),i).toLocaleDateString('pt-BR',{day:'numeric',month:'long'});
   const linhas=[...gs.map(l=>`<div class="row small"><span>${esc(l.desc)} <span class="mu">· ${esc(l.cat)}</span></span><span style="font-family:var(--fn)">${brl(l.valor)}</span></div>`),
-    ...bs.map(a=>`<div class="row small"><span>${esc(a.nome)} <span class="tag ${isPago(a)?'ok':'ne'}">${isPago(a)?'✔ pago':'vence'}</span></span><span style="font-family:var(--fn)">${brl(a.valor)}</span></div>`)];
+    ...bs.map(a=>`<div class="row small"><span>${esc(a.nome)} <span class="tag ${isPago(a)?'ok':'ne'}">${isPago(a)?IOK+' pago':'vence'}</span></span><span style="font-family:var(--fn)">${brl(a.valor)}</span></div>`)];
   el.innerHTML=`<div class="dica" style="margin:0"><div class="row" style="margin-bottom:8px"><b>${nome}</b><button class="btn ghost" id="dd_l" style="padding:6px 12px;font-size:12.5px">Lançar neste dia</button></div>${linhas.length?linhas.join(''):'<span class="mu small">Nada lançado nem vencendo neste dia.</span>'}</div>`;
   $('#dd_l').onclick=()=>{ prefillData=mesAtual+'-'+pad2(i); ir('lancar'); };
 }
@@ -1108,8 +1109,8 @@ function bindNumeros(){
     const limites={}; $$('input[data-id]').forEach(i=>{ limites[i.dataset.id]=i.value; });
     const r=S.setNumeros({mercado:$('#n_mercado').value,salario:$('#n_salario').value,piso:$('#n_piso').value,repasse,limites});
     ['mercado','salario','piso'].forEach(k=>$('#n_'+k).setAttribute('aria-invalid',r.ok||!r.erros[k]?'false':'true'));
-    if(!r.ok){ $('#n_msg').innerHTML='<span class="tag ru" role="alert">✖ '+esc(Object.values(r.erros)[0])+'</span>'; return; }
-    ir('numeros'); $('#n_msg').innerHTML='<span class="tag ok">✔ Salvo. A previsão foi recalculada.</span>';
+    if(!r.ok){ $('#n_msg').innerHTML='<span class="tag ru" role="alert">'+IX+' '+esc(Object.values(r.erros)[0])+'</span>'; return; }
+    ir('numeros'); $('#n_msg').innerHTML='<span class="tag ok">'+IOK+' Salvo. A previsão foi recalculada.</span>';
   };
 }
 
@@ -1133,14 +1134,14 @@ function bindImportar(){
       if(f.size>TFSeg.LIM.bytes) throw new Error('Arquivo não aceito: ele é grande demais para ser o dados_reais_*.json.');
       let j; try{ j=JSON.parse(await f.text()); }catch(_){ throw new Error('Arquivo não aceito: o conteúdo não é um JSON válido.'); }
       const r=S.importarReal(j); if(!r.ok) throw new Error(r.erro); location.reload();
-    }catch(err){ m.innerHTML='<span class="tag ru" role="alert">✖ '+esc(err.message)+'</span>'; }
+    }catch(err){ m.innerHTML='<span class="tag ru" role="alert">'+IX+' '+esc(err.message)+'</span>'; }
   };
   $('#imp_demo').onclick=()=>{ S.definirModo('demo'); location.reload(); };
   const vt=$('#ini_voltar'); if(vt) vt.onclick=()=>{ S.definirModo('real'); location.reload(); };
   const ok=$('#ini_ok'); if(ok) ok.onclick=()=>{
     const r=S.comecar({renda:$('#ini_renda').value,fixos:$('#ini_fixos').value,saldo:$('#ini_saldo').value});
     ['renda','fixos','saldo'].forEach(k=>$('#ini_'+k).setAttribute('aria-invalid',r.ok||!r.erros||!r.erros[k]?'false':'true'));
-    if(!r.ok){ $('#ini_msg').innerHTML='<span class="tag ru" role="alert">✖ '+esc(Object.values(r.erros||{})[0]||r.erro)+'</span>'; return; }
+    if(!r.ok){ $('#ini_msg').innerHTML='<span class="tag ru" role="alert">'+IX+' '+esc(Object.values(r.erros||{})[0]||r.erro)+'</span>'; return; }
     location.reload(); };
 }
 
@@ -1191,8 +1192,8 @@ function numerosSimples(){
 }
 function bindNumerosSimples(){
   $('#n_ok').onclick=()=>{ const r=S.atualizarInicio({renda:$('#n_renda').value,fixos:$('#n_fixos').value,saldo:$('#n_saldo').value});
-    if(!r.ok){ $('#n_msg').innerHTML='<span class="tag ru" role="alert">✖ '+esc(Object.values(r.erros)[0])+'</span>'; return; }
-    ir('numeros'); $('#n_msg').innerHTML='<span class="tag ok">✔ Salvo.</span>'; };
+    if(!r.ok){ $('#n_msg').innerHTML='<span class="tag ru" role="alert">'+IX+' '+esc(Object.values(r.erros)[0])+'</span>'; return; }
+    ir('numeros'); $('#n_msg').innerHTML='<span class="tag ok">'+IOK+' Salvo.</span>'; };
 }
 function metasVazio(){ return !metas.length ? pn('Nenhuma meta por aqui ainda',`<div class="small mu">Crie uma meta com valor e prazo para ver quanto guardar por mês.</div><button class="btn" id="m_primeira" style="margin-top:12px;width:100%;--h:var(--sky)">Criar primeira meta</button>${SIMPLES()?'<button class="btn ghost" id="m_pular" style="margin-top:8px;width:100%">Pular</button>':''}`,'sky','margin-bottom:14px') : ''; }
 /* Telas ainda vazias no primeiro uso: dizem o que a pessoa ganha ao preencher e sempre têm "Pular". */
@@ -1211,7 +1212,7 @@ function telaVazia(k){
 }
 function bindVazia(k){
   $('#vz_pular').onclick=()=>ir('hoje');
-  const msg=(r)=>{ $('#vz_msg').innerHTML='<span class="tag ru" role="alert">✖ '+esc(Object.values(r.erros||{})[0]||'Confira os campos.')+'</span>'; };
+  const msg=(r)=>{ $('#vz_msg').innerHTML='<span class="tag ru" role="alert">'+IX+' '+esc(Object.values(r.erros||{})[0]||'Confira os campos.')+'</span>'; };
   const ok=$('#vz_ok'); if(!ok) return;
   ok.onclick=()=>{
     if(k==='cartao'){ const r=S.atualizarCartao({limite:$('#vz_lim').value,fatura:$('#vz_fat').value,fechamento:$('#vz_fec').value,vencimento:$('#vz_ven').value}); if(!r.ok) return msg(r); }

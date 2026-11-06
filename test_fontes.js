@@ -67,8 +67,8 @@ const OBRIGATORIOS = [...'áàâãéêíóôõúüçÁÀÂÃÉÊÍÓÔÕÚÇ', '
 for (const [n, x] of Object.entries(fontes)) { const falta = OBRIGATORIOS.filter(u => !x.cmap.has(u)); t(n + ': cobre acentos, R$, ~, menos real, ponto, reticências e ordinais' + (falta.length ? ' (falta ' + falta.map(nome).join(', ') + ')' : ''), falta.length === 0); }
 const base = fontes['Source Sans 3 400'], faltam = [...usados].filter(u => base && !base.cmap.has(u)).sort((a, b) => a - b);
 console.log('Caracteres usados no app: ' + usados.size + '. Fora da Source Sans 3: ' + (faltam.map(nome).join(', ') || 'nenhum'));
-const ACEITOS = new Set([0x2197, 0x25B4, 0x25BE, 0x26A0, 0x270E, 0x2714, 0x2716]);   // símbolos de ícone do app, listados no relatório
-t('fora da fonte só símbolos de ícone, nenhuma letra ou número', faltam.every(u => ACEITOS.has(u)));
+const ACEITOS = new Set();
+t('nenhum caractere fora da fonte', faltam.every(u => ACEITOS.has(u)));
 if (process.argv[2] === '--metricas') for (const [n, x] of Object.entries(fontes)) console.log(n, JSON.stringify({ unidades: x.unidades, ascender: x.ascender, descender: x.descender, gap: x.gap }));
 console.log('Peso das fontes: ' + total + ' bytes');
 console.log(f ? f + ' falha(s) de ' + (ok + f) : 'Todos os ' + ok + ' testes de fontes passaram.');

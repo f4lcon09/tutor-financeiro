@@ -219,8 +219,8 @@ tr.clk.sel td:first-child{box-shadow:inset 3px 0 0 var(--teal)}
 .det{border:1px solid var(--ln);border-left:3px solid var(--h,var(--ln2));border-radius:3px;background:var(--p1);margin-bottom:14px}
 .det>summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;min-height:48px;padding:0 16px;font-family:var(--fn);font-size:14px;font-weight:600;letter-spacing:.02em}
 .det>summary::-webkit-details-marker{display:none}
-.det>summary::after{content:'▾';color:var(--mu);font-size:16px}
-.det[open]>summary::after{content:'▴'}
+.det>summary::after{content:'';flex:none;width:8px;height:8px;margin-right:4px;border-right:2px solid var(--mu);border-bottom:2px solid var(--mu);transform:translateY(-2px) rotate(45deg)}
+.det[open]>summary::after{transform:translateY(2px) rotate(-135deg)}
 .det>.detc{padding:0 12px 12px}
 .det>.detc>.pn,.det>.detc>.grid,.det>.detc>.det{margin-bottom:12px}
 .alertas{display:grid;gap:8px;margin-bottom:12px}
