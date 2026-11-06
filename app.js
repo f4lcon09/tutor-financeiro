@@ -898,7 +898,7 @@ function pvInicio(d){ if(!d.asOf) return 0; const a=d.asOf.split('-'); return Ma
 function pvMonta(){
   const d=DEMO, v=d.cenarios[cenSel], adj=pvAplicado(v), mudou=adj.some((x,i)=>x!==v[i]), se=pvModo==='se'&&mudou, j=TFGrafico.janela(d.meses,pvInicio(d)), corta=a=>a.slice(j.ini,j.ini+j.n), el=$('#pv_area');
   const W=Math.max((el&&el.clientWidth)||(MOB()?CW(1):CW(.66)),240), base=corta(v);
-  return {d,v,adj,j,se,mudou,base,m:TFGrafico.montar({meses:corta(d.meses),base,cenario:se?corta(adj):null,meta:d.meta,piso:d.piso,alerta:d.alerta,W,H:MOB()?264:308,mede:pvMede,fmt:{valor:pvValor,fixo:pvFixo,curto:pvCurto}})};
+  return {d,v,adj,j,se,mudou,base,m:TFGrafico.montar({meses:corta(d.meses),base,cenario:se?corta(adj):null,meta:d.meta,piso:d.piso,alerta:d.alerta,W,H:TFGrafico.altura(MOB()),mede:pvMede,fmt:{valor:pvValor,fixo:pvFixo,curto:pvCurto}})};
 }
 const pvChip=e=>e?`<span class="tag ${e.cls}">${TFGrafico.iconeChip(e.cls)}${esc(e.texto)}</span>`:'';
 function pvCabecalho(x){
@@ -957,7 +957,7 @@ let hjTabela=false, hjUlt=null;
 function hjMonta(area){
   const d=DEMO, qtd=+area.dataset.n||4, j=TFGrafico.janela(d.meses,qtd>4?0:pvInicio(d),qtd), corta=a=>a.slice(j.ini,j.ini+j.n), base=corta(d.cenarios['Base']);
   const W=Math.max(area.clientWidth||(MOB()?CW(1):CW(.66)),240);
-  return {base,m:TFGrafico.montar({meses:corta(d.meses),base,cenario:null,meta:d.meta,piso:d.piso,alerta:d.alerta,W,H:MOB()?220:264,mede:pvMede,fmt:{valor:pvValor,fixo:pvFixo,curto:pvCurto}})};
+  return {base,m:TFGrafico.montar({meses:corta(d.meses),base,cenario:null,meta:d.meta,piso:d.piso,alerta:d.alerta,W,H:TFGrafico.altura(MOB()),mede:pvMede,fmt:{valor:pvValor,fixo:pvFixo,curto:pvCurto}})};
 }
 function hjDesenha(){
   const area=$('#hj_area'); if(!area||!pvFontes) return;
@@ -969,7 +969,7 @@ function hjDesenha(){
   area.hidden=hjTabela; tb.hidden=!hjTabela; tb.innerHTML=hjTabela?pvTabelaHtml(x):''; bt.textContent=hjTabela?'Ver gráfico':'Ver em tabela'; bt.setAttribute('aria-pressed',String(hjTabela));
 }
 function hjHtml(qtd){
-  return `<div id="hj_area" class="pv-grafico"${qtd?` data-n="${qtd}"`:''} role="img"></div><div id="hj_tabela" hidden></div>
+  return `<div id="hj_area" class="pv-grafico pv-largo"${qtd?` data-n="${qtd}"`:''} role="img"></div><div id="hj_tabela" hidden></div>
     <div class="pv-pe"><button type="button" class="btn ghost pv-tab" id="hj_tab" aria-pressed="false">Ver em tabela</button><span class="pv-nota">~ = projeção com base no que você lançou.</span></div>`;
 }
 function hjLiga(){ const bt=$('#hj_tab'); if(!bt) return; bt.onclick=()=>{ hjTabela=!hjTabela; hjDesenha(); }; hjDesenha(); }

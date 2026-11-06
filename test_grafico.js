@@ -176,5 +176,20 @@ for (const k of [1, 2, 3]) {
     if (Math.min(...base) < 0) t('compacto ' + k + ' ' + W + ': eixo mostra o negativo', m.E.lo < Math.min(...base) + 1 && m.E.ticks.some(v => v < 0));
   }
 }
+/* altura única: Hoje e Futuro usam o mesmo valor */
+{
+  t('altura: celular e PC', G.altura(true) === 264 && G.altura(false) === 308);
+  const fmtA = { valor: v => '~R$ ' + (v < 0 ? '−' : '') + Math.round(Math.abs(v)), fixo: v => 'R$ ' + Math.round(v), curto: v => String(Math.round(Math.abs(v))) };
+  t('altura: sem H, vale a do celular', G.montar({ meses: ['a', 'b'], base: [1, 2], cenario: null, meta: 0, piso: 0, alerta: 0, W: 300, fmt: fmtA }).H === G.altura(true));
+  const CASOS = { a: [3000, 2500, 1500, [400, 1300, 2700, 3500]], b: [15000, 8000, 3000, [-6000, 2000, 9000, 16000]], c: [3000, 2500, 1500, [5200, 5400, 5600, 5800]], d: [3000, 2500, 1500, [1800, -350, 900, 2900]], e: [9000, 6000, 2000, [7000, 5200, 1100, 4300]] };
+  for (const W of [294, 324, 354]) for (const k of Object.keys(CASOS)) {
+    const [meta, piso, alerta, base] = CASOS[k], m = G.montar({ meses: ['nov/26', 'dez/26', 'jan/27', 'fev/27'], base, cenario: null, meta, piso, alerta, W, H: G.altura(true), fmt: fmtA });
+    const cx = [m.fim, m.baixo && m.baixo.ic, m.baixo && m.baixo.pill].concat(m.refs.map(r => r.caixa));
+    t('altura cheia ' + k + ' ' + W + ': área de 222 px', m.P.b - m.P.t === 222);
+    t('altura cheia ' + k + ' ' + W + ': nada omitido', cx.every(Boolean) && !m.omitidos.length);
+    t('altura cheia ' + k + ' ' + W + ': caixas não se tocam', cx.every((a, i) => cx.slice(i + 1).every(b => !G.sobre(a, b))));
+    t('altura cheia ' + k + ' ' + W + ': caixas não cruzam a linha', cx.every(c => !m.segs.some(s => G.cruza(s, c))));
+  }
+}
 console.log(f ? f + ' falha(s) de ' + (ok + f) : 'Todos os ' + ok + ' testes do gráfico de previsão passaram.');
 process.exit(f ? 1 : 0);

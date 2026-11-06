@@ -5,6 +5,7 @@
   var esc = Seg.esc;
   var PX = { valor: 13, rotulo: 12, eixo: 12 };                 // no máximo três tamanhos, nunca abaixo de 12
   var M = { l: 42, r: 16, t: 8, b: 34 };   // embaixo cabem meia marca do eixo e a linha dos meses, sem se tocarem
+  var ALTURA = { celular: 264, pc: 308 };   // altura do gráfico, a mesma em toda tela
   var PASSOS = [500, 1000, 2000, 2500, 5000];
   var LIMITE = { dx: 2, dy: 2 };                                 // nada encosta na borda da área do gráfico
 
@@ -59,6 +60,8 @@
   var ARO = '<circle r="7" fill="none" stroke="currentColor" stroke-width="1.5"/>';
   function iconeChip(cls, classe) { return '<svg class="' + (classe || 'pv-ic') + '" viewBox="-8 -8 16 16"' + (classe ? '' : ' width="16" height="16"') + ' aria-hidden="true">' + (cls === 'at' ? '' : ARO) + (TRACO[cls] || '') + '</svg>'; }
 
+  function altura(celular) { return celular ? ALTURA.celular : ALTURA.pc; }
+
   /* janela de decisão: mês atual e os 3 seguintes */
   function janela(meses, ini, qtd) { var n = Math.min(qtd || 4, meses.length), i = Math.max(0, Math.min(ini || 0, meses.length - n)); return { ini: i, n: n }; }
 
@@ -79,7 +82,7 @@
     return m;
   }
   function desenho(o, E) {
-    var W = o.W, H = o.H || 264, n = o.meses.length, ativa = o.cenario || o.base, tem = !!o.cenario;
+    var W = o.W, H = o.H || ALTURA.celular, n = o.meses.length, ativa = o.cenario || o.base, tem = !!o.cenario;
     var largura = function (t, px, peso) { var m = o.mede ? o.mede(String(t), px, peso || 400) : 0; return m > 0 ? Math.ceil(m) + 2 : estimada(t, px); };
     var P = { l: M.l, r: W - M.r, t: M.t, b: H - M.b };
     var y = function (v) { return P.b - (v - E.lo) / (E.hi - E.lo) * (P.b - P.t); };
@@ -220,6 +223,6 @@
     var a = m.pa, p = a[m.li], t = 'Previsão do saldo de ' + m.meses[0] + ' a ' + m.meses[m.meses.length - 1] + (m.tem ? ', com a simulação' : '') + '. Mês mais apertado: ' + m.meses[m.li] + ', ' + m.fmt.valor(p.v) + '. ';
     return t + (m.est ? m.est.texto + '. ' : '') + 'Fim de ' + m.meses[m.meses.length - 1] + ': ' + m.fmt.valor(a[a.length - 1].v) + '.' + (estatico ? '' : ' Use as setas para ver cada mês.');
   }
-  var api = { escala: escala, fmtEixo: fmtEixo, estado: estado, janela: janela, montar: montar, svgDe: svgDe, marcos: marcos, leitura: leitura, resumo: resumo, iconeChip: iconeChip, sobre: sobre, cruza: cruza, PX: PX };
+  var api = { altura: altura, escala: escala, fmtEixo: fmtEixo, estado: estado, janela: janela, montar: montar, svgDe: svgDe, marcos: marcos, leitura: leitura, resumo: resumo, iconeChip: iconeChip, sobre: sobre, cruza: cruza, PX: PX };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TFGrafico = api;
 })(typeof window !== 'undefined' ? window : this);

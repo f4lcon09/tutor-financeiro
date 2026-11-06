@@ -166,5 +166,18 @@ const barra = (A, id, v) => { const s = A.$(id); s.value = v; s.dispatchEvent(ne
       t('Futuro simples: Ver em tabela', !!A.$('#hj_tab'));
     } else t('Futuro simples: tela com o gráfico', false);
   }
+  /* Hoje e Futuro: mesma altura, de uma constante só */
+  {
+    const fs = require('fs'), path = require('path');
+    const src = fs.readFileSync(path.join(__dirname, 'app.js'), 'utf8'), css = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+    t('altura: sem número no app', !/H:MOB\(\)\?/.test(src) && (src.match(/H:TFGrafico\.altura\(MOB\(\)\)/g) || []).length === 2);
+    const A = await abrir(FX(), larg); await A.ir('hoje'); await tick(10);
+    const hj = A.w.eval('[hjUlt.m.H,hjUlt.m.P.b-hjUlt.m.P.t]');
+    await A.ir('futuro'); await tick(10);
+    const fu = A.w.eval('[pvUlt.m.H,pvUlt.m.P.b-pvUlt.m.P.t]');
+    t('altura: Hoje igual a Futuro', hj[0] === fu[0] && hj[1] === fu[1]);
+    await A.ir('hoje'); await tick(10);
+    t('largura: só o gráfico avança sobre o preenchimento', A.$('#hj_area').classList.contains('pv-largo') && !A.$('#hj_tabela').classList.contains('pv-largo') && !A.$('#hj_tab').closest('.pv-largo') && /\.pv-largo\{margin-left:-10px;margin-right:-10px\}/.test(css));
+  }
   process.exit(fim());
 })().catch(e => { console.log('ERRO NO TESTE:', e); process.exit(2); });
