@@ -43,5 +43,7 @@ test_ui_casos.js
 !/grafico.js
 !/test_grafico.js
 !/test_ui_grafico.js
+!/test_fontes.js
+!/fonts/
 !/app.js
 !/seguranca.js
