@@ -34,7 +34,7 @@ nav{background:linear-gradient(180deg,var(--nav-top),var(--nav-bottom));border-r
 .brand{display:flex;align-items:center;gap:10px;padding:0 8px 22px;font-family:var(--fn);font-weight:600;font-size:16px;letter-spacing:.02em;white-space:nowrap}
 .brand i{width:28px;height:28px;border-radius:3px;background:var(--teal);display:grid;place-items:center;color:var(--on-primary);font-style:normal;font-weight:700}
 nav button{all:unset;cursor:pointer;display:flex;align-items:center;gap:12px;padding:10px 10px;border-radius:3px;color:var(--mu);font-size:14.5px;border-left:3px solid transparent}
-nav button:hover{background:var(--p2);color:var(--tx)}
+@media (hover:hover){nav button:hover{background:var(--p2);color:var(--tx)}}
 nav button[aria-current=true]{background:var(--p2);color:var(--tx);font-weight:600;border-left-color:var(--h,var(--teal))}
 nav button[aria-current=true] svg{color:var(--h,var(--teal))}
 nav svg{width:19px;height:19px;flex:none}
@@ -282,6 +282,9 @@ tr.clk.sel td:first-child{box-shadow:inset 3px 0 0 var(--teal)}
   nav>button{flex:1 1 0;min-width:0;flex-direction:column;justify-content:center;align-items:center;gap:2px;font-size:12px;padding:4px 2px;border-left:0;border-top:3px solid transparent;min-height:52px}
   nav>button[aria-current=true],nav>.maisbtn.ativo{border-top-color:var(--h,var(--teal));background:var(--p2);color:var(--tx)}
   nav .maisbtn{display:flex}
+  nav.aberto>button[aria-current=true]:not(.maisbtn){border-top-color:transparent;background:transparent;color:var(--mu);font-weight:400}
+  nav.aberto>button[aria-current=true]:not(.maisbtn) svg{color:inherit}
+  nav.aberto>.maisbtn{border-top-color:var(--h,var(--teal));background:var(--p2);color:var(--tx)}
   .brand{display:none}
   .secw{display:none}
   nav.aberto .secw{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;position:fixed;left:8px;right:8px;bottom:calc(var(--navh) + env(safe-area-inset-bottom) + 8px);background:var(--p1);border:1px solid var(--ln2);border-radius:6px;padding:10px;z-index:6;max-height:calc(100vh - var(--navh) - 90px);overflow:auto}
