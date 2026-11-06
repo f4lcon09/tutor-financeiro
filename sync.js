@@ -2,6 +2,7 @@
    Documento = mapa de itens: chave -> {u: hora da última alteração (ms), d: apagado?, v: valor}.
    Junção por item: vence a alteração mais recente. Apagar vira "lápide", para a exclusão chegar ao outro aparelho. */
 (function (root) {
+  const Seg = (typeof require === 'function' && typeof module !== 'undefined') ? require('./seguranca.js') : root.TFSeg;
   const ord = (k, v) => (v && typeof v === 'object' && !Array.isArray(v)) ? Object.keys(v).sort().reduce((o, x) => (o[x] = v[x], o), {}) : v;
   const str = v => JSON.stringify(v, ord);
   const eq = (a, b) => str(a) === str(b);
@@ -23,7 +24,7 @@
   function montar(itens) {
     const st = { lanc: [], pagos: {}, tetos: {}, metas: [], taxa: undefined };
     Object.keys(itens).forEach(k => {
-      const it = itens[k]; if (it.d) return;
+      const it = itens[k]; if (it.d || Seg.perigosa(k.replace(/^[a-z]+:/, ''))) return;
       if (k.startsWith('lanc:')) st.lanc.push(it.v);
       else if (k.startsWith('pago:')) st.pagos[k.slice(5)] = it.v;
       else if (k.startsWith('teto:')) st.tetos[k.slice(5)] = it.v;
@@ -99,7 +100,7 @@
       jaConectou: () => !!arm.get('tf_gjaconectou'),
       /* Fluxo por redirecionamento (sem biblioteca externa). Chamar a partir de um toque do usuário. */
       conectar() {
-        const state = Math.random().toString(36).slice(2);
+        const state = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('');
         arm.set('tf_gstate', state);
         const q = new URLSearchParams({ client_id: cfg.clientId, redirect_uri: redirect(), response_type: 'token', scope: DRIVE.escopo, state, include_granted_scopes: 'true', prompt: arm.get('tf_gjaconectou') ? '' : 'consent' });
         location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + q.toString();
@@ -109,7 +110,8 @@
         if (!location.hash.includes('access_token')) return false;
         const h = new URLSearchParams(location.hash.slice(1));
         history.replaceState(null, '', location.pathname + location.search);
-        if (h.get('state') !== arm.get('tf_gstate')) return false;
+        const esperado = arm.get('tf_gstate'); arm.del('tf_gstate');   // uso único; sem state guardado ou sem state na volta, o token é recusado
+        if (!esperado || h.get('state') !== esperado) return false;
         arm.set('tf_gtoken', { v: h.get('access_token'), exp: Date.now() + (+h.get('expires_in') || 3600) * 1000 });
         arm.set('tf_gjaconectou', true);
         return true;
@@ -137,11 +139,14 @@
         arm.set('tf_gfile', id); return id;
       },
       async ler(id) {
+        if (!/^[A-Za-z0-9_-]{1,100}$/.test(id)) throw new Error('id inválido');
         const r = await api('https://www.googleapis.com/drive/v3/files/' + id + '?alt=media');
         const t = await r.text(); if (!t.trim()) return {};
-        const d = JSON.parse(t); return d && d.itens ? d.itens : {};
+        if (t.length > 8 * 1024 * 1024) throw new Error('arquivo grande demais');
+        const d = JSON.parse(t); const lp = Seg.limparItens(d && d.itens ? d.itens : {}); this.descartados = lp.descartados; return lp.itens;
       },
       async escrever(id, d) {
+        if (!/^[A-Za-z0-9_-]{1,100}$/.test(id)) throw new Error('id inválido');
         await api('https://www.googleapis.com/upload/drive/v3/files/' + id + '?uploadType=media', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
       }
     };

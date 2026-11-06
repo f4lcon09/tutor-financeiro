@@ -1,11 +1,23 @@
 /* Camada de dados do Tutor Financeiro: estado, validação e operações. Pura (sem DOM), testada em node.
    O armazenamento (localStorage) entra por parâmetro. Nada aqui conhece telas. */
 (function (root) {
+  var Seg = (typeof require === 'function' && typeof module !== 'undefined') ? require('./seguranca.js') : root.TFSeg;
   var CHAVES = { lanc: 'tf_lanc3', pagos: 'tf_pagos', tetos: 'tf_tetos', metas: 'tf_metas', taxa: 'tf_taxameta', numeros: 'tf_numeros', real: 'tf_real', modo: 'tf_modo' };
   var CATEGORIAS = ['Mercado', 'Transporte', 'Lazer', 'Comida', 'Estudos', 'Saúde', 'Jogos', 'Outros'];
   var FORMAS = ['Pix', 'Débito', 'Crédito', 'Dinheiro'];
   var pad = function (n) { return String(n).padStart(2, '0'); };
   var r2 = function (x) { return Math.round(x * 100) / 100; };
+  var RITMO_MIN_DIAS = 7;   // antes disso a projeção do mês é ruído
+
+  /* Ritmo do mês: gasto até hoje / dias passados * dias do mês, em centavos inteiros.
+     poucos = ainda não passou o mínimo de dias; semGasto = nada lançado. */
+  function ritmoMes(gasto, dia, diasMes, minDias) {
+    var c = Math.round(Number(gasto) * 100), d = Math.max(1, Math.floor(dia) || 1), dm = Math.max(d, Math.floor(diasMes) || d);
+    var min = minDias == null ? RITMO_MIN_DIAS : minDias, poucos = d < min;
+    if (!(c > 0)) return { semGasto: true, poucos: poucos, projetadoCentavos: 0, projetado: 0 };
+    var p = Math.round(c * dm / d);
+    return { semGasto: false, poucos: poucos, projetadoCentavos: p, projetado: p / 100 };
+  }
 
   function lerNumero(txt) {   // aceita "12,06" e "1.234,56" e "12.06"
     if (typeof txt === 'number') return txt;
@@ -103,13 +115,13 @@
       lancar: function (o) {
         var v = validarLancamento(o); if (!v.ok) return { ok: false, erros: v.erros };
         var tipo = o.tipo === 'entrada' ? 'entrada' : 'gasto';
-        var l = { id: novoId(), data: o.data, desc: String(o.desc || '').trim() || o.cat, cat: o.cat, valor: r2(tipo === 'entrada' ? -v.valor : v.valor), forma: o.forma || 'Pix', essencial: tipo === 'gasto' && !!o.essencial, lazer: tipo === 'gasto' && !!o.lazer };
+        var l = { id: novoId(), data: o.data, desc: String(o.desc || '').trim().slice(0, Seg.LIM.desc) || o.cat, cat: o.cat, valor: r2(tipo === 'entrada' ? -v.valor : v.valor), forma: o.forma || 'Pix', essencial: tipo === 'gasto' && !!o.essencial, lazer: tipo === 'gasto' && !!o.lazer };
         st.lanc.push(l); mudou({ lanc: 1 }); return { ok: true, id: l.id };
       },
       editar: function (id, o) {
         var v = validarLancamento(o); if (!v.ok) return { ok: false, erros: v.erros };
         var achou = false, tipo = o.tipo === 'entrada' ? 'entrada' : 'gasto';
-        st.lanc = st.lanc.map(function (l) { if (String(l.id) !== String(id)) return l; achou = true; return { id: l.id, data: o.data, desc: String(o.desc || '').trim() || o.cat, cat: o.cat, valor: r2(tipo === 'entrada' ? -v.valor : v.valor), forma: o.forma || 'Pix', essencial: tipo === 'gasto' && !!o.essencial, lazer: tipo === 'gasto' && !!o.lazer }; });
+        st.lanc = st.lanc.map(function (l) { if (String(l.id) !== String(id)) return l; achou = true; return { id: l.id, data: o.data, desc: String(o.desc || '').trim().slice(0, Seg.LIM.desc) || o.cat, cat: o.cat, valor: r2(tipo === 'entrada' ? -v.valor : v.valor), forma: o.forma || 'Pix', essencial: tipo === 'gasto' && !!o.essencial, lazer: tipo === 'gasto' && !!o.lazer }; });
         if (!achou) return { ok: false, erros: { geral: 'Lançamento não encontrado.' } };
         mudou({ lanc: 1 }); return { ok: true };
       },
@@ -141,7 +153,7 @@
         if (!(alvo > 0)) erros.alvo = 'Informe quanto quer juntar.';
         if (!/^\d{4}-\d{2}$/.test(m.prazo || '')) erros.prazo = 'Informe o mês do prazo.';
         if (Object.keys(erros).length) return { ok: false, erros: erros };
-        var meta = { id: novoId(), nome: String(m.nome).trim(), alvo: r2(alvo), guardado: g > 0 ? r2(g) : 0, prazo: m.prazo, aporte: ap > 0 ? r2(ap) : 0 };
+        var meta = { id: novoId(), nome: String(m.nome).trim().slice(0, Seg.LIM.nome), alvo: r2(alvo), guardado: g > 0 ? r2(g) : 0, prazo: m.prazo, aporte: ap > 0 ? r2(ap) : 0 };
         st.metas.push(meta); mudou({ metas: 1 }); return { ok: true, id: meta.id };
       },
       setAporte: function (id, v) { var m = st.metas.filter(function (x) { return String(x.id) === String(id); })[0]; var n = lerNumero(v); if (!m || !(n >= 0)) return false; m.aporte = r2(n); mudou({ metas: 1 }); return true; },
@@ -177,12 +189,14 @@
       /* ---- modo e dados reais ---- */
       definirModo: function (m) { st.modo = m; gravar(CHAVES.modo, m); },
       importarReal: function (j) {
+        var v = Seg.validarImportacao(j); if (!v.ok) return v;
         var ok = j && j._meta && j.liquidez && j.cartao && j.pendencias_novembro && j.gastos_fixos_mensais && j.faturas_futuras_parcelas_antigas && j.regras_e_metas && j.entradas_esperadas;
         if (!ok) return { ok: false, erro: 'Arquivo não reconhecido: confira se é o dados_reais_*.json.' };
         st.real = j; st.modo = 'real'; gravar(CHAVES.modo, 'real'); mudou({ real: 1 }); return { ok: true };
       },
       /* troca o estado inteiro (vindo da sincronização) */
       aplicar: function (novo) {
+        novo = Seg.sanearEstado(novo).estado;   // o que vem do Drive nunca é confiável
         if (novo.lanc) st.lanc = novo.lanc; if (novo.pagos) st.pagos = novo.pagos; if (novo.tetos) st.tetos = novo.tetos;
         if (novo.metas) st.metas = novo.metas; if (novo.taxa != null) st.taxa = novo.taxa; if (novo.numeros !== undefined) st.numeros = novo.numeros || {};
         if (novo.real !== undefined) st.real = novo.real;
@@ -191,9 +205,9 @@
       paraSync: function () { return { lanc: st.lanc, pagos: st.pagos, tetos: st.tetos, metas: st.metas, taxa: st.taxa, numeros: Object.keys(st.numeros).length ? st.numeros : undefined, real: st.modo === 'real' ? st.real : undefined }; },
 
       exportarCSV: function () {
-        var q = function (t) { t = String(t); return /[",\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
+        var q = function (t) { t = String(t); if (/^[=+@\t\r-]/.test(t)) t = "'" + t; return /[",\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
         var linhas = ['data,descricao,categoria,valor,forma,essencial,mes,conta_no_lazer'].concat(st.lanc.slice().sort(function (a, b) { return a.data.localeCompare(b.data); }).map(function (l) {
-          return [l.data, q(l.desc), l.cat, l.valor.toFixed(2), l.forma || '', l.essencial ? 'Sim' : 'Não', l.data.slice(0, 7), l.lazer ? 'Sim' : 'Não'].join(',');
+          return [l.data, q(l.desc), q(l.cat), l.valor.toFixed(2), q(l.forma || ''), l.essencial ? 'Sim' : 'Não', l.data.slice(0, 7), l.lazer ? 'Sim' : 'Não'].join(',');
         }));
         return linhas.join('\n');
       }
@@ -201,6 +215,6 @@
     return S;
   }
 
-  var api = { criarStore: criarStore, lerNumero: lerNumero, dataValida: dataValida, sugerir: sugerir, validarLancamento: validarLancamento, interpretarTexto: interpretarTexto, CATEGORIAS: CATEGORIAS, FORMAS: FORMAS };
+  var api = { criarStore: criarStore, lerNumero: lerNumero, dataValida: dataValida, sugerir: sugerir, validarLancamento: validarLancamento, interpretarTexto: interpretarTexto, ritmoMes: ritmoMes, RITMO_MIN_DIAS: RITMO_MIN_DIAS, CATEGORIAS: CATEGORIAS, FORMAS: FORMAS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TFStore = api;
 })(typeof window !== 'undefined' ? window : this);

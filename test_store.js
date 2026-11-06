@@ -125,7 +125,7 @@ t('categoria inválida é erro', S.validarLancamento({ ...base, cat: 'Xis' }).er
 {
   const m = mem(), s = novo(m);
   t('importar arquivo inválido', s.importarReal({}).ok === false && s.st.modo === null);
-  const fake = { _meta: {}, liquidez: {}, cartao: {}, pendencias_novembro: [], gastos_fixos_mensais: {}, faturas_futuras_parcelas_antigas: [], regras_e_metas: {}, entradas_esperadas: [] };
+  const fake = { _meta: { as_of: '2026-11-04' }, liquidez: { total: 100 }, cartao: { emissor: 'A', fechamento_dia: 3, fatura_atual: { total: 10, vence_em: '2026-11-10' } }, pendencias_novembro: [], gastos_fixos_mensais: { ajuda_em_casa_a_partir_de_dezembro: 1, faculdade_2026: 1, faculdade_2027_estimado: 1, assinaturas_no_cartao: {}, teto_lazer_mes: 1 }, faturas_futuras_parcelas_antigas: [], regras_e_metas: { meta_17_01_2027: 1, piso_17_01_2027: 1, alerta_dezembro: 1 }, entradas_esperadas: [] };
   t('importar arquivo válido', s.importarReal(fake).ok && s.st.modo === 'real');
   t('persistência do modo e dos dados', novo(m).st.modo === 'real' && novo(m).st.real !== null);
   s.definirModo('demo'); t('definirModo', novo(m).st.modo === 'demo');
@@ -173,6 +173,26 @@ t('categoria inválida é erro', S.validarLancamento({ ...base, cat: 'Xis' }).er
   t('texto sem categoria vira Outros', it('30 coisa qualquer').cat === 'Outros');
   const ok1 = S.validarLancamento({ tipo: 'gasto', valor: a.valor, cat: a.cat, data: a.data });
   t('o que o texto interpreta passa na validação', ok1.ok === true);
+}
+
+/* ---- ritmo do mês (centavos inteiros) ---- */
+{
+  const r = S.ritmoMes;
+  t('ritmo: 310,00 em 10 dias de 30 projeta 930,00', r(310, 10, 30).projetadoCentavos === 93000 && r(310, 10, 30).projetado === 930);
+  t('ritmo: 100 no dia 15 de 30 projeta 200', r(100, 15, 30).projetado === 200);
+  t('ritmo: no último dia projeta o próprio gasto', r(777.77, 30, 30).projetadoCentavos === 77777);
+  t('ritmo: arredonda em centavos, sem fração de centavo', Number.isInteger(r(100.01, 7, 31).projetadoCentavos) && r(100.01, 7, 31).projetadoCentavos === Math.round(10001 * 31 / 7));
+  t('ritmo: 0,10 + 0,20 não vira 0,30000000000000004', r(0.1 + 0.2, 10, 30).projetadoCentavos === 90);
+  t('ritmo: sem gasto marca semGasto e projeta zero', r(0, 12, 30).semGasto === true && r(0, 12, 30).projetado === 0);
+  t('ritmo: poucos dados antes do dia 7', r(50, 6, 30).poucos === true && r(50, 7, 30).poucos === false);
+  t('ritmo: limite mínimo configurável', r(50, 3, 30, 3).poucos === false && r(50, 2, 30, 3).poucos === true);
+  t('ritmo: dia fora do intervalo não quebra', r(50, 0, 30).projetadoCentavos === 150000 && r(50, 40, 30).projetadoCentavos === 5000);
+  t('ritmo: fevereiro bissexto usa 29 dias', r(290, 10, 29).projetado === 841);
+  t('ritmo: entrada inválida vira zero', r(NaN, 10, 30).projetado === 0 && r(-5, 10, 30).semGasto === true);
+  const loja = novo(); loja.lancar({ ...base, valor: '30', data: '2026-11-02' }); loja.lancar({ ...base, valor: '70,10', data: '2026-11-05' });
+  const gasto = loja.gastosMes('2026-11').reduce((s, l) => s + l.valor, 0);
+  t('ritmo: com lançamentos sintéticos bate com a fórmula', r(gasto, 5, 30).projetadoCentavos === Math.round(10010 * 30 / 5) && r(gasto, 5, 30).poucos === true);
+  t('mês sem lançamento fica vazio', novo().doMes('2026-11').length === 0 && loja.doMes('2026-11').length === 2);
 }
 
 console.log(f ? f + ' falha(s)' : 'Todos os ' + ok + ' testes da camada de dados passaram.'); process.exit(f ? 1 : 0);
