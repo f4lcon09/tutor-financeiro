@@ -193,6 +193,7 @@ function lineChart(labels, series, refs, h=280, W=720, o={}){
 function ajustarGraficos(){
   $$('svg[data-ch]').forEach(sv=>{ const c=CHARTS[sv.dataset.ch], w=Math.round(sv.getBoundingClientRect().width), lc=sv.closest('.lc'); if(!c||!w||!lc||Math.abs(w-c.W)<=3) return;
     const [lb,se,rf,h,W,o]=c.args, t=document.createElement('div'); t.innerHTML=lineChart(lb,se,rf,h,w,{...o,exact:true}); lc.replaceWith(t.firstChild); });
+  const pa=document.querySelector('#pv_area'); if(pa&&pvUlt&&pa.clientWidth&&Math.abs(pa.clientWidth-pvUlt.m.W)>3) pvDesenha();
 }
 function ring(pct,color,label,sub,size=150){
   const r=size/2-12, c=2*Math.PI*r, off=c*(1-Math.min(Math.max(pct,0),1));
@@ -640,12 +641,12 @@ function drawFuturo(){
   const mobHtml = MOB() ? (()=>{
     const al=[]; if(cls==='ru') al.push([3, alerta('ru','Em janeiro o saldo fica abaixo do piso.')]); else if(cls==='at') al.push([1, alerta('at','Em janeiro o saldo fica entre o piso e a meta.')]);
     if(dez<d.alerta) al.push([2, alerta('ru','Dezembro fica abaixo do alerta ('+brl0(d.alerta)+').')]);
-    const leg=`<div class="legend"><span><i style="background:var(--ok);height:10px;opacity:.5"></i>acima da meta</span><span><i style="background:var(--at);height:10px;opacity:.5"></i>entre piso e meta</span><span><i style="background:var(--ru);height:10px;opacity:.5"></i>abaixo do piso</span></div>`;
+    
     return `${alertas(al)}
     ${pn('Saldo no fim de janeiro',`<div class="big" style="color:${COR[cls]}">${aprox(jan)}</div><span class="tag ${cls}" style="margin-top:6px">${icn} ${txt}</span><div class="mu small" style="margin-top:8px">Fim de dez ${brl0(dez)} · ${jan-d.meta>=0?'folga de '+brl0(jan-d.meta)+' sobre a meta':'faltam '+brl0(d.meta-jan)+' para a meta'}${alvo<0?'':' · passa da meta em '+d.meses[alvo]}</div>`,'sky')}
-    ${pn('Saldo previsto: '+esc(cenSel),lineChart(d.meses,series,refs,360,CW(1),{zones:zonesFut(),marks}),'sky')}
+    ${pn('Saldo previsto',pvHtml(),'sky')}
     ${pn('Leitura do cenário',`<div class="ins"><div class="d ${cls}">${icn}</div><div class="small"><b>Janeiro termina ${jan>=d.meta?'acima da meta':jan>=d.piso?'entre o piso e a meta':'abaixo do piso'}</b></div></div><div class="ins"><div class="d ${dfa>=0?'ok':'ru'}">${dfa>=0?'✔':'✖'}</div><div class="small"><b>Mês mais apertado: ${d.meses[minI]}</b><div class="mu">Saldo de ${brl0(minV)}, ${dfa>=0?brl0(dfa)+' acima':brl0(-dfa)+' abaixo'} do alerta.</div></div></div>`,'sky')}
-    ${det('futuro','det','Ver detalhes',pSim+pCen+pn('Legenda do gráfico',leg,'sky'),'sky')}`; })() : null;
+    ${det('futuro','det','Ver detalhes',pSim+pCen,'sky')}`; })() : null;
   $('#fut').innerHTML=mobHtml||`
   <div class="grid g4" style="margin-bottom:14px">
     ${pn('Saldo fim de dez',`<div class="big">${brl0(dez)}</div><span class="tag ${dez>=d.alerta?'ok':'ru'}">${dez>=d.alerta?'✔ Acima do alerta':'✖ Abaixo do alerta'}</span>`,'sky')}
@@ -654,7 +655,7 @@ function drawFuturo(){
     ${pn('Atinge a meta em',`<div class="big">${alvo<0?'depois de '+d.meses[11]:d.meses[alvo]}</div><div class="mu small">primeiro mês acima da meta</div>`,'sky')}
   </div>
   <div class="grid g32" style="margin-bottom:14px">
-    ${pn(cmpOn?'Todos os cenários':'Saldo previsto: '+esc(cenSel),lineChart(d.meses,series,refs,360,CW(.66),{zones:zonesFut(),marks})+`<div class="legend"><span><i style="background:var(--ok);height:10px;opacity:.5"></i>acima da meta</span><span><i style="background:var(--at);height:10px;opacity:.5"></i>entre piso e meta</span><span><i style="background:var(--ru);height:10px;opacity:.5"></i>abaixo do piso</span>${cmpOn?todos.map(c=>`<span><i style="background:${d.cores[c]}"></i>${esc(c)}</span>`).join(''):''}</div>`,'sky')}
+    ${!cmpOn?pn('Saldo previsto',pvHtml(),'sky'):pn('Todos os cenários',lineChart(d.meses,series,refs,360,CW(.66),{zones:zonesFut(),marks})+`<div class="legend"><span><i style="background:var(--ok);height:10px;opacity:.5"></i>acima da meta</span><span><i style="background:var(--at);height:10px;opacity:.5"></i>entre piso e meta</span><span><i style="background:var(--ru);height:10px;opacity:.5"></i>abaixo do piso</span>${todos.map(c=>`<span><i style="background:${d.cores[c]}"></i>${esc(c)}</span>`).join('')}</div>`,'sky')}
     ${pn('Leitura do cenário'+info('Meta e piso vêm dos seus números: a meta é o saldo que você quer ter em 17/01 e o piso é o mínimo aceitável. O alerta é o saldo mínimo de segurança em dezembro.',true),`
       <div class="ins"><div class="d ${cls}">${icn}</div><div class="small"><b>Janeiro termina ${jan>=d.meta?'acima da meta':jan>=d.piso?'entre o piso e a meta':'abaixo do piso'}</b><div class="mu">${jan-d.meta>=0?'Sobram '+brl0(jan-d.meta)+' além da meta.':'Faltam '+brl0(d.meta-jan)+' para a meta e '+(jan>=d.piso?'você está '+brl0(jan-d.piso)+' acima do piso.':brl0(d.piso-jan)+' para o piso.')}</div></div></div>
       <div class="ins"><div class="d ${dfa>=0?'ok':'ru'}">${dfa>=0?'✔':'✖'}</div><div class="small"><b>Mês mais apertado: ${d.meses[minI]}</b><div class="mu">Saldo de ${brl0(minV)}, ${dfa>=0?brl0(dfa)+' acima':brl0(-dfa)+' abaixo'} do alerta. Evite compras grandes nesse mês.</div></div></div>
@@ -663,7 +664,7 @@ function drawFuturo(){
   </div>
   ${pSim}
   ${pCen}`;
-  bindSim();
+  pvBind(); bindSim();
 }
 
 /* --- Decidir --- */
@@ -875,6 +876,72 @@ function detalheOrc(rows){
   const lz=orcSel==='Lazer', es=gastosMes().filter(l=>lz?l.lazer:(!l.lazer&&l.cat===orcSel)).sort((a,b)=>b.data.localeCompare(a.data));
   return pn('Lançamentos: '+esc(orcSel.split(' (')[0]),es.length?`<table><tr><th>Dia</th><th>O que</th><th class="n">Valor</th><th></th></tr>${es.map(l=>`<tr><td>${esc(l.data.slice(8))}</td><td>${esc(l.desc)}<div class="mu small">${esc(l.cat)}${l.forma?' · '+esc(l.forma):''}</div></td><td class="n">${brl(l.valor)}</td><td><button class="x" data-fix="${esc(l.id)}" title="Corrigir" aria-label="Corrigir">${I.editar}</button></td></tr>`).join('')}</table><div class="hint">Total: ${brl(es.reduce((s,l)=>s+l.valor,0))}. Toque no lápis para corrigir o lançamento.</div>`:'<div class="mu">Nenhum lançamento nesta categoria no mês.</div>','pink','margin-top:14px');
 }
+/* --- Gráfico de previsão: uma tela só para Base e E se... (cálculo em grafico.js) --- */
+let pvModo='base', pvSel=null, pvTabela=false, pvTinha=false, pvUlt=null, pvPress=false;
+const pvNum=v=>Math.round(Math.abs(v)).toLocaleString('pt-BR');
+const pvValor=v=>PRIV?MASK:'~R$ '+(v<0?'−':'')+pvNum(v);
+const pvCurto=v=>PRIV?'••••':pvNum(v);
+const pvDifTxt=v=>PRIV?MASK:'~R$ '+(v>0?'+':v<0?'−':'')+pvNum(v);
+const pvFixo=v=>PRIV?MASK:'R$ '+pvNum(v);
+const pvAplicado=v=>{ let cum=0; return v.map((x,t)=>{ cum+=simS.entrada-simS.gasto; return x+cum-(t>=simS.mes?simS.compra:0); }); };
+function pvInicio(d){ if(!d.asOf) return 0; const a=d.asOf.split('-'); return Math.max(0,(hoje.getFullYear()-(+a[0]))*12+(hoje.getMonth()+1-(+a[1]))); }
+function pvMonta(){
+  const d=DEMO, v=d.cenarios[cenSel], adj=pvAplicado(v), mudou=adj.some((x,i)=>x!==v[i]), se=pvModo==='se'&&mudou, j=TFGrafico.janela(d.meses,pvInicio(d)), corta=a=>a.slice(j.ini,j.ini+j.n), el=$('#pv_area');
+  const W=Math.max((el&&el.clientWidth)||(MOB()?CW(1):CW(.66)),240), base=corta(v);
+  return {d,v,adj,j,se,mudou,base,m:TFGrafico.montar({meses:corta(d.meses),base,cenario:se?corta(adj):null,meta:d.meta,piso:d.piso,alerta:d.alerta,W,H:MOB()?300:320,fmt:{valor:pvValor,fixo:pvFixo,curto:pvCurto}})};
+}
+const pvChip=e=>e?`<span class="tag ${e.cls}">${TFGrafico.iconeChip(e.cls)}${esc(e.texto)}</span>`:'';
+function pvCabecalho(x){
+  const m=x.m;
+  if(pvSel!=null){ const l=TFGrafico.leitura(m,pvSel,x.base), lin=(a,b)=>`<div class="pv-lin"><span>${a}</span><b>${b}</b></div>`;
+    return `<div class="pv-cap">${esc(l.mes)} · fim do mês</div>${l.cenario==null?'':lin('Cenário',pvValor(l.cenario))}${lin('Base',pvValor(l.base))}${l.cenario==null?'':lin('Diferença',pvDifTxt(l.dif))}<div class="pv-chip">${pvChip(l.estado)}</div>`; }
+  const li=m.li, v=m.pa[li].v, e=m.est, serie=x.se?x.adj:x.v, mar=TFGrafico.marcos(serie,x.d.meses,x.d.meta,x.j.ini+li), sub=[];
+  if(x.se&&x.base[li]!==v) sub.push((simS.compra?'Sem a compra':'Sem a mudança')+' seria <b>'+pvValor(x.base[li])+'</b>');
+  if(mar.positivo) sub.push('Volta ao positivo em '+esc(mar.positivo));
+  if(mar.meta) sub.push('Passa da meta em '+esc(mar.meta));
+  if(pvModo==='se'&&!x.mudou) sub.push('Mexa nos controles do simulador para ver o efeito.');
+  return `<div class="pv-cap">Mais apertado, em ${esc(m.meses[li])}</div><div class="pv-val" style="color:${e?COR[e.cls]:'var(--tx)'}">${pvValor(v)}</div><div class="pv-chip">${pvChip(e)}</div><div class="pv-sub">${sub.join('. ')}${sub.length?'.':''}</div>`;
+}
+function pvTabelaHtml(x){
+  const m=x.m;
+  return `<table class="rt"><tr><th>Mês</th><th class="n">Base</th>${m.pc?'<th class="n">Cenário</th>':''}<th>Situação</th></tr>${m.meses.map((mes,i)=>{ const l=TFGrafico.leitura(m,i,x.base); return `<tr><td class="tt"><b>${esc(mes)}</b></td><td class="n" data-l="Base">${pvValor(l.base)}</td>${m.pc?`<td class="n" data-l="Cenário">${pvValor(l.cenario)}</td>`:''}<td data-l="Situação">${l.estado?esc(l.estado.texto):'—'}</td></tr>`; }).join('')}</table>`;
+}
+function pvFala(x){
+  if(pvSel==null) return ''; const l=TFGrafico.leitura(x.m,pvSel,x.base);
+  return l.mes+', fim do mês.'+(l.cenario==null?'':' Cenário '+pvValor(l.cenario)+'.')+' Base '+pvValor(l.base)+'.'+(l.cenario==null?'':' Diferença '+pvDifTxt(l.dif)+'.')+(l.estado?' '+l.estado.texto+'.':'');
+}
+function pvDesenha(){
+  const area=$('#pv_area'); if(!area) return;
+  const x=pvMonta(), m=x.m; pvUlt=x; if(pvSel!=null&&!m.pa[pvSel]) pvSel=null;
+  $('#pv_cab').innerHTML=pvCabecalho(x);
+  $$('#pv_modo button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.m===pvModo)));
+  area.setAttribute('aria-label',TFGrafico.resumo(m));
+  area.innerHTML=TFGrafico.svgDe(m,{id:'pvch',sel:pvSel,animar:x.se&&!pvTinha,priv:PRIV}); pvTinha=x.se;
+  CHARTS.pvch={prev:true,labels:m.meses,series:[],W:m.W,L:0,R:0,args:[]};
+  const tb=$('#pv_tabela'), bt=$('#pv_tab');
+  area.hidden=pvTabela; tb.hidden=!pvTabela; tb.innerHTML=pvTabela?pvTabelaHtml(x):''; bt.textContent=pvTabela?'Ver gráfico':'Ver em tabela'; bt.setAttribute('aria-pressed',String(pvTabela));
+}
+function pvEscolhe(i){ if(i===pvSel) return; pvSel=i; pvDesenha(); const vv=$('#pv_vivo'); if(vv&&pvUlt) vv.textContent=pvFala(pvUlt); }
+function pvDoPonteiro(e){ const sv=$('#pv_area svg'); if(!sv||!pvUlt) return; const r=sv.getBoundingClientRect(), m=pvUlt.m, vx=(e.clientX-r.left)*(m.W/(r.width||m.W)); let i=0; m.pa.forEach((p,k)=>{ if(Math.abs(p.x-vx)<Math.abs(m.pa[i].x-vx)) i=k; }); pvEscolhe(i); }
+function pvHtml(){
+  return `<div class="pv-cab" id="pv_cab"></div>
+    <div class="pv-seg" id="pv_modo" role="group" aria-label="Cenário do gráfico"><button type="button" data-m="base" aria-pressed="${pvModo==='base'}">Base</button><button type="button" data-m="se" aria-pressed="${pvModo==='se'}">E se...</button></div>
+    <div id="pv_area" class="pv-grafico" role="group" tabindex="0"></div><div id="pv_tabela" hidden></div>
+    <div class="pv-pe"><button type="button" class="btn ghost pv-tab" id="pv_tab" aria-pressed="false">Ver em tabela</button><span class="pv-nota">~ = projeção com base no que você lançou.</span></div>
+    <div class="pv-sr" id="pv_vivo" aria-live="polite"></div>`;
+}
+function pvBind(){
+  const area=$('#pv_area'); if(!area) return;
+  $$('#pv_modo button').forEach(b=>b.onclick=()=>{ pvModo=b.dataset.m; pvSel=null; const vv=$('#pv_vivo'); if(vv) vv.textContent=''; if(pvModo==='se'){ const s=$('#s_g'), dt=s&&s.closest('details'); if(dt) dt.open=true; } pvDesenha(); });
+  $('#pv_tab').onclick=()=>{ pvTabela=!pvTabela; pvDesenha(); };
+  area.addEventListener('pointerdown',e=>{ pvPress=true; try{ area.setPointerCapture(e.pointerId); }catch(_){ } pvDoPonteiro(e); });
+  area.addEventListener('pointermove',e=>{ if(pvPress||e.pointerType==='mouse') pvDoPonteiro(e); });
+  const solta=()=>{ pvPress=false; }; area.addEventListener('pointerup',solta); area.addEventListener('pointercancel',solta);
+  area.onkeydown=e=>{ const n=pvUlt?pvUlt.m.pa.length:0;
+    if(e.key==='ArrowRight'||e.key==='ArrowLeft'){ e.preventDefault(); const d=e.key==='ArrowRight'?1:-1; pvEscolhe(pvSel==null?(d>0?0:n-1):Math.max(0,Math.min(n-1,pvSel+d))); }
+    else if(e.key==='Escape'&&pvSel!=null){ pvSel=null; pvDesenha(); const vv=$('#pv_vivo'); if(vv) vv.textContent=''; } };
+}
+document.addEventListener('pointerdown',e=>{ if(pvSel==null||!e.target.closest||e.target.closest('#pv_area')) return; pvSel=null; pvDesenha(); const vv=$('#pv_vivo'); if(vv) vv.textContent=''; });
 function simHtml(){
   const d=DEMO;
   return `<div class="grid g3">
@@ -888,21 +955,22 @@ function bindSim(){
   const d=DEMO, v=d.cenarios[cenSel];
   const draw=()=>{
     $('#v_g').textContent=(simS.gasto>0?'+':'')+brl0(simS.gasto); $('#v_e').textContent=brl0(simS.entrada); $('#v_c').textContent=brl0(simS.compra);
-    let cum=0; const adj=v.map((x,t)=>{ cum+=simS.entrada-simS.gasto; return x+cum-(t>=simS.mes?simS.compra:0); });
+    const adj=pvAplicado(v);
     const jan=adj[2], [cls,icn,txt]=status(jan,d.meta,d.piso), dj=jan-v[2], mn=Math.min(...adj), mi=adj.indexOf(mn);
     const mudou=simS.gasto||simS.entrada||simS.compra;
-    $('#simout').innerHTML=`<div class="grid g32" style="margin-top:6px">
-      <div>${lineChart(d.meses,[{name:'Original',values:v,c:'var(--mu)',w:2},{name:'Com a mudança',values:adj,c:d.cores[cenSel],w:3.5,area:true}],[{v:d.meta,t:'Meta (17/01)',c:'var(--ok)'},{v:d.piso,t:'Piso (17/01)',c:'var(--at)'},{v:d.alerta,t:'Alerta (fim de dez)',c:'var(--ru)'}],300,CW(.66)-10,{zones:zonesFut(),marks:[{i:2,v:jan,t:'jan '+brl0(jan),c:COR[cls],pos:'t'}]})}</div>
+    $('#simout').innerHTML=`<div style="margin-top:6px">
       <div><div class="kv"><span>Janeiro com a mudança</span><span style="color:${COR[cls]}">${brl0(jan)}</span><span>Diferença contra o original</span><span style="color:${dj>=0?COR.ok:COR.ru}">${dj>=0?'+':''}${brl0(dj)}</span><span>Contra a meta</span><span>${jan-d.meta>=0?'+':''}${brl0(jan-d.meta)}</span><span>Mês mais apertado</span><span>${d.meses[mi]} · ${brl0(mn)}</span></div>
       <span class="tag ${cls}" style="margin-top:12px">${icn} ${txt}</span>
       <div class="disc">${mudou?'Estimativa do app: soma o efeito mês a mês ao cenário. As regras reais de cada mês (freios, rendimento) ficam na planilha, então use como ordem de grandeza.':'Mexa nos controles para ver o efeito no saldo.'}</div>
       <button class="btn ghost" id="s_r" style="margin-top:12px">Limpar simulação</button></div></div>`;
-    $('#s_r').onclick=()=>{ simS.gasto=0; simS.entrada=0; simS.compra=0; simS.mes=1; $('#fut').querySelector('#sim').innerHTML=simHtml(); bindSim(); };
+    pvDesenha();
+    $('#s_r').onclick=()=>{ simS.gasto=0; simS.entrada=0; simS.compra=0; simS.mes=1; pvModo='base'; pvSel=null; $('#fut').querySelector('#sim').innerHTML=simHtml(); bindSim(); };
   };
-  $('#s_g').oninput=e=>{ simS.gasto=+e.target.value; draw(); };
-  $('#s_e').oninput=e=>{ simS.entrada=+e.target.value; draw(); };
-  $('#s_c').oninput=e=>{ simS.compra=+e.target.value; draw(); };
-  $('#s_m').onchange=e=>{ simS.mes=+e.target.value; draw(); };
+  const mexeu=()=>{ pvModo='se'; draw(); };
+  $('#s_g').oninput=e=>{ simS.gasto=+e.target.value; mexeu(); };
+  $('#s_e').oninput=e=>{ simS.entrada=+e.target.value; mexeu(); };
+  $('#s_c').oninput=e=>{ simS.compra=+e.target.value; mexeu(); };
+  $('#s_m').onchange=e=>{ simS.mes=+e.target.value; mexeu(); };
   draw();
 }
 document.addEventListener('keydown',e=>{
@@ -917,7 +985,7 @@ const tip=document.createElement('div'); tip.className='tip'; tip.style.display=
 document.addEventListener('mousemove',e=>{
   const sv=e.target.closest&&e.target.closest('svg[data-ch]'); $$('svg .hv').forEach(n=>n.remove());
   if(!sv){ tip.style.display='none'; return; }
-  const c=CHARTS[sv.dataset.ch]; if(!c){ tip.style.display='none'; return; }
+  const c=CHARTS[sv.dataset.ch]; if(!c||c.prev){ tip.style.display='none'; return; }
   const r=sv.getBoundingClientRect(), vx=(e.clientX-r.left)*(c.W/r.width), n=c.labels.length;
   const i=Math.max(0,Math.min(n-1,Math.round((vx-c.L)/(c.W-c.L-c.R)*(n-1)))), px=c.L+(c.W-c.L-c.R)*i/(n-1);
   const vh=sv.viewBox.baseVal.height;
