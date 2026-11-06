@@ -59,6 +59,7 @@ const foto = A => JSON.stringify(['tf_lanc3', 'tf_banco_ids', 'tf_banco_inv', 't
     const A = await abreCom(RESP([M1]));
     t('tela: título e botões', /Conexão bancária \(em teste\)/.test(A.texto()) && A.$('#bc_atu').textContent === 'Atualizar do banco' && A.$('#bc_rem').textContent === 'Remover conexão');
     t('tela: campo com rótulo', !!A.d.querySelector('label[for="bc_url"]') && A.$('#bc_url').getAttribute('type') === 'url');
+    t('tela: campo de endereço com o estilo dos outros campos', /input[type=text],input[type=url],[^{]*{min-width:0;width:100%;min-height:44px/.test(require('fs').readFileSync(require('path').join(__dirname, 'index.html'), 'utf8')));
     t('tela: botões com tipo button', A.$('#bc_atu').getAttribute('type') === 'button' && A.$('#bc_rem').getAttribute('type') === 'button');
     t('tela: nada automático', A.chamadas.length === 0);
     await tick(1700); t('tela: continua sem chamar a ponte', A.chamadas.length === 0);
