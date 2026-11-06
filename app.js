@@ -197,7 +197,7 @@ function ajustarGraficos(){
 }
 function ring(pct,color,label,sub,size=150){
   const r=size/2-12, c=2*Math.PI*r, off=c*(1-Math.min(Math.max(pct,0),1));
-  return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" role="img" aria-label="${esc('Progresso: '+label+(sub?' '+sub:''))}"><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--p2)" stroke-width="12"/><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="12" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${off}" transform="rotate(-90 ${size/2} ${size/2})"/><text x="50%" y="${sub?'47%':'54%'}" text-anchor="middle" font-size="${size/4.2}" font-weight="600" fill="var(--tx)">${label}</text>${sub?`<text x="50%" y="66%" text-anchor="middle" font-size="12" fill="var(--mu)">${sub}</text>`:''}</svg>`;
+  return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" role="img" aria-label="${esc('Progresso: '+label+(sub?' '+sub:''))}"><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--p2)" stroke-width="12"/><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="12" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${off}" transform="rotate(-90 ${size/2} ${size/2})"/><text x="50%" y="${sub?'47%':'54%'}" text-anchor="middle" font-size="${size/4.2}" font-weight="600" fill="var(--tx)">${label}</text>${sub?`<text x="50%" y="69%" text-anchor="middle" font-size="12" fill="var(--mu)">${sub}</text>`:''}</svg>`;
 }
 function status(v, meta, piso){ return v>=meta ? ['ok','✔','Acima da meta'] : v>=piso ? ['at',AV,'Entre piso e meta'] : ['ru','✖','Abaixo do piso']; }
 const COR = {ok:'var(--ok)',at:'var(--at)',ru:'var(--ru)'};
