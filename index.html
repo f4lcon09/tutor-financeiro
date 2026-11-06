@@ -80,14 +80,15 @@ h1{font-family:var(--fn);font-size:28px;font-weight:600;letter-spacing:.005em}
 .strip .c:hover{border-color:var(--mu)}
 tr.clk{cursor:pointer}
 tr.clk:hover td{background:var(--p2)}
-input[type=range]{padding:0;height:32px;min-height:32px;background:transparent;border:0;accent-color:var(--h,var(--teal))}
+input[type=range]{display:block;width:100%;max-width:100%;margin:0;padding:0;height:32px;min-height:32px;background:transparent;border:0;accent-color:var(--h,var(--teal))}
 select{background-image:linear-gradient(45deg,transparent 50%,var(--mu) 50%),linear-gradient(135deg,var(--mu) 50%,transparent 50%);background-position:calc(100% - 18px) 50%,calc(100% - 13px) 50%;background-size:5px 5px;background-repeat:no-repeat;padding-right:32px !important}
 input[type=date]{display:block;line-height:1.2}
 .g-dp{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}.g-dp>.field{min-width:0}
 .secw{display:contents}.maisbtn{display:none}
 .sl{margin-bottom:16px}
-.sl label{display:flex;justify-content:space-between}
-.sl label b{font-family:var(--fn);color:var(--tx)}
+.sl label{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.sl label span{min-width:0}
+.sl label b{flex:none;white-space:nowrap;font-family:var(--fn);color:var(--tx)}
 .tip{position:fixed;z-index:30;background:var(--p2);border:1px solid var(--ln2);border-radius:3px;padding:9px 12px;font-size:12.5px;pointer-events:none;box-shadow:var(--shadow-pop)}
 .tip b{font-family:var(--fn);font-weight:600;display:block;margin-bottom:4px}
 .tip i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:7px}
