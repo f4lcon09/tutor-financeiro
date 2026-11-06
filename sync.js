@@ -97,6 +97,7 @@
     return {
       configurado: () => !!cfg.clientId,
       conectado: () => !!tok(),
+      token: () => tok(),
       jaConectou: () => !!arm.get('tf_gjaconectou'),
       /* Fluxo por redirecionamento (sem biblioteca externa). Chamar a partir de um toque do usuário. */
       conectar() {

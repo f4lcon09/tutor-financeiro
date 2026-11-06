@@ -16,7 +16,7 @@
   var idOk = function (x) { return (typeof x === 'number' && Number.isSafeInteger(x)) || (typeof x === 'string' && RE_ID.test(x) && !perigosa(x)); };
   var txt = function (x, max) { return typeof x === 'string' && x.length <= (max || LIM.texto); };
   var corta = function (x, max) { return String(x).slice(0, max); };
-  var RE_ID = /^[A-Za-z0-9_-]{1,40}$/, RE_CHAVE = /^[A-Za-z0-9_.:@-]{1,80}$/, RE_MES = /^\d{4}-(0[1-9]|1[0-2])$/;
+  var RE_EXT = /^[A-Za-z0-9_-]{1,80}$/, RE_ID = /^[A-Za-z0-9_-]{1,40}$/, RE_CHAVE = /^[A-Za-z0-9_.:@-]{1,80}$/, RE_MES = /^\d{4}-(0[1-9]|1[0-2])$/;
   function data(d) {
     if (typeof d !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return false;
     var p = d.split('-').map(Number), dt = new Date(Date.UTC(p[0], p[1] - 1, p[2]));
@@ -112,7 +112,9 @@
   /* ---------- um lançamento / uma meta que veio de fora ---------- */
   function sanLanc(l) {
     if (!isObj(l) || !idOk(l.id) || !data(l.data) || !num(l.valor) || typeof l.desc !== 'string' || typeof l.cat !== 'string') return null;
-    return { id: l.id, data: l.data, desc: corta(l.desc, LIM.desc), cat: CATS.indexOf(l.cat) >= 0 ? l.cat : 'Outros', valor: l.valor, forma: FORMAS.indexOf(l.forma) >= 0 ? l.forma : 'Pix', essencial: l.essencial === true, lazer: l.lazer === true };
+    var o = { id: l.id, data: l.data, desc: corta(l.desc, LIM.desc), cat: CATS.indexOf(l.cat) >= 0 ? l.cat : 'Outros', valor: l.valor, forma: FORMAS.indexOf(l.forma) >= 0 ? l.forma : 'Pix', essencial: l.essencial === true, lazer: l.lazer === true };
+    if (l.origem === 'pluggy' && typeof l.idExterno === 'string' && RE_EXT.test(l.idExterno) && !perigosa(l.idExterno)) { o.origem = 'pluggy'; o.idExterno = l.idExterno; }   // opcionais: quem não conhece só ignora
+    return o;
   }
   function sanMeta(m) {
     if (!isObj(m) || !idOk(m.id) || typeof m.nome !== 'string' || !m.nome.trim() || !mes(m.prazo) || !num(m.alvo) || m.alvo <= 0 || !num(m.guardado) || m.guardado < 0 || !num(m.aporte) || m.aporte < 0) return null;

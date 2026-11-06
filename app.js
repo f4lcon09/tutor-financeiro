@@ -1311,6 +1311,63 @@ function confirmarReimportar(volta){
   fundo.onkeydown=e=>{ if(e.key==='Escape'){ e.stopPropagation(); fecha(); } else if(e.key==='Tab'){ e.preventDefault(); (document.activeElement===nao?sim:nao).focus(); } };
   nao.focus();
 }
+/* ===== Conexão bancária (em teste): só para o dono, ligada neste aparelho. Manual: nada roda sozinho, nada vai para o service worker. ===== */
+const bancoLigado=()=>MODO==='real'&&load('tf_banco_on',false)===true;
+let bancoToques=[], bancoCsp=false;
+function bancoToque(){ const t=Date.now(); bancoToques=bancoToques.filter(x=>t-x<4000); bancoToques.push(t); if(bancoToques.length<7||MODO!=='real') return; bancoToques=[]; save0('tf_banco_on',true); ir('banco'); }
+document.addEventListener('securitypolicyviolation',e=>{ if(/script\.google(usercontent)?\.com/.test(e.blockedURI||'')) bancoCsp=true; });
+const bancoSessao=()=>Drive.conectado()?null:Drive.jaConectou()?'A sessão do Google expirou. Toque no ícone de nuvem, no topo, para reconectar.':'Para usar, conecte a sincronização: toque no ícone de nuvem, no topo.';
+const bancoAviso=(cls,txt)=>{ const m=$('#bc_msg'); if(m) m.innerHTML=txt?alerta(cls,esc(txt)):''; };
+T.banco = () => `<div class="head"><div><h1>Conexão bancária (em teste)</h1><div class="sub">Só neste aparelho. Só atualiza quando você pedir.</div></div></div>
+  ${pn('Ponte',`<div class="field"><label for="bc_url">Endereço da ponte</label><input id="bc_url" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(load('tf_banco_url',''))}"></div>
+    <div class="bc-acoes"><button class="btn" id="bc_atu" type="button">Atualizar do banco</button><button class="btn ghost" id="bc_rem" type="button">Remover conexão</button></div><div id="bc_msg" style="margin-top:12px"></div>`,'teal')}`;
+function bancoBind(){ $('#bc_atu').onclick=bancoAtualizar; $('#bc_rem').onclick=bancoRemover; const s=bancoSessao(); if(s) bancoAviso('at',s); }
+function bancoRemover(){
+  const volta=$('#bc_rem'), fundo=document.createElement('div'); fundo.className='conf';
+  fundo.innerHTML=`<div class="confc" role="alertdialog" aria-modal="true" aria-labelledby="conf_t" aria-describedby="conf_d"><h2 id="conf_t">Remover conexão?</h2><p id="conf_d">Apaga o endereço da ponte e as escolhas de sinal deste aparelho. Os lançamentos já importados continuam.</p><div class="confb"><button class="btn ghost" id="conf_nao" type="button">Cancelar</button><button class="btn" id="conf_sim" type="button">Remover</button></div></div>`;
+  document.body.appendChild(fundo);
+  const nao=fundo.querySelector('#conf_nao'), sim=fundo.querySelector('#conf_sim'), fecha=()=>{ fundo.remove(); if(volta.isConnected) volta.focus(); };
+  nao.onclick=fecha; sim.onclick=()=>{ arm.del('tf_banco_url'); arm.del('tf_banco_inv'); fundo.remove(); ir('banco'); bancoAviso('ok','Conexão removida.'); };
+  fundo.onclick=e=>{ if(e.target===fundo) fecha(); };
+  fundo.onkeydown=e=>{ if(e.key==='Escape'){ e.stopPropagation(); fecha(); } else if(e.key==='Tab'){ e.preventDefault(); (document.activeElement===nao?sim:nao).focus(); } };
+  nao.focus();
+}
+async function bancoAtualizar(){
+  const v=TFBanco.validarUrl($('#bc_url').value); if(!v.ok){ bancoAviso('ru',v.erro); return; }
+  const s=bancoSessao(); if(s){ bancoAviso('at',s); return; }
+  save0('tf_banco_url',v.url);
+  const b=$('#bc_atu'); b.disabled=true; b.textContent='Buscando…'; bancoAviso('',''); bancoCsp=false;
+  let r=await TFBanco.consultar({url:v.url,token:Drive.token(),fetch:(u,o)=>fetch(u,o)});
+  if(!r.ok&&r.erro==='rede'){ await new Promise(k=>setTimeout(k,60)); if(bancoCsp) r={ok:false,erro:'csp'}; }
+  const b2=$('#bc_atu'); if(!b2) return;   // saiu da tela: a resposta é descartada
+  b2.disabled=false; b2.textContent='Atualizar do banco';
+  if(!r.ok){ bancoAviso('ru',TFBanco.mensagem(r.erro)); return; }
+  if(!r.dados.movs.length){ bancoAviso('ok','Nenhum movimento encontrado nesse período.'); return; }
+  bancoPrevia(r.dados);
+}
+function bancoPrevia(dados0){
+  let dados=dados0, lista=[]; const volta=$('#bc_atu'), inv=new Set(load('tf_banco_inv',[])), escolha=new Map(), fora=[...document.querySelectorAll('nav,.col')];
+  const liga=it=>it.estado==='novo'||it.estado==='existe', marcado=it=>liga(it)&&(escolha.has(it.idExterno)?escolha.get(it.idExterno):it.marcado);
+  const sentido=it=>it.direcao==='entrada'?'entrada':'saída';
+  const etiqueta=it=>it.estado==='novo'?'':`<span class="tag ne">${it.estado==='sem_valor'?'sem valor':'já existe'}</span>`;
+  const linha=(it,i)=>`<label class="bc-it"><input type="checkbox" data-i="${i}"${marcado(it)?' checked':''}${liga(it)?'':' disabled'}><span class="bc-tx"><b>${esc(it.desc)}</b><span class="mu small">${esc(it.data.split('-').reverse().join('/'))} · ${esc(it.conta)}${it.pendente?' · pendente':''}</span></span><span class="bc-val"><b>${brl(it.valor)}</b><span class="small">${sentido(it)}</span>${etiqueta(it)}</span></label>`;
+  const fundo=document.createElement('div'); fundo.className='conf';
+  fundo.innerHTML=`<div class="confc bc-prev" role="dialog" aria-modal="true" aria-labelledby="bc_t" aria-describedby="bc_d"><h2 id="bc_t">Importar do banco</h2><p id="bc_d">Confira antes de salvar. Nada é gravado até você confirmar.</p>
+    <div id="bc_contas">${dados.contas.map((c,i)=>`<label class="bc-inv"><input type="checkbox" data-c="${i}"${inv.has(c.id)?' checked':''}><span>Inverter sinal de ${esc(c.nome)}</span></label>`).join('')}</div>
+    <div class="bc-cont" id="bc_cont" role="status"></div><div class="bc-lista" id="bc_lista" role="group" aria-label="Movimentos encontrados"></div>
+    <div class="confb"><button class="btn ghost" id="bc_cancel" type="button">Cancelar</button><button class="btn" id="bc_ok" type="button">Importar selecionados</button></div></div>`;
+  const q=s=>fundo.querySelector(s);
+  const conta=()=>{ const n=lista.filter(marcado).length; q('#bc_cont').textContent=n+' de '+lista.length+' selecionados'; q('#bc_ok').disabled=!n; };
+  const pinta=()=>{ lista=TFBanco.montarPrevia(dados,S.st.lanc,load('tf_banco_ids',[]),[...inv]); q('#bc_lista').innerHTML=lista.map(linha).join(''); conta(); };
+  const fecha=()=>{ dados=null; lista=[]; escolha.clear(); fundo.remove(); fora.forEach(e=>e.removeAttribute('inert')); if(volta.isConnected) volta.focus(); };   // a resposta não fica guardada depois de fechar
+  q('#bc_lista').addEventListener('change',e=>{ const it=lista[+e.target.dataset.i]; if(it){ escolha.set(it.idExterno,e.target.checked); conta(); } });
+  q('#bc_contas').addEventListener('change',e=>{ const c=dados.contas[+e.target.dataset.c]; if(!c) return; if(e.target.checked) inv.add(c.id); else inv.delete(c.id); pinta(); });
+  q('#bc_cancel').onclick=fecha;
+  q('#bc_ok').onclick=()=>{ if(!lista.some(marcado)) return; const sel=lista.filter(marcado), ids=[...new Set(load('tf_banco_ids',[]).concat(sel.map(x=>x.idExterno)))], r=S.importarBanco(sel); if(!r.ok){ bancoAviso('ru',r.erro); fecha(); return; } save0('tf_banco_ids',ids); save0('tf_banco_inv',[...inv]); fecha(); bancoAviso('ok',r.n===1?'1 lançamento importado.':r.n+' lançamentos importados.'); };
+  fundo.onclick=e=>{ if(e.target===fundo) fecha(); };
+  fundo.onkeydown=e=>{ if(e.key==='Escape'){ e.stopPropagation(); fecha(); return; } if(e.key!=='Tab') return; const f=[...fundo.querySelectorAll('input:not([disabled]),button:not([disabled])')], a=f[0], z=f[f.length-1]; if(e.shiftKey&&document.activeElement===a){ e.preventDefault(); z.focus(); } else if(!e.shiftKey&&document.activeElement===z){ e.preventDefault(); a.focus(); } };
+  document.body.appendChild(fundo); fora.forEach(e=>e.setAttribute('inert','')); pinta(); q('#bc_cancel').focus();
+}
 function fecharMais(){ const n=$('#nav'); if(n&&n.classList.contains('aberto')){ n.classList.remove('aberto'); const b=$('#maisbtn'); if(b) b.setAttribute('aria-expanded','false'); } }
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') fecharMais(); });
 $('#main').addEventListener('click',fecharMais);
@@ -1341,8 +1398,9 @@ let larguraAnt=window.innerWidth;
 window.addEventListener('resize',()=>{ larguraAnt=window.innerWidth; if(MOB()!==mobAnt){ mobAnt=MOB(); redesenhar(); } else ajustarGraficos(); });
 function ir(k){
   fecharMenuTema(false);
+  if(k==='banco'&&!bancoLigado()) k='hoje';
   atual=k; const btnNav=([id,n,h])=>`<button data-k="${id}" aria-current="${id===k}" style="--h:${hue(h)}">${ic[id]}<span>${n}</span></button>`;
-  $('#nav').innerHTML=`<div class="brand"><i>$</i>Tutor Financeiro</div>`+TELAS.filter(t=>PRIM.includes(t[0])).map(btnNav).join('')+`<button class="maisbtn${PRIM.includes(k)?'':' ativo'}" id="maisbtn" aria-expanded="false" aria-controls="secw" style="--h:var(--teal)">${ic.mais}<span>Mais</span></button><div class="secw" id="secw">`+TELAS.filter(t=>!PRIM.includes(t[0])).map(btnNav).join('')+`<div class="demo">${MODO==='real'?'Dados informados por você em '+new Date(DEMO.asOf+'T12:00').toLocaleDateString('pt-BR')+'.'+(temTeclado()?' Tecle N para lançar.':'')+'<br><a href="#" id="reimp" style="color:var(--teal)">Reimportar dados</a>':'Dados de exemplo (fictícios). Nada aqui é seu dinheiro real.<br><a href="#" id="reimp" style="color:var(--teal)">Importar dados reais</a>'}<br>${MODO==='real'?'<button class="linkbtn" id="ver_ex" type="button">Ver exemplo</button>':MODO==='demo'?'<button class="linkbtn" id="sair_ex" type="button">Sair do exemplo</button>':''}<button class="linkbtn" id="inst_ab" type="button">Instalar no celular</button><br><button class="ibtn tonal" id="tema" type="button" aria-label="Escolher tema" title="Escolher tema" aria-haspopup="menu" aria-expanded="false" style="margin-top:8px">${I.paleta}</button></div></div>`;
+  $('#nav').innerHTML=`<div class="brand"><i>$</i>Tutor Financeiro</div>`+TELAS.filter(t=>PRIM.includes(t[0])).map(btnNav).join('')+`<button class="maisbtn${PRIM.includes(k)?'':' ativo'}" id="maisbtn" aria-expanded="false" aria-controls="secw" style="--h:var(--teal)">${ic.mais}<span>Mais</span></button><div class="secw" id="secw">`+TELAS.filter(t=>!PRIM.includes(t[0])).map(btnNav).join('')+`<div class="demo">${MODO==='real'?'<span id="ver_lin">Dados informados por você em '+new Date(DEMO.asOf+'T12:00').toLocaleDateString('pt-BR')+'.</span>'+(temTeclado()?' Tecle N para lançar.':'')+'<br><a href="#" id="reimp" style="color:var(--teal)">Reimportar dados</a>':'Dados de exemplo (fictícios). Nada aqui é seu dinheiro real.<br><a href="#" id="reimp" style="color:var(--teal)">Importar dados reais</a>'}<br>${MODO==='real'?'<button class="linkbtn" id="ver_ex" type="button">Ver exemplo</button>':MODO==='demo'?'<button class="linkbtn" id="sair_ex" type="button">Sair do exemplo</button>':''}<button class="linkbtn" id="inst_ab" type="button">Instalar no celular</button>${bancoLigado()?'<button class="linkbtn" id="banco_ab" type="button">Conexão bancária (em teste)</button>':''}<br><button class="ibtn tonal" id="tema" type="button" aria-label="Escolher tema" title="Escolher tema" aria-haspopup="menu" aria-expanded="false" style="margin-top:8px">${I.paleta}</button></div></div>`;
   $$('#nav button[data-k]').forEach(b=>b.onclick=()=>ir(b.dataset.k));
   $('#maisbtn').onclick=()=>{ const ab=$('#nav').classList.toggle('aberto'); $('#maisbtn').setAttribute('aria-expanded',ab); };
   const tm=$('#tema'); if(tm){ tm.onclick=()=>abrirMenuTema(tm); tm.onkeydown=e=>{ if(e.key==='ArrowDown'||e.key==='ArrowUp'){ e.preventDefault(); abrirMenuTema(tm); } }; }
@@ -1350,11 +1408,14 @@ function ir(k){
   const ve=$('#ver_ex'); if(ve) ve.onclick=()=>{ S.definirModo('demo'); location.reload(); };
   const se=$('#sair_ex'); if(se) se.onclick=sairExemplo;
   const ia=$('#inst_ab'); if(ia) ia.onclick=()=>ir('instalar');
+  const vl=$('#ver_lin'); if(vl) vl.onclick=bancoToque;
+  const ba=$('#banco_ab'); if(ba) ba.onclick=()=>ir('banco');
   if(!MODO){ $('#main').innerHTML=telaImportar(); bindImportar(); return; }
   const scroll=window.scrollY;
   if(telaVaziaDe(k)){ $('#main').innerHTML=telaVazia(k); fecharMais(); bindVazia(k); hjLiga(); window.scrollTo(0,0); return; }
   $('#main').innerHTML=T[k](); fecharMais();
   if(k==='instalar') bindInstalar();
+  if(k==='banco') bancoBind();
   if(k==='hoje'){ if(SIMPLES()) bindHojeSimples(); else bindHoje(); }
   if(k==='lancar') bindLancar();
   if(k==='agenda') bindAgenda();
