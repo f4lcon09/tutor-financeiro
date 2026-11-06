@@ -143,7 +143,7 @@ const TELAS = [['hoje','Hoje','teal'],['lancar','Lançar','teal'],['cartao','Car
 const hue = k => HUE[k];
 
 /* ===== Gráficos SVG ===== */
-function axisFmt(v,curto){ if(PRIV) return '••'; if(curto) return Math.abs(v)>=1000 ? (v/1000).toLocaleString('pt-BR',{maximumFractionDigits:1})+' mil' : String(Math.round(v)); return Math.abs(v)>=1000 ? 'R$ '+(v/1000).toLocaleString('pt-BR',{maximumFractionDigits:1})+' mil' : 'R$ '+Math.round(v); }
+function axisFmt(v,curto){ if(PRIV) return '••'; if(curto) return Math.abs(v)>=1000 ? (v/1000).toLocaleString('pt-BR',{maximumFractionDigits:1})+' mil' : String(Math.round(v)); const sinal=v<0?'-':'', a=Math.abs(v); return a>=1000 ? sinal+'R$ '+(a/1000).toLocaleString('pt-BR',{maximumFractionDigits:1})+' mil' : sinal+'R$ '+Math.round(a); }
 const CHARTS={};
 /* largura útil de um painel em px CSS: no celular a tela menos margens e preenchimento do painel; no PC uma fração da área principal */
 function CW(f){ if(window.innerWidth<=860) return Math.max(window.innerWidth-62,240); const w=Math.max(window.innerWidth-(224+64),320); return Math.round(Math.min(w,1736)*f-44); }
@@ -156,11 +156,13 @@ function lineChart(labels, series, refs, h=280, W=720, o={}){
   const H=estreito?Math.min(h,250):h, L=estreito?46:78, R=estreito?12:18, T=22, B=34;
   const all=[...series.flatMap(s=>s.values), ...refs.map(r=>r.v)];
   let mn=Math.min(...all), mx=Math.max(...all);
-  const pad=(mx-mn)*.08||1; mn=Math.max(0,mn-pad); mx+=pad;               // o eixo inclui toda a série e as linhas de referência
+  const pad=(mx-mn)*.08||1; mn=mn<0?mn-pad:Math.max(0,mn-pad); mx+=pad; if(mn<0&&mx<0) mx=pad;   // o eixo inclui toda a série e as linhas de referência; saldo negativo fica visível
   const x=i=>L+(W-L-R)*i/Math.max(labels.length-1,1), y=v=>T+(H-T-B)*(1-(v-mn)/(mx-mn));
   let g='<defs><clipPath id="'+id+'c"><rect x="'+L+'" y="'+(T-4)+'" width="'+(W-L-R)+'" height="'+(H-T-B+4)+'"/></clipPath>'+series.map((s,k)=>s.area?`<linearGradient id="${id}g${k}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${s.c}" stop-opacity=".38"/><stop offset="1" stop-color="${s.c}" stop-opacity="0"/></linearGradient>`:'').join('')+'</defs>';
   (o.zones||[]).forEach(z=>{ const y1=y(Math.min(z.to,mx)), y2=y(Math.max(z.from,mn)); if(y2>y1) g+=`<rect x="${L}" y="${y1}" width="${W-L-R}" height="${y2-y1}" fill="${z.c}" opacity="${z.o||.07}"/>`; });
-  for(let k=0;k<=4;k++){const v=mn+(mx-mn)*k/4; g+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--ln)"/><text x="${L-6}" y="${y(v)+4}" text-anchor="end" font-size="${FS}" fill="var(--mu)">${axisFmt(v,estreito)}</text>`;}
+  const zeroY=mn<0?y(0):null;
+  for(let k=0;k<=4;k++){const v=mn+(mx-mn)*k/4, colaZero=zeroY!=null&&Math.abs(y(v)-zeroY)<FS+2; g+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--ln)"/>`+(colaZero?'':`<text x="${L-6}" y="${y(v)+4}" text-anchor="end" font-size="${FS}" fill="var(--mu)">${axisFmt(v,estreito)}</text>`);}
+  if(zeroY!=null) g+=`<line class="zero" x1="${L}" x2="${W-R}" y1="${zeroY}" y2="${zeroY}" stroke="var(--tx)" stroke-width="1.5"/><text x="${L-6}" y="${zeroY+4}" text-anchor="end" font-size="${FS}" font-weight="600" fill="var(--tx)">${PRIV?'••':'0'}</text>`;
   const n=labels.length, step=estreito?Math.max(1,Math.ceil(n/5)):Math.max(1,Math.ceil(n/Math.max(Math.floor((W-L-R)/70),2)));
   labels.forEach((lb,i)=>{ if(i%step===0){ const px=x(i), anc=px+20>W?'end':'middle'; g+=`<text x="${anc==='end'?W-2:px}" y="${H-10}" text-anchor="${anc}" font-size="${FS}" fill="var(--mu)">${esc(lb)}</text>`; } });
   // rótulos das linhas de referência: no celular vão para a legenda; no PC evitam sobrepor-se entre si e à série
