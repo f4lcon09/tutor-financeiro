@@ -114,7 +114,7 @@
   --accent-warm: #68420A; --accent-cool: #33428F;
   --ok: #0C4F2B; --risk: #8C1A14;
   --attention: #544400; /* PROPOSTA, A Confirmar */
-  --zone-ok: color-mix(in srgb, var(--ok) 4%, transparent); --zone-attention: color-mix(in srgb, var(--attention) 4%, transparent); --zone-risk: color-mix(in srgb, var(--risk) 5%, transparent);
+  --zone-ok: transparent; --zone-attention: transparent; --zone-risk: color-mix(in srgb, var(--risk) 8%, transparent);
   --bar-from: #445296; --bar-to: #5967A8;
 }
 
@@ -131,7 +131,7 @@
   --accent-warm: #6E460B; --accent-cool: #1A4580;
   --ok: #0C4F2B; --risk: #8C1A14;
   --attention: #5A4500; /* PROPOSTA, A Confirmar */
-  --zone-ok: color-mix(in srgb, var(--ok) 4%, transparent); --zone-attention: color-mix(in srgb, var(--attention) 4%, transparent); --zone-risk: color-mix(in srgb, var(--risk) 5%, transparent);
+  --zone-ok: transparent; --zone-attention: transparent; --zone-risk: color-mix(in srgb, color-mix(in srgb, var(--risk) 45%, var(--primary)) 9%, transparent);
   --bar-from: #38644A; --bar-to: #4C7A5B;
 }
 
