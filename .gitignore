@@ -36,5 +36,6 @@ test_ui_casos.js
 !/test_seguranca.js
 !/test_ui_onboarding.js
 !/test_ui_sync_retorno.js
+!/test_ui_retorno.js
 !/app.js
 !/seguranca.js
