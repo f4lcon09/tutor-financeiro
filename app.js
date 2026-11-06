@@ -194,7 +194,7 @@ function ajustarGraficos(){
 }
 function ring(pct,color,label,sub,size=150){
   const r=size/2-12, c=2*Math.PI*r, off=c*(1-Math.min(Math.max(pct,0),1));
-  return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" role="img"><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--p2)" stroke-width="12"/><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="12" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${off}" transform="rotate(-90 ${size/2} ${size/2})"/><text x="50%" y="${sub?'49%':'54%'}" text-anchor="middle" font-size="${size/4.2}" font-weight="600" fill="var(--tx)" style="font-family:Bahnschrift,'Segoe UI',sans-serif">${label}</text>${sub?`<text x="50%" y="66%" text-anchor="middle" font-size="12" fill="var(--mu)">${sub}</text>`:''}</svg>`;
+  return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" role="img" aria-label="${esc('Progresso: '+label+(sub?' '+sub:''))}"><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--p2)" stroke-width="12"/><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="12" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${off}" transform="rotate(-90 ${size/2} ${size/2})"/><text x="50%" y="${sub?'49%':'54%'}" text-anchor="middle" font-size="${size/4.2}" font-weight="600" fill="var(--tx)" style="font-family:Bahnschrift,'Segoe UI',sans-serif">${label}</text>${sub?`<text x="50%" y="66%" text-anchor="middle" font-size="12" fill="var(--mu)">${sub}</text>`:''}</svg>`;
 }
 function status(v, meta, piso){ return v>=meta ? ['ok','✔','Acima da meta'] : v>=piso ? ['at',AV,'Entre piso e meta'] : ['ru','✖','Abaixo do piso']; }
 const COR = {ok:'var(--ok)',at:'var(--at)',ru:'var(--ru)'};
@@ -317,7 +317,7 @@ function lancarM(){
   return `
   <div class="head"><div><h1>Lançar</h1><div class="sub">Valor, o que foi e pronto.</div></div></div>
   ${pn('<span id="ftitle">Novo lançamento</span>',`
-    <div class="seg" id="tipo"><button aria-selected="true" data-t="saida">Gasto</button><button aria-selected="false" data-t="entrada">Entrada</button></div>
+    <div class="seg" id="tipo" role="group" aria-label="Tipo de lançamento"><button aria-pressed="true" data-t="saida">Gasto</button><button aria-pressed="false" data-t="entrada">Entrada</button></div>
     <div class="field"><label for="q_txt">Lançamento rápido ${info('Escreva como falaria: "45 mercado pix", "12,06 uber ontem" ou "recebi 255 do tio". O app preenche o formulário abaixo e você confere antes de salvar.')}</label><div class="row" style="gap:8px"><input id="q_txt" type="text" placeholder="Ex.: 45 mercado pix" autocomplete="off"><button class="ibtn tonal" id="q_ok" type="button" aria-label="Preencher o formulário com o texto" title="Preencher o formulário com o texto">${I.enviar}</button></div><div class="mu small" id="q_msg" role="status"></div></div>
     <div class="field"><label for="f_valor">Valor (R$)</label><input id="f_valor" type="number" step="0.01" min="0" placeholder="0,00" inputmode="decimal" style="font-size:26px;font-weight:600"></div>
     <div class="field"><label for="f_desc">O que foi?</label><input id="f_desc" type="text" placeholder="Ex.: almoço, jogo, mercado"></div>
@@ -340,7 +340,7 @@ T.lancar = () => MOB() ? lancarM() : `
   <div class="head"><div><h1>Lançar gasto ou entrada</h1><div class="sub">Rápido: valor, o que foi e pronto. Errou algo? Toque no lápis ✎ da lista para corrigir.</div></div></div>
   <div class="grid g2">
     ${pn('<span id="ftitle">Novo lançamento</span>',`
-      <div class="seg" id="tipo"><button aria-selected="true" data-t="saida">Gasto</button><button aria-selected="false" data-t="entrada">Entrada</button></div>
+      <div class="seg" id="tipo" role="group" aria-label="Tipo de lançamento"><button aria-pressed="true" data-t="saida">Gasto</button><button aria-pressed="false" data-t="entrada">Entrada</button></div>
       <div class="field"><label for="q_txt">Lançamento rápido ${info('Escreva como falaria: "45 mercado pix", "12,06 uber ontem" ou "recebi 255 do tio". O app preenche o formulário abaixo e você confere antes de salvar.')}</label><div class="row" style="gap:8px"><input id="q_txt" type="text" placeholder="Ex.: 45 mercado pix" autocomplete="off"><button class="ibtn tonal" id="q_ok" type="button" aria-label="Preencher o formulário com o texto" title="Preencher o formulário com o texto">${I.enviar}</button></div><div class="mu small" id="q_msg" role="status"></div></div>
       <div class="field"><label>Valor (R$)</label><input id="f_valor" type="number" step="0.01" min="0" placeholder="0,00" style="font-size:26px;font-weight:600"></div>
       <div class="field"><label>O que foi?</label><input id="f_desc" type="text" placeholder="Ex.: almoço, jogo, mercado"></div>
@@ -378,7 +378,7 @@ function bindLancar(){
   const clasTxt=()=>{ const t=$('#clas_txt'); if(!t) return; t.textContent = tipo==='entrada' ? 'Entrada · não conta como essencial nem lazer' : $('#f_laz').checked ? 'Conta no lazer' : $('#f_ess').checked ? 'Essencial' : 'Sem classificação'; };
   $('#f_ess').onchange=$('#f_laz').onchange=clasTxt;
   const cm=$('#clas_mudar'); if(cm) cm.onclick=()=>{ const d=$('details[data-det="lancar:mais"]'); if(d){ d.open=true; DET['lancar:mais']=1; save0('tf_det',DET); } cm.setAttribute('aria-expanded','true'); $('#f_ess').focus(); };
-  const setTipo=t=>{ tipo=t; $$('#tipo button').forEach(x=>x.setAttribute('aria-selected',x.dataset.t===t)); };
+  const setTipo=t=>{ tipo=t; $$('#tipo button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.t===t)); };
   const reset=()=>{ editId=null; $('#f_valor').value=''; $('#f_desc').value=''; $('#f_data').value=mesAtual+'-'+pad2(diaHoje); $('#f_ess').checked=false; $('#f_laz').checked=true; setTipo('saida'); setCat('Lazer'); $('#ftitle').textContent='Novo lançamento'; $('#f_ok').textContent='Salvar lançamento'; $('#f_cancel').style.display='none'; aplica(); };
   $$('#freq .chip').forEach(b=>b.onclick=()=>{ const f=FREQ[+b.dataset.i]; reset(); $('#f_valor').value=f.valor; $('#f_desc').value=f.desc; setCat(f.cat); $('#f_forma').value=f.forma; sincForma(); $('#f_laz').checked=f.lazer; clasTxt(); $('#f_valor').focus(); });
   $$('#tipo button').forEach(b=>b.onclick=()=>{ setTipo(b.dataset.t); if(b.dataset.t==='entrada'){ $('#f_laz').checked=false; $('#f_ess').checked=false; $('#dica').innerHTML='<b>Entrada é dinheiro que chegou</b> (salário, repasse, extra). Não é essencial nem lazer.'; clasTxt(); } else aplica(); });
@@ -672,8 +672,8 @@ function readRate(id){ const p=parseFloat($('#'+id).value)||0, t=$('#'+id+'_t').
 const N = id => parseFloat($('#'+id).value)||0;
 T.decidir = () => `
   <div class="head"><div><h1>Decidir com calma</h1><div class="sub">Calculadoras que mostram o custo real antes de você fechar algo.</div></div></div>
-  <div class="seg" id="calcs">${[['emp','Empréstimo'],['con','Consórcio'],['fat','Fatura do cartão'],['inv','Investimento']].map(([k,n])=>`<button data-k="${k}" aria-selected="${k===calcSel}">${n}</button>`).join('')}</div>
-  <div class="grid g2" id="calcbox"></div>
+  <div class="seg" id="calcs" role="tablist" aria-label="Calculadoras">${[['emp','Empréstimo'],['con','Consórcio'],['fat','Fatura do cartão'],['inv','Investimento']].map(([k,n])=>`<button role="tab" id="ctab_${k}" data-k="${k}" aria-selected="${k===calcSel}" aria-controls="calcbox" tabindex="${k===calcSel?0:-1}">${n}</button>`).join('')}</div>
+  <div class="grid g2" id="calcbox" role="tabpanel" aria-labelledby="ctab_${calcSel}"></div>
   <div class="disc">Estas contas são matemática com os números que você digita. Não são recomendação de investimento ou de crédito, e rendimentos futuros são estimativas, não promessas. A decisão é sua.</div>
   ${det('decidir','gloss','Glossário rápido',glossario(),'teal')}`;
 const CALCS = {
@@ -720,6 +720,14 @@ const CALCS = {
      ${det('decidir','graf-inv','Gráfico: evolução do saldo',`<div style="margin-top:14px">${lineChart(r.serie.map(x=>x.mes),[{name:'Com rendimento',values:r.serie.map(x=>x.saldo),c:'var(--sky)',area:true},{name:'Só o que você colocou',values:r.serie.map(x=>x.aportado),c:'var(--mu)',w:2}],[],200,440)}</div>
      <div class="legend"><span><i style="background:var(--sky)"></i>Com rendimento</span><span><i style="background:var(--mu)"></i>Só o que você colocou</span></div>`,'sky')}`; }}
 };
+function bindAbasCalc(){
+  const bs=$$('#calcs button');
+  const escolhe=b=>{ calcSel=b.dataset.k; bs.forEach(x=>{ x.setAttribute('aria-selected',x===b); x.setAttribute('tabindex',x===b?'0':'-1'); }); $('#calcbox').setAttribute('aria-labelledby',b.id); drawCalc(); };
+  bs.forEach((b,i)=>{
+    b.onclick=()=>escolhe(b);
+    b.onkeydown=e=>{ const n=bs.length, alvo={ArrowRight:(i+1)%n,ArrowLeft:(i-1+n)%n,Home:0,End:n-1}[e.key]; if(alvo==null) return; e.preventDefault(); escolhe(bs[alvo]); bs[alvo].focus(); };
+  });
+}
 function drawCalc(){
   $('#calcbox').innerHTML=CALCS[calcSel].form();
   $$('#calcbox input,#calcbox select').forEach(e=>e.addEventListener('input',CALCS[calcSel].run)); CALCS[calcSel].run();
@@ -1197,7 +1205,7 @@ function guardarEstado(){
   const st={campos:{},cat:null,forma:null,tipo:null,scroll:window.scrollY,foco:null,sel:null};
   $$('#main input,#main select,#main textarea').forEach(e=>{ const k=chaveCampo(e); if(!k) return; st.campos[k]=(e.type==='checkbox'||e.type==='radio')?{c:e.checked}:{v:e.value}; });
   const c=$('#f_cat .chip[aria-pressed="true"]'); if(c) st.cat=c.dataset.c;
-  const t=$('#tipo button[aria-selected="true"]'); if(t) st.tipo=t.dataset.t;
+  const t=$('#tipo button[aria-pressed="true"]'); if(t) st.tipo=t.dataset.t;
   const a=document.activeElement; if(a&&a.closest&&a.closest('#main')){ st.foco=chaveCampo(a); try{ st.sel=[a.selectionStart,a.selectionEnd]; }catch(e){} }
   return st;
 }
@@ -1240,7 +1248,7 @@ function ir(k){
   if(k==='numeros'){ if(SIMPLES()) bindNumerosSimples(); else bindNumeros(); }
   if(k==='cartao'){ drawCartao(); $$('#cts .chip').forEach(b=>b.onclick=()=>{cartSel=b.dataset.c; $$('#cts .chip').forEach(x=>x.setAttribute('aria-pressed',x===b)); drawCartao();}); }
   if(k==='futuro'){ drawFuturo(); $$('#cen .chip[data-c]').forEach(b=>b.onclick=()=>{cenSel=b.dataset.c; $$('#cen .chip[data-c]').forEach(x=>x.setAttribute('aria-pressed',x===b)); drawFuturo();}); const hzb=$('#hz'); if(hzb) hzb.onclick=()=>{ HZ=HZ>=12?7:12; save0('tf_hz',HZ); ir('futuro'); }; const cmb=$('#cmp'); if(cmb) cmb.onclick=()=>{cmpAll=!cmpAll; cmb.setAttribute('aria-pressed',cmpAll); drawFuturo();}; }
-  if(k==='decidir'){ drawCalc(); $$('#calcs button').forEach(b=>b.onclick=()=>{calcSel=b.dataset.k; $$('#calcs button').forEach(x=>x.setAttribute('aria-selected',x===b)); drawCalc();}); }
+  if(k==='decidir'){ drawCalc(); bindAbasCalc(); }
   window.scrollTo(0, ['agenda','orcamento','metas'].includes(k)?scroll:0);
 }
 if(MODO==='demo'){ const b=document.createElement('button'); b.type='button'; b.id='selo'; b.className='selo'; b.textContent='Exemplo · sair'; b.setAttribute('aria-label','Você está vendo dados de exemplo. Sair do exemplo'); b.onclick=sairExemplo; $('.topbar').prepend(b); }
