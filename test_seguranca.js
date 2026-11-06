@@ -145,7 +145,7 @@ t('esc não escapa duas vezes o que já é texto', Seg.esc('&lt;') === '&amp;lt;
   t('index.html tem meta CSP', !!csp);
   t('CSP: default-src só da própria origem', dir('default-src').join() === "'self'");
   t("CSP: script-src sem 'unsafe-inline' e sem 'unsafe-eval'", dir('script-src').join() === "'self'");
-  t('CSP: connect-src só a própria origem e www.googleapis.com', dir('connect-src').sort().join() === "'self',https://www.googleapis.com");
+  t('CSP: connect-src só a própria origem, www.googleapis.com e os dois hosts da ponte', dir('connect-src').sort().join() === "'self',https://script.google.com,https://script.googleusercontent.com,https://www.googleapis.com");
   t('CSP: sem objetos, <base> nem formulários', dir('object-src').join() === "'none'" && dir('base-uri').join() === "'none'" && dir('form-action').join() === "'none'");
   t('index.html não tem <script> inline', !/<script(?![^>]*\ssrc=)[^>]*>/i.test(html));
   t('index.html não tem atributos on*= nem javascript:', !/\son[a-z]+\s*=/i.test(html.replace(/<style[\s\S]*?<\/style>/, '')) && !/javascript:/i.test(html));
