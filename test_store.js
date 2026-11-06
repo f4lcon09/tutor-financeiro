@@ -173,6 +173,38 @@ t('categoria inválida é erro', S.validarLancamento({ ...base, cat: 'Xis' }).er
   t('texto sem categoria vira Outros', it('30 coisa qualquer').cat === 'Outros');
   const ok1 = S.validarLancamento({ tipo: 'gasto', valor: a.valor, cat: a.cat, data: a.data });
   t('o que o texto interpreta passa na validação', ok1.ok === true);
+
+  /* parser: valores em pt-BR, quantidade e unidade não são o valor, parcelas, padrões expostos */
+  t('parser: "1.200 aluguel" é 1200 (milhar pt-BR)', it('1.200 aluguel').valor === 1200);
+  t('parser: "1.200" sozinho é 1200', it('1.200').valor === 1200);
+  t('parser: "1.200.000 casa" é 1200000', it('1.200.000 casa').valor === 1200000);
+  t('parser: "1.200,50 aluguel" é 1200.50', it('1.200,50 aluguel').valor === 1200.5);
+  t('parser: "12.06 uber" continua 12.06', it('12.06 uber').valor === 12.06);
+  t('parser: "ssd 1tb 450" é 450', it('ssd 1tb 450').valor === 450);
+  t('parser: "ssd 1 tb 450" é 450 (unidade separada)', it('ssd 1 tb 450').valor === 450);
+  t('parser: "arroz 5kg 27,90" é 27.90', it('arroz 5kg 27,90').valor === 27.9);
+  t('parser: "leite 200ml 6" é 6', it('leite 200ml 6').valor === 6);
+  t('parser: "pilha 4 un 18" é 18', it('pilha 4 un 18').valor === 18);
+  t('parser: "2 pães 12,50" é 12.50 (quantidade na frente)', it('2 pães 12,50').valor === 12.5);
+  t('parser: "2 pizzas 40" é 40 (último número solto)', it('2 pizzas 40').valor === 40);
+  t('parser: a quantidade e a unidade ficam na descrição', it('2 pães 12,50').desc === '2 pães' && it('ssd 1tb 450').desc === 'Ssd 1tb');
+  t('parser: R$ marca o valor mesmo com outro número depois', it('R$ 30 presente 2 amigos').valor === 30);
+  t('parser: só unidade não é valor', it('ssd 1tb').ok === false && /valor/.test(it('ssd 1tb').erro));
+  t('parser: número colado em palavra não é valor', it('ps5 2000').valor === 2000 && it('ps5').ok === false);
+  t('parser: "3x 49,90 tênis cartão" é 49.90 em 3 parcelas', it('3x 49,90 tênis cartão').valor === 49.9 && it('3x 49,90 tênis cartão').parcelas === 3 && it('3x 49,90 tênis cartão').forma === 'Crédito');
+  t('parser: "49,90 tênis 3x crédito" também', it('49,90 tênis 3x crédito').parcelas === 3 && it('49,90 tênis 3x crédito').valor === 49.9);
+  t('parser: "3 x 49,90 cartão" com espaço', it('3 x 49,90 cartão').parcelas === 3 && it('3 x 49,90 cartão').valor === 49.9);
+  t('parser: sem cartão, "3x" é ignorado com segurança', it('3x 49,90 tênis').valor === 49.9 && it('3x 49,90 tênis').parcelas === null && it('3x 49,90 tênis').forma === 'Pix');
+  t('parser: "3x" nunca vira o valor', it('3x').ok === false && it('3x cartão').ok === false);
+  t('parser: "3x" sai da descrição', !/3x/i.test(it('3x 49,90 tênis cartão').desc) && !/3x/i.test(it('3x 49,90 tênis').desc));
+  t('parser: "1x" não é parcelamento', it('1x 30 cartão').parcelas === null && it('1x 30 cartão').valor === 30);
+  t('parser: entrada não tem parcelas', it('recebi 3x 100 cartão').parcelas === null);
+  t('parser: sem "3x" as parcelas ficam nulas', it('45 mercado crédito').parcelas === null);
+  t('parser: expõe que Pix foi aplicado por padrão', it('45 mercado').padroes.join() === 'forma' && it('45 mercado').forma === 'Pix');
+  t('parser: expõe que Outros foi aplicado por padrão', it('30 coisa pix').padroes.join() === 'cat' && it('30 coisa pix').cat === 'Outros');
+  t('parser: expõe os dois padrões juntos', it('30 coisa').padroes.join() === 'forma,cat');
+  t('parser: sem padrão quando tudo foi dito', it('45 mercado pix').padroes.length === 0);
+  t('parser: "dia 3" continua não sendo o valor', it('20 farmácia dia 3').valor === 20 && it('dia 3 farmácia 20').valor === 20);
 }
 
 /* ---- ritmo do mês (centavos inteiros) ---- */
@@ -193,6 +225,76 @@ t('categoria inválida é erro', S.validarLancamento({ ...base, cat: 'Xis' }).er
   const gasto = loja.gastosMes('2026-11').reduce((s, l) => s + l.valor, 0);
   t('ritmo: com lançamentos sintéticos bate com a fórmula', r(gasto, 5, 30).projetadoCentavos === Math.round(10010 * 30 / 5) && r(gasto, 5, 30).poucos === true);
   t('mês sem lançamento fica vazio', novo().doMes('2026-11').length === 0 && loja.doMes('2026-11').length === 2);
+}
+
+
+/* ---- primeiro uso: três números, por dia, modos separados ---- */
+{
+  const dados = { renda: '5000', fixos: '3000', saldo: '1500' };
+  t('início: aceita os três números', S.validarInicio(dados).ok === true);
+  t('início: aceita aproximado com vírgula', S.validarInicio({ renda: '4.500,50', fixos: '2.000', saldo: '0' }).valores.renda === 4500.5 && S.validarInicio({ renda: '4.500,50', fixos: '2.000', saldo: '0' }).valores.fixos === 2000);
+  t('início: renda é obrigatória', S.validarInicio({ renda: '', fixos: '100', saldo: '10' }).ok === false && !!S.validarInicio({ renda: '', fixos: '100', saldo: '10' }).erros.renda);
+  t('início: gastos fixos são obrigatórios (zero vale)', !!S.validarInicio({ renda: '100', fixos: '', saldo: '10' }).erros.fixos && S.validarInicio({ renda: '100', fixos: '0', saldo: '10' }).ok === true);
+  t('início: saldo é obrigatório (zero e negativo valem)', !!S.validarInicio({ renda: '100', fixos: '1', saldo: '' }).erros.saldo && S.validarInicio({ renda: '100', fixos: '1', saldo: '-50' }).ok === true);
+  const loja = novo();
+  const r = loja.comecar(dados);
+  t('início: comecar entra em modo real', r.ok === true && loja.st.modo === 'real');
+  t('início: guarda os números informados', loja.st.real._inicio.renda === 5000 && loja.st.real._inicio.fixos === 3000 && loja.st.real._inicio.saldo === 1500);
+  t('início: o saldo vira a liquidez', loja.st.real.liquidez.total === 1500);
+  t('início: passa pela validação da importação', loja.st.real._meta.as_of === '2026-11-05');
+  t('início: número inválido não muda nada', novo().comecar({ renda: 'x', fixos: '1', saldo: '1' }).ok === false);
+  const ed = loja.atualizarInicio({ renda: '5200', fixos: '3100', saldo: '900' });
+  t('início: dá para editar depois', ed.ok === true && loja.st.real._inicio.renda === 5200 && loja.st.real.liquidez.total === 900);
+  const c1 = loja.atualizarCartao({ limite: '2000', fatura: '350,50', fechamento: '7', vencimento: '15' });
+  t('cartão: grava limite, fatura e dias', c1.ok === true && loja.st.real.cartao.limite === 2000 && loja.st.real.cartao.fatura_atual.total === 350.5 && loja.st.real.cartao.fechamento_dia === 7 && /-15$/.test(loja.st.real.cartao.fatura_atual.vence_em));
+  t('cartão: limite é obrigatório', loja.atualizarCartao({ limite: '', fatura: '1', fechamento: '7', vencimento: '15' }).ok === false);
+  t('cartão: dia fora do mês é recusado', loja.atualizarCartao({ limite: '100', fatura: '1', fechamento: '40', vencimento: '15' }).ok === false);
+  const c2 = loja.addConta({ nome: 'Internet', valor: '99,90', dia: '10' });
+  t('conta: entra na lista do mês', c2.ok === true && loja.st.real.pendencias_novembro.length === 1 && loja.st.real.pendencias_novembro[0].valor === 99.9 && loja.st.real.pendencias_novembro[0].vence === '2026-11-10');
+  t('conta: nome e valor são obrigatórios', loja.addConta({ nome: '', valor: '1', dia: '1' }).ok === false && loja.addConta({ nome: 'x', valor: '', dia: '1' }).ok === false);
+  t('conta: sem dados reais não grava', novo().addConta({ nome: 'x', valor: '1', dia: '1' }).ok === false);
+}
+{
+  const d = S.porDia;
+  t('por dia: 2000 livres em 30 dias, dia 1', d(5000, 3000, 0, 1, 30).porDiaCentavos === 6666 && d(5000, 3000, 0, 1, 30).porDia === 66.66);
+  t('por dia: desconta o gasto do mês e usa os dias que faltam', d(5000, 3000, 500, 16, 30).porDiaCentavos === 10000 && d(5000, 3000, 500, 16, 30).diasRestantes === 15);
+  t('por dia: no último dia conta o dia de hoje', d(5000, 3000, 1900, 30, 30).porDiaCentavos === 10000 && d(5000, 3000, 1900, 30, 30).diasRestantes === 1);
+  t('por dia: arredonda para baixo (nunca promete a mais)', d(100, 0, 0, 1, 3).porDiaCentavos === 3333);
+  t('por dia: gasto acima da sobra dá zero e mostra quanto passou', d(5000, 3000, 2500, 10, 30).porDia === 0 && d(5000, 3000, 2500, 10, 30).resta === -500);
+  t('por dia: fixos maiores que a renda dão zero', d(1000, 3000, 0, 1, 30).porDia === 0 && d(1000, 3000, 0, 1, 30).livre === -2000);
+  t('por dia: 0,10 + 0,20 não gera fração de centavo', Number.isInteger(d(0.1 + 0.2, 0, 0, 1, 7).porDiaCentavos));
+}
+{
+  const mapa = () => { const o = {}; return { getItem: k => (k in o ? o[k] : null), setItem: (k, v) => { o[k] = String(v); }, removeItem: k => { delete o[k]; }, _o: o }; };
+  const arm = mapa();
+  const real = S.criarStore(S.armazenamentoDoModo(arm), () => HOJE);
+  real.comecar({ renda: '5000', fixos: '3000', saldo: '1500' });
+  real.lancar({ ...base, desc: 'Gasto real' });
+  t('modos: dados reais ficam nas chaves normais', JSON.parse(arm.getItem('tf_lanc3')).length === 1);
+  real.definirModo('demo');
+  t('modos: entrar no exemplo só muda o modo', JSON.parse(arm.getItem('tf_modo')) === 'demo');
+  const ex = S.criarStore(S.armazenamentoDoModo(arm), () => HOJE);
+  t('modos: o exemplo não enxerga os dados reais', ex.st.lanc.length === 0 && ex.st.real === null && ex.st.modo === 'demo');
+  ex.lancar({ ...base, desc: 'Gasto de exemplo' });
+  t('modos: gravar no exemplo não toca nos dados reais', JSON.parse(arm.getItem('tf_lanc3')).length === 1 && JSON.parse(arm.getItem('tf_lanc3'))[0].desc === 'Gasto real');
+  ex.definirModo('real');
+  const volta = S.criarStore(S.armazenamentoDoModo(arm), () => HOJE);
+  t('modos: voltar ao real traz só os dados reais', volta.st.lanc.length === 1 && volta.st.lanc[0].desc === 'Gasto real' && volta.st.real._inicio.renda === 5000);
+  volta.definirModo('demo');
+  const ex2 = S.criarStore(S.armazenamentoDoModo(arm), () => HOJE);
+  t('modos: o exemplo mantém o que era dele', ex2.st.lanc.length === 1 && ex2.st.lanc[0].desc === 'Gasto de exemplo');
+}
+{
+  const p = S.plataforma;
+  const IOS = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Version/17.0 Mobile/15E148 Safari/604.1';
+  const IOS_CHROME = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 CriOS/120.0 Mobile/15E148 Safari/604.1';
+  const AND = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36';
+  const PC = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36';
+  t('plataforma: iPhone no Safari', p(IOS, false) === 'ios');
+  t('plataforma: iPhone em outro navegador precisa abrir no Safari', p(IOS_CHROME, false) === 'ios-outro');
+  t('plataforma: Android', p(AND, false) === 'android');
+  t('plataforma: computador', p(PC, false) === 'computador');
+  t('plataforma: já instalado', p(IOS, true) === 'instalado' && p(AND, true) === 'instalado');
 }
 
 console.log(f ? f + ' falha(s)' : 'Todos os ' + ok + ' testes da camada de dados passaram.'); process.exit(f ? 1 : 0);

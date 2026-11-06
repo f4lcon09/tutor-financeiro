@@ -63,14 +63,16 @@ const num1 = n => n.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFract
 const $ = (s,r=document)=>r.querySelector(s);
 const $$ = (s,r=document)=>[...r.querySelectorAll(s)];
 const esc = TFSeg.esc;   // todo texto vindo do usuário, do JSON importado ou do Drive passa por aqui antes de entrar em innerHTML
-const ST = {ok:['✔','Tudo certo'],at:['⚠','Atenção'],ru:['✖','Risco']};
+/* sinal de atenção desenhado: herda a cor do tema. O caractere vira emoji colorido em alguns navegadores (fica só como texto de apoio, não desenhado) */
+const AV = '<svg class="gl" viewBox="0 0 24 24" aria-hidden="true"><desc>⚠</desc><path fill-rule="evenodd" d="M12 2.5L1.5 21h21L12 2.5zM11 9.5h2v6h-2v-6zm0 7.5h2v2h-2v-2z"/></svg>';
+const ST = {ok:['✔','Tudo certo'],at:[AV,'Atenção'],ru:['✖','Risco']};
 const stCls = s => s==='atencao'?'at':s==='ruim'?'ru':s;
 
 /* ===== Armazenamento da maquete (versão real: arquivos do app, no computador) ===== */
 function load(k,def){ try{ const v=JSON.parse(localStorage.getItem(k)); return v==null?def:v; }catch(e){ return def; } }
 function save0(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
 
-const S = TFStore.criarStore(localStorage);
+const ARM = TFStore.armazenamentoDoModo(localStorage), S = TFStore.criarStore(ARM);   // o exemplo tem chaves próprias: trocar de modo nunca mistura dados
 const TEMAS = ['cafe','ameixa','nevoa','cha'], NOMES_TEMA = {cafe:'Café',ameixa:'Ameixa',nevoa:'Névoa',cha:'Chá'};
 const migraTema = v => v==='light'?'nevoa':v==='dark'?'cafe':TEMAS.includes(v)?v:'cafe';   // "dark" e "light" são valores antigos
 function aplicaTema(t){ const r=document.documentElement; r.dataset.theme=TEMAS.includes(t)?t:'cafe'; try{ const m=document.querySelector('meta[name="theme-color"]'), c=getComputedStyle(r).getPropertyValue('--bg').trim(); if(m&&c) m.setAttribute('content',c); }catch(e){} }
@@ -78,6 +80,7 @@ function aplicaTema(t){ const r=document.documentElement; r.dataset.theme=TEMAS.
   if(salvo!=null && salvo!==t) save0('tf_tema',t);   // migra "dark"/"light" ou valor inválido para o nome do tema
   aplicaTema(TEMAS.includes(q)?q:t); }
 const MODO = S.st.modo;   // 'real' | 'demo' | null (ainda sem dados)
+const SIMPLES = () => MODO==='real' && !!(S.st.real && S.st.real._inicio);   // começou pelos três números; o resto vem depois, uma coisa de cada vez
 let real = S.st.real;
 function recalcDemo(){ if(MODO==='real' && S.st.real){ real=S.st.real; Object.assign(DEMO, Real.derivar(S.st.real, S.st.numeros, {lanc:S.st.lanc, hojeISO:S.hojeISO()})); } }
 recalcDemo();
@@ -108,9 +111,9 @@ const metasPadrao = () => [
   {id:2,nome:'Viagem',alvo:3000,guardado:400,prazo:'2027-07',aporte:280},
   {id:3,nome:'Notebook novo',alvo:4500,guardado:0,prazo:'2027-03',aporte:150}
 ];
-if(MODO==='demo' && !localStorage.getItem('tf_lanc3')) S.st.lanc = seed();
-if(MODO==='demo' && !localStorage.getItem('tf_metas')) S.st.metas = metasPadrao();
-if(!Object.keys(S.st.tetos).length) S.st.tetos = {...DEMO.tetos};
+if(MODO==='demo' && !ARM.getItem('tf_lanc3')) S.st.lanc = seed();
+if(MODO==='demo' && !ARM.getItem('tf_metas')) S.st.metas = metasPadrao();
+if(!Object.keys(S.st.tetos).length && !SIMPLES()) S.st.tetos = {...DEMO.tetos};
 Object.defineProperties(window,{
   lanc:{get:()=>S.st.lanc,configurable:true}, pagos:{get:()=>S.st.pagos,configurable:true}, tetos:{get:()=>S.st.tetos,configurable:true},
   metas:{get:()=>S.st.metas,configurable:true}, taxaMeta:{get:()=>S.st.taxa,configurable:true}
@@ -193,7 +196,7 @@ function ring(pct,color,label,sub,size=150){
   const r=size/2-12, c=2*Math.PI*r, off=c*(1-Math.min(Math.max(pct,0),1));
   return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" role="img"><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--p2)" stroke-width="12"/><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="12" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${off}" transform="rotate(-90 ${size/2} ${size/2})"/><text x="50%" y="${sub?'49%':'54%'}" text-anchor="middle" font-size="${size/4.2}" font-weight="600" fill="var(--tx)" style="font-family:Bahnschrift,'Segoe UI',sans-serif">${label}</text>${sub?`<text x="50%" y="66%" text-anchor="middle" font-size="12" fill="var(--mu)">${sub}</text>`:''}</svg>`;
 }
-function status(v, meta, piso){ return v>=meta ? ['ok','✔','Acima da meta'] : v>=piso ? ['at','⚠','Entre piso e meta'] : ['ru','✖','Abaixo do piso']; }
+function status(v, meta, piso){ return v>=meta ? ['ok','✔','Acima da meta'] : v>=piso ? ['at',AV,'Entre piso e meta'] : ['ru','✖','Abaixo do piso']; }
 const COR = {ok:'var(--ok)',at:'var(--at)',ru:'var(--ru)'};
 const info = (t,r) => `<i class="info${r?' r':''}" tabindex="0" data-t="${esc(t)}">i</i>`;
 function sugerir(cat,desc){
@@ -219,7 +222,7 @@ function cartaoInfo(c){ const usado=c.fatura+c.parcelasFuturas; return {usado, .
 const blocoReal = () => { const d=DEMO;
   return `<div class="grid g2" style="margin-bottom:14px">
     ${pn('Plano de pagamento'+info('Montado a partir do que você informou. Os valores não foram confirmados pelo banco.'),d.plano.map(x=>`<div class="ins"><div class="d ok" style="width:auto;min-width:52px;padding:0 6px">${esc(String(x.data).slice(8))}/${esc(String(x.data).slice(5,7))}</div><div class="small">${esc(x.texto)}</div></div>`).join('')+`<div class="kv" style="margin-top:12px"><span>Sobra depois de pagar tudo</span><span>${brl(d.sobra)}</span></div>`,'teal')}
-    ${pn('Falta informar',d.pendentes.length?d.pendentes.map(t=>`<div class="ins"><div class="d at">⚠</div><div class="small" style="padding-top:5px">${esc(t)}</div></div>`).join('')+'<div class="disc">Enquanto isso, o app não estima esses valores.</div><div style="margin-top:12px"><button class="btn ghost" data-ir="numeros">Abrir Meus números</button></div>':'<div class="mu">Nada pendente.</div>','vio')}
+    ${pn('Falta informar',d.pendentes.length?d.pendentes.map(t=>`<div class="ins"><div class="d at">${AV}</div><div class="small" style="padding-top:5px">${esc(t)}</div></div>`).join('')+'<div class="disc">Enquanto isso, o app não estima esses valores.</div><div style="margin-top:12px"><button class="btn ghost" data-ir="numeros">Abrir Meus números</button></div>':'<div class="mu">Nada pendente.</div>','vio')}
   </div>
   ${pn('Como a projeção é feita',d.suposicoes.map(x=>`<div class="ins"><div class="d ne">·</div><div class="small" style="padding-top:5px">${esc(x)}</div></div>`).join(''),'sky','margin-bottom:14px')}`; };
 function proximasContas(){
@@ -227,6 +230,7 @@ function proximasContas(){
 }
 
 T.hoje = () => {
+  if(SIMPLES()) return hojeSimples();
   const d=DEMO, base=d.cenarios['Base'], jan=base[2], [cls,icn,txt]=status(jan,d.meta,d.piso);
   const gasto=lazerGasto(), restante=d.tetoLazer-gasto, pct=gasto/d.tetoLazer;
   const lzCls = pct<=.75?'ok':pct<=1?'at':'ru';
@@ -254,8 +258,8 @@ T.hoje = () => {
   const pProxF = prox => pn('Próximas contas',prox.length?`<table>${prox.map(a=>`<tr><td><b>${esc(a.nome)}</b><div class="mu small">${a.dias<0?'venceu há '+(-a.dias)+' dias':a.dias===0?'vence hoje':'em '+a.dias+' dias, dia '+a.dia}</div></td><td class="n">${brl0(a.valor)}</td></tr>`).join('')}</table>`:'<div class="mu">Tudo pago neste mês.</div>','vio');
   const pPerc = pn('O que eu percebi',`
       ${semLim?'':`<div class="ins"><div class="d ${c1cls}">${ST[c1cls][0]}</div><div><b>Você usa ${pc(c1.utilizacao,0)} do limite do cartão</b><div class="mu small">${c1.utilizacao>.3?'O ideal é até 30% ('+brl0(c1.limiteSaudavel)+'). Reduzir o uso ajuda no score de crédito.':'Uso dentro do ideal.'}</div></div></div>`}
-      ${semLanc?`<div class="ins"><div class="d ne">·</div><div><b>Nenhum lançamento este mês ainda</b><div class="mu small">Quando você lançar gastos, a projeção do lazer aparece aqui.</div></div></div>`:rtz.poucos?`<div class="ins"><div class="d ne">·</div><div><b>Poucos dados para projetar o lazer</b><div class="mu small">A projeção aparece a partir do dia ${TFStore.RITMO_MIN_DIAS} do mês. Até agora: ${brl0(gasto)} de ${brl0(d.tetoLazer)}.</div></div></div>`:`<div class="ins"><div class="d ${ritmo>d.tetoLazer?'at':'ok'}">${ritmo>d.tetoLazer?'⚠':'✔'}</div><div><b>${ritmo>d.tetoLazer?'Neste ritmo o lazer passa do teto':'Neste ritmo o lazer fecha dentro do teto'}</b><div class="mu small">Projeção do mês: ${brl0(ritmo)} de ${brl0(d.tetoLazer)}.</div></div></div>`}
-      <div class="ins"><div class="d at">⚠</div><div><b>Mês mais apertado: ${d.meses[mesesMax]}</b><div class="mu small">Saldo previsto de ${brl0(Math.min(...base))}. Evite compras grandes até lá.</div></div></div>`,'teal');
+      ${semLanc?`<div class="ins"><div class="d ne">·</div><div><b>Nenhum lançamento este mês ainda</b><div class="mu small">Quando você lançar gastos, a projeção do lazer aparece aqui.</div></div></div>`:rtz.poucos?`<div class="ins"><div class="d ne">·</div><div><b>Poucos dados para projetar o lazer</b><div class="mu small">A projeção aparece a partir do dia ${TFStore.RITMO_MIN_DIAS} do mês. Até agora: ${brl0(gasto)} de ${brl0(d.tetoLazer)}.</div></div></div>`:`<div class="ins"><div class="d ${ritmo>d.tetoLazer?'at':'ok'}">${ritmo>d.tetoLazer?AV:'✔'}</div><div><b>${ritmo>d.tetoLazer?'Neste ritmo o lazer passa do teto':'Neste ritmo o lazer fecha dentro do teto'}</b><div class="mu small">Projeção do mês: ${brl0(ritmo)} de ${brl0(d.tetoLazer)}.</div></div></div>`}
+      <div class="ins"><div class="d at">${AV}</div><div><b>Mês mais apertado: ${d.meses[mesesMax]}</b><div class="mu small">Saldo previsto de ${brl0(Math.min(...base))}. Evite compras grandes até lá.</div></div></div>`,'teal');
   const pCat = pn('Para onde foi o dinheiro este mês',catBars(),'pink');
   if(MOB()){
     const al=[];
@@ -398,6 +402,7 @@ function bindLancar(){
     $('#q_msg').innerHTML='<span class="tag ok">✔ Preenchido. Confira e toque em Salvar.</span>'; $('#q_txt').value=''; $('#f_ok').focus();
   };
   $('#q_ok').onclick=rapido; $('#q_txt').onkeydown=e=>{ if(e.key==='Enter'){ e.preventDefault(); rapido(); } };
+  if(rapidoPendente){ $('#q_txt').value=rapidoPendente; rapidoPendente=''; rapido(); }
   $('#f_cancel').onclick=()=>{ reset(); $('#f_msg').textContent=''; drawLista(); };
   startEditFn=id=>{ const l=lanc.find(x=>String(x.id)===String(id)); if(!l) return; editId=l.id;
     $('#f_valor').value=Math.abs(l.valor); $('#f_desc').value=l.desc; $('#f_data').value=l.data; $('#f_forma').value=l.forma; sincForma(); $('#f_ess').checked=l.essencial; $('#f_laz').checked=l.lazer;
@@ -413,7 +418,7 @@ function bindLancar(){
 function drawLista(){
   const doM=lanc.filter(l=>l.data.startsWith(mesVer)), g=doM.filter(l=>l.lazer&&l.valor>0).reduce((s,l)=>s+l.valor,0), pct=g/DEMO.tetoLazer, cls=pct<=.75?'ok':pct<=1?'at':'ru';
   $('#mnome').textContent=mesTitulo(mesVer);
-  $('#lz_resumo').innerHTML=`<div class="row"><span class="mu small">Lazer: ${brl(g)} de ${brl0(DEMO.tetoLazer)}</span><span class="tag ${cls}">${ST[cls][0]} ${pct>1?'passou '+brl0(g-DEMO.tetoLazer):brl0(DEMO.tetoLazer-g)+' restantes'}</span></div><div class="bar" style="--h:${COR[cls]}"><span style="width:${Math.min(pct,1)*100}%"></span></div>`;
+  if(!DEMO.tetoLazer) $('#lz_resumo').innerHTML=''; else $('#lz_resumo').innerHTML=`<div class="row"><span class="mu small">Lazer: ${brl(g)} de ${brl0(DEMO.tetoLazer)}</span><span class="tag ${cls}">${ST[cls][0]} ${pct>1?'passou '+brl0(g-DEMO.tetoLazer):brl0(DEMO.tetoLazer-g)+' restantes'}</span></div><div class="bar" style="--h:${COR[cls]}"><span style="width:${Math.min(pct,1)*100}%"></span></div>`;
   const q=(($('#busca')||{}).value||'').toLowerCase().trim();
   const rows=[...doM].filter(l=>!q||(l.desc+' '+l.cat+' '+(l.forma||'')).toLowerCase().includes(q)).sort((a,b)=>b.data.localeCompare(a.data));
   $('#lista').innerHTML = rows.length ? `<table class="lt"><tr><th>Dia</th><th>O que</th><th class="n">Valor</th><th></th><th></th></tr>${rows.map(l=>`<tr style="${String(l.id)===String(editId)?'background:var(--p2)':''}"><td>${esc(l.data.slice(8))}</td><td>${esc(l.desc)}<div class="mu small">${esc(l.cat)}${l.lazer?' · lazer':''}${l.forma?' · '+esc(l.forma):''}</div></td><td class="n" style="color:${l.valor<0?'var(--ok)':'inherit'}">${l.valor<0?'+':''}${brl(Math.abs(l.valor))}</td><td class="b"><button class="x" data-ed="${l.id}" title="Corrigir" aria-label="Corrigir">${I.editar}</button></td><td class="b"><button class="x" data-id="${l.id}" title="Apagar" aria-label="Apagar">${I.apagar}</button></td></tr>`).join('')}</table>` : '<div class="mu">Nenhum lançamento neste mês.</div>'+(MOB()?'<button class="btn ghost" id="primeiro" style="margin-top:12px;width:100%">Lançar o primeiro gasto</button>':'');
@@ -489,7 +494,7 @@ T.agenda = () => {
     const al=[], atras=l.filter(a=>!a.pago&&a.dias<0);
     if(atras.length) al.push([3, alerta('ru', atras.length+(atras.length>1?' contas atrasadas: ':' conta atrasada: ')+atras.map(a=>esc(a.nome)).join(', ')+'.')]);
     if(caixa<aVencer) al.push([2, alerta('ru','O caixa não cobre o que ainda vence neste mês.')]);
-    const lista = l.length ? l.map(a=>{ const k=a.pago?'ok':a.dias<0?'ru':a.dias<=3?'at':'ne', t=a.pago?'✔ Pago':a.dias<0?'✖ Atrasada '+(-a.dias)+'d':a.dias===0?'⚠ Vence hoje':a.dias<=3?'⚠ Em '+a.dias+' dias':'Em '+a.dias+' dias';
+    const lista = l.length ? l.map(a=>{ const k=a.pago?'ok':a.dias<0?'ru':a.dias<=3?'at':'ne', t=a.pago?'✔ Pago':a.dias<0?'✖ Atrasada '+(-a.dias)+'d':a.dias===0?AV+' Vence hoje':a.dias<=3?AV+' Em '+a.dias+' dias':'Em '+a.dias+' dias';
       return `<div class="ag"><label class="linha-check" style="--h:var(--vio);color:var(--tx);font-size:inherit"><input type="checkbox" data-id="${esc(a.id)}" ${a.pago?'checked':''} aria-label="Marcar como pago: ${esc(a.nome)}"><b>${esc(a.nome)}</b></label><span class="agv">${brl(a.valor)}</span><div class="ag2 small mu">dia ${esc(a.dia)} · <span class="tag ${k}">${t}</span></div></div>`; }).join('')
       : '<div class="mu">Nenhuma conta cadastrada neste mês.</div><button class="btn ghost" data-ir="numeros" style="margin-top:12px;width:100%">Abrir Meus números</button>';
     return `<div class="head"><div><h1>Agenda</h1><div class="sub">O que vence e o que já foi pago.</div></div></div>
@@ -504,7 +509,7 @@ T.agenda = () => {
     ${pn('Já pago',`<div class="big" style="color:var(--ok)">${brl0(pagoV)}</div><div class="bar" style="--h:var(--ok)"><span style="width:${total?pagoV/total*100:0}%"></span></div>`,'vio')}
     ${pn('Ainda a vencer',`<div class="big">${brl0(aVencer)}</div><span class="tag ${caixa>=aVencer?'ok':'ru'}">${caixa>=aVencer?'✔ O caixa cobre ('+brl0(caixa)+')':'✖ Falta caixa'}</span>`,'vio')}
   </div>
-  <div class="grid g32">${pn('Contas do mês',`<table class="rt"><tr><th>Conta</th><th>Vencimento</th><th class="n">Valor</th><th>Situação</th></tr>${l.map(a=>{const k=a.pago?'ok':a.dias<0?'ru':a.dias<=3?'at':'ne', t=a.pago?'✔ Pago':a.dias<0?'✖ Atrasada '+(-a.dias)+'d':a.dias===0?'⚠ Vence hoje':a.dias<=3?'⚠ Em '+a.dias+' dias':'Em '+a.dias+' dias';
+  <div class="grid g32">${pn('Contas do mês',`<table class="rt"><tr><th>Conta</th><th>Vencimento</th><th class="n">Valor</th><th>Situação</th></tr>${l.map(a=>{const k=a.pago?'ok':a.dias<0?'ru':a.dias<=3?'at':'ne', t=a.pago?'✔ Pago':a.dias<0?'✖ Atrasada '+(-a.dias)+'d':a.dias===0?AV+' Vence hoje':a.dias<=3?AV+' Em '+a.dias+' dias':'Em '+a.dias+' dias';
     return `<tr><td class="tt"><label class="linha-check" style="--h:var(--vio);color:var(--tx);font-size:inherit"><input type="checkbox" data-id="${esc(a.id)}" ${a.pago?'checked':''} aria-label="Marcar como pago: ${esc(a.nome)}"><b>${esc(a.nome)}</b></label></td><td data-l="Vencimento">dia ${esc(a.dia)}</td><td class="n" data-l="Valor">${brl(a.valor)}</td><td data-l="Situação"><span class="tag ${k}">${t}</span></td></tr>`}).join('')}</table>`,'vio')}${pCal}</div>
   ${pPesoAg}`;
 };
@@ -557,7 +562,7 @@ T.metas = () => {
     const [ay,am]=m.prazo.split('-').map(Number), n=Math.max((ay-hoje.getFullYear())*12+(am-1-hoje.getMonth()),0);
     const need=Calc.metaAporte(m.alvo,m.guardado,i,n), eta=Calc.mesesParaMeta(m.alvo,m.guardado,m.aporte,i);
     const k = m.guardado>=m.alvo?'ok': m.aporte>=need*.999?'ok': m.aporte>=need*.7?'at':'ru', pct=m.guardado/m.alvo;
-    const txt = m.guardado>=m.alvo?'✔ Meta atingida': k==='ok'?'✔ No ritmo': k==='at'?'⚠ Um pouco abaixo':'✖ Fora do ritmo';
+    const txt = m.guardado>=m.alvo?'✔ Meta atingida': k==='ok'?'✔ No ritmo': k==='at'?AV+' Um pouco abaixo':'✖ Fora do ritmo';
     return pn(esc(m.nome),`<div class="row" style="align-items:center;gap:16px"><div>${ring(Math.min(pct,1),HUE.sky,Math.round(pct*100)+'%','',110)}</div>
       <div style="flex:1"><div class="mu small">Guardado</div><div class="mid">${brl0(m.guardado)} <span class="mu small">de ${brl0(m.alvo)}</span></div><span class="tag ${k}" style="margin-top:8px">${txt}</span></div></div>
       <div class="kv" style="margin-top:14px"><span>Prazo</span><span>${String(am).padStart(2,'0')}/${ay} (${n} meses)</span><span>Precisa guardar por mês</span><span>${brl0(need)}</span><span>Você planeja guardar</span><span>${brl0(m.aporte)}</span><span>Chega lá em</span><span>${eta==null?'—':eta+' meses'}</span></div>
@@ -568,7 +573,7 @@ T.metas = () => {
   if(MOB()){
     const info1=m=>{ const [ay,am]=m.prazo.split('-').map(Number), n=Math.max((ay-hoje.getFullYear())*12+(am-1-hoje.getMonth()),0), need=Calc.metaAporte(m.alvo,m.guardado,i,n), eta=Calc.mesesParaMeta(m.alvo,m.guardado,m.aporte,i);
       const k=m.guardado>=m.alvo?'ok':m.aporte>=need*.999?'ok':m.aporte>=need*.7?'at':'ru', pct=m.guardado/m.alvo;
-      return {ay,am,n,need,eta,k,pct,txt:m.guardado>=m.alvo?'✔ Meta atingida':k==='ok'?'✔ No ritmo':k==='at'?'⚠ Um pouco abaixo':'✖ Fora do ritmo'}; };
+      return {ay,am,n,need,eta,k,pct,txt:m.guardado>=m.alvo?'✔ Meta atingida':k==='ok'?'✔ No ritmo':k==='at'?AV+' Um pouco abaixo':'✖ Fora do ritmo'}; };
     const somaA=metas.reduce((t,m)=>t+m.aporte,0), somaN=metas.reduce((t,m)=>t+info1(m).need,0), pr=DEMO.renda?somaA/DEMO.renda:0, kk=pr<=.2?'ok':pr<=.35?'at':'ru';
     const fora=metas.filter(m=>info1(m).k==='ru');
     const al=[]; if(fora.length) al.push([2, alerta('ru', fora.length>1?fora.length+' metas fora do ritmo: '+fora.map(m=>esc(m.nome)).join(', ')+'.':'A meta '+esc(fora[0].nome)+' está fora do ritmo.')]);
@@ -580,7 +585,7 @@ T.metas = () => {
         <div class="row" style="margin-top:8px"><span class="hint">${x.k==='ok'?'':'Faltam '+brl0(Math.max(x.need-m.aporte,0))+' por mês para chegar no prazo.'}</span><button class="x" data-del="${esc(m.id)}">Remover</button></div>`,'sky')}`,'sky'); }).join('');
     const labs=Array.from({length:25},(_,k)=>mesNome(k));
     const ser0=metas.map(m=>Calc.investimento(m.guardado,m.aporte,i,24,false,0).serie.map(x=>x.saldo)), tot=ser0.length?ser0[0].map((_,t)=>ser0.reduce((a,v)=>a+v[t],0)):[];
-    const vazio=!metas.length ? pn('Nenhuma meta por aqui ainda','<div class="small mu">Crie uma meta com valor e prazo para ver quanto guardar por mês.</div><button class="btn" id="m_primeira" style="margin-top:12px;width:100%;--h:var(--sky)">Criar primeira meta</button>','sky','margin-bottom:14px') : '';
+    const vazio=metasVazio();
     const nova=`<div class="field"><label for="m_n">Nome</label><input type="text" id="m_n" placeholder="Ex.: curso, moto, reserva"></div><div class="field"><label for="m_a">Quanto quer juntar (R$)</label><input type="number" id="m_a" min="0" step="100"></div><div class="field"><label for="m_g">Já tem (R$)</label><input type="number" id="m_g" min="0" step="50" value="0"></div><div class="field"><label for="m_p">Prazo</label><input type="month" id="m_p" style="width:100%;background:var(--p2);border:1px solid var(--ln2);border-radius:3px;padding:10px 12px;color:var(--tx)"></div><div class="field"><label for="m_m">Guarda por mês (R$)</label><input type="number" id="m_m" min="0" step="10" value="100"></div><button class="btn" id="m_ok" style="--h:var(--sky);width:100%">Adicionar meta</button><div class="hint" id="m_msg"></div>`;
     return `<div class="head"><div><h1>Metas</h1><div class="sub">Quanto guardar por mês para chegar no prazo.</div></div></div>
     ${vazio}${alertas(al)}
@@ -589,13 +594,14 @@ T.metas = () => {
     ${det('metas','nova','Nova meta',nova,'sky')}
     ${metas.length?det('metas','graf','Gráfico e rendimento',pn('Total guardado nos próximos 24 meses',lineChart(labs,[{name:'Total guardado',values:tot,c:'var(--sky)',area:true,w:3}],[],220,CW(1)),'sky')+`<div class="field"><label for="tx">Rendimento esperado do que você guarda (ao mês, %)</label><input type="number" id="tx" value="${taxaMeta}" step="0.05" min="0"></div>`,'sky'):`<div style="display:none"><input type="number" id="tx" value="${taxaMeta}" aria-label="Rendimento esperado ao mês"></div>`}`;
   }
-  return `<div class="head"><div><h1>Metas</h1><div class="sub">Quanto guardar por mês para chegar lá no prazo.</div></div>
+  return `${SIMPLES()?metasVazio():''}<div class="head"><div><h1>Metas</h1><div class="sub">Quanto guardar por mês para chegar lá no prazo.</div></div>
     <div style="width:260px"><label>Rendimento esperado do que você guarda (ao mês, %) ${info('Quanto o dinheiro guardado rende por mês. Se não souber, deixe 0 para uma conta conservadora ou use a taxa do seu CDB ou poupança.',true)}</label><input type="number" id="tx" value="${esc(taxaMeta)}" step="0.05" min="0"></div></div>
   <div class="grid g3" style="margin-bottom:14px">${cards}</div>
   ${metasResumo(i)}
   ${pn('Nova meta',`<div class="grid g4"><div class="field"><label>Nome</label><input type="text" id="m_n" placeholder="Ex.: curso, moto, reserva"></div><div class="field"><label>Quanto quer juntar (R$)</label><input type="number" id="m_a" min="0" step="100"></div><div class="field"><label>Já tem (R$)</label><input type="number" id="m_g" min="0" step="50" value="0"></div><div class="field"><label>Prazo</label><input type="month" id="m_p" style="width:100%;background:var(--p2);border:1px solid var(--ln2);border-radius:3px;padding:10px 12px;color:var(--tx)"></div><div class="field"><label>Guarda por mês (R$)</label><input type="number" id="m_m" min="0" step="10" value="100"></div></div><button class="btn" id="m_ok" style="--h:var(--sky)">Adicionar meta</button><div class="hint" id="m_msg"></div>`,'sky')}`;
 };
 function bindMetas(){
+  const mpu=$('#m_pular'); if(mpu) mpu.onclick=()=>ir('hoje');
   const mp=$('#m_primeira'); if(mp) mp.onclick=()=>{ DET['metas:nova']=1; save0('tf_det',DET); const d=$('details[data-det="metas:nova"]'); if(d) d.open=true; $('#m_n').focus(); };
   $$('[data-ap]').forEach(r=>{ r.oninput=()=>{ $('#sv'+r.dataset.ap).textContent=brl0(+r.value); }; r.onchange=()=>{ if(S.setAporte(r.dataset.ap,r.value)) ir('metas'); }; });
   $$('[data-depb]').forEach(b=>b.onclick=()=>{ const inp=$('[data-dep="'+b.dataset.depb+'"]'); if(S.depositar(b.dataset.depb,inp.value)) ir('metas'); });
@@ -737,9 +743,9 @@ T.saude = () => {
     .map(f=>`<div class="ins"><div class="d ${stCls(f.status)}" style="width:auto;min-width:46px;padding:0 6px">+${f.perde}</div><div class="small"><b>${f.nome}</b><div class="mu">${dicas[f.nome]?dicas[f.nome]():f.explicacao}</div></div></div>`).join('')||'<div class="mu small">Você já está com a nota máxima nos fatores.</div>';
   const cc=ct.porClasse, palette=['var(--sky)','var(--vio)','var(--teal)','var(--pink)']; let ci=0;
   const aviso=[];
-  aviso.push(ct.concentracao>.6?['at','⚠','Concentração alta em '+esc(ct.maiorClasse)+' ('+pc(ct.concentracao,0)+'). Diversificar reduz o risco de uma única queda pesar demais.']:['ok','✔','Nenhuma classe passa de 60% da carteira.']);
-  aviso.push(ct.mesesLiquidos>=3?['ok','✔','Você tem '+num1(ct.mesesLiquidos)+' meses do essencial em ativos de liquidez diária.']:['at','⚠','Só '+num1(ct.mesesLiquidos)+' meses do essencial estão em liquidez diária. Reserva precisa estar disponível.']);
-  aviso.push(ct.classes>=3?['ok','✔','Você tem '+ct.classes+' tipos de ativo.']:['at','⚠','Apenas '+ct.classes+' tipo(s) de ativo.']);
+  aviso.push(ct.concentracao>.6?['at',AV,'Concentração alta em '+esc(ct.maiorClasse)+' ('+pc(ct.concentracao,0)+'). Diversificar reduz o risco de uma única queda pesar demais.']:['ok','✔','Nenhuma classe passa de 60% da carteira.']);
+  aviso.push(ct.mesesLiquidos>=3?['ok','✔','Você tem '+num1(ct.mesesLiquidos)+' meses do essencial em ativos de liquidez diária.']:['at',AV,'Só '+num1(ct.mesesLiquidos)+' meses do essencial estão em liquidez diária. Reserva precisa estar disponível.']);
+  aviso.push(ct.classes>=3?['ok','✔','Você tem '+ct.classes+' tipos de ativo.']:['at',AV,'Apenas '+ct.classes+' tipo(s) de ativo.']);
   const pFat = pn('De onde vem a nota',s.fatores.map(f=>`<div class="factor"><div><b>${f.nome}</b><div class="mu small">${f.explicacao}</div></div><span class="tag ${stCls(f.status)}">${ST[stCls(f.status)][0]} ${Math.round(f.ponto*f.peso)}/${f.peso}</span><div class="bar" style="--h:${COR[stCls(f.status)]}"><span style="width:${f.ponto*100}%"></span></div></div>`).join(''),'teal');
   const pCarteira = pn('Minha carteira (exemplo)',`<div class="big">${brl0(ct.total)}</div>
       <div style="display:flex;height:12px;border-radius:99px;overflow:hidden;margin:14px 0 10px;gap:2px">${Object.keys(cc).map(k=>`<span style="flex:${+cc[k]||0};background:${palette[ci++%4]}"></span>`).join('')}</div>
@@ -752,7 +758,7 @@ T.saude = () => {
     return `<div class="head"><div><h1>Patrimônio</h1><div class="sub">O que você tem, o que deve e uma nota simples.</div></div></div>
     ${alertas(al)}
     ${pn('Patrimônio líquido',`<div class="big" style="color:${liquido>=0?'var(--tx)':COR.ru}">${brl(liquido)}</div><div class="kv" style="margin-top:8px"><span>Tenho</span><span>${brl(ativos)}</span><span>Devo</span><span>${brl(divida)}</span></div>`,'sky')}
-    ${pn('Sua nota'+info('Soma de 5 fatores: reserva de emergência, meta de janeiro, dívida do cartão, lazer dentro do teto e hábito de registrar. Não é o score de crédito do Serasa ou do SPC.'),`<div class="row" style="gap:16px;align-items:center;justify-content:flex-start">${ring(s.nota/100,COR[cor],String(s.nota),'de 100',104)}<div><span class="tag ${cor}">${cor==='ok'?'✔ Saudável':cor==='at'?'⚠ Pode melhorar':'✖ Precisa de atenção'}</span></div></div>`,'teal')}
+    ${pn('Sua nota'+info('Soma de 5 fatores: reserva de emergência, meta de janeiro, dívida do cartão, lazer dentro do teto e hábito de registrar. Não é o score de crédito do Serasa ou do SPC.'),`<div class="row" style="gap:16px;align-items:center;justify-content:flex-start">${ring(s.nota/100,COR[cor],String(s.nota),'de 100',104)}<div><span class="tag ${cor}">${cor==='ok'?'✔ Saudável':cor==='at'?AV+' Pode melhorar':'✖ Precisa de atenção'}</span></div></div>`,'teal')}
     ${det('saude','det','Ver detalhes',pn('Onde dá para ganhar pontos',ganhos,'teal')+pFat+pCarteira+pSaudeC+pReserva,'sky')}`;
   }
   return `
@@ -764,7 +770,7 @@ T.saude = () => {
   </div>
   <div class="grid g23" style="margin-bottom:14px">
     ${pn('Sua nota'+info('Soma de 5 fatores: reserva de emergência (30), meta de janeiro (25), dívida do cartão (20), lazer dentro do teto (15) e hábito de registrar (10). Não é o score de crédito do Serasa ou do SPC.'),`<div class="row" style="gap:20px;align-items:center;justify-content:flex-start">${ring(s.nota/100,COR[cor],String(s.nota),'de 100',128)}
-      <div><span class="tag ${cor}">${cor==='ok'?'✔ Saudável':cor==='at'?'⚠ Pode melhorar':'✖ Precisa de atenção'}</span><div class="mu small" style="margin-top:10px">Nota do app, com regras visíveis ao lado. Não é o score de crédito do Serasa ou do SPC.</div></div></div>
+      <div><span class="tag ${cor}">${cor==='ok'?'✔ Saudável':cor==='at'?AV+' Pode melhorar':'✖ Precisa de atenção'}</span><div class="mu small" style="margin-top:10px">Nota do app, com regras visíveis ao lado. Não é o score de crédito do Serasa ou do SPC.</div></div></div>
       <div style="margin-top:20px;border-top:1px solid var(--ln);padding-top:16px"><div class="mu small" style="margin-bottom:6px;font-family:var(--fn)">Onde dá para ganhar pontos</div>${ganhos}</div>`,'teal')}
     ${pFat}
   </div>
@@ -802,7 +808,7 @@ function shareHtml(rows,tG){
 function economiaHtml(rows,tG){
   const ord=[...rows].sort((a,b)=>b.gasto-a.gasto), top=ord[0], itens=[];
   if(top&&top.gasto>0) itens.push(['ne','i','<b>Maior fatia: '+esc(top.nome.split(' (')[0])+'</b> ('+pc(top.gasto/tG,0)+' do gasto). Cortar 10% dela libera '+brl0(top.gasto*0.1)+' por mês.']);
-  rows.filter(r=>r.teto&&r.gasto/r.teto>.75).forEach(r=>itens.push([r.gasto>r.teto?'ru':'at',r.gasto>r.teto?'✖':'⚠','<b>'+esc(r.nome.split(' (')[0])+'</b> já usou '+pc(r.gasto/r.teto,0)+' do teto.']));
+  rows.filter(r=>r.teto&&r.gasto/r.teto>.75).forEach(r=>itens.push([r.gasto>r.teto?'ru':'at',r.gasto>r.teto?'✖':AV,'<b>'+esc(r.nome.split(' (')[0])+'</b> já usou '+pc(r.gasto/r.teto,0)+' do teto.']));
   if(!itens.some(x=>x[0]!=='ne')) itens.push(['ok','✔','<b>Nenhuma categoria perto do teto.</b> Bom ritmo.']);
   return itens.map(a=>`<div class="ins"><div class="d ${a[0]}">${a[1]}</div><div class="small" style="padding-top:5px">${a[2]}</div></div>`).join('');
 }
@@ -928,10 +934,12 @@ function aplicarEstado(st){
   aplicandoSync = false; recalcDemo();
 }
 function pintaOlho(){ const b=$('#olho'); if(!b) return; b.setAttribute('aria-pressed',String(PRIV)); b.setAttribute('aria-label',PRIV?'Mostrar valores':'Ocultar valores'); b.title=PRIV?'Mostrar valores':'Ocultar valores'; b.innerHTML=PRIV?SVG_OLHO_OFF:SVG_OLHO; }
+const NUVEM='<path d="M7 18a4 4 0 010-8 5.5 5.5 0 0110.6 1.2A3.5 3.5 0 0117 18z"/>', CORTE='<path d="M4 4l16 16"/>', EXCLAMA='<path d="M12 9.5v3.5M12 15.4v.1"/>';
 function pintaSync(){
   const el=$('#sync'); if(!el) return; const s=sincStatus;
-  const m={off:['','Conectar ao Drive'],go:['go','Sincronizando…'],ok:['ok','Sincronizado '+(s.h||'')],at:['at','Reconectar ao Drive'],ru:['ru','Sem sincronizar'],cfg:['at','Falta configurar o Drive']}[s.t]||['','—'];
-  el.className='sync '+m[0]; el.querySelector('span').textContent=m[1]; el.title=s.msg||'Sincronização com o Google Drive'; el.setAttribute('aria-label',m[1]+(s.msg?'. '+s.msg:''));
+  const m={off:['','Conectar ao Drive','Conectar'],go:['go','Sincronizando…'],ok:['ok','Sincronizado '+(s.h||'')],at:['at','Reconectar ao Drive','Reconectar'],ru:['ru','Sem sincronizar','Erro no Drive'],cfg:['at','Falta configurar o Drive','Configurar']}[s.t]||['','—'];
+  el.className='sync '+m[0]+(m[2]?' comtexto':''); el.querySelector('span').textContent=m[1]; el.querySelector('b').textContent=m[2]||'';
+  el.querySelector('svg').innerHTML=NUVEM+({off:CORTE,at:CORTE,cfg:CORTE,ru:EXCLAMA}[s.t]||''); el.title=s.msg||'Sincronização com o Google Drive'; el.setAttribute('aria-label',m[1]+(s.msg?'. '+s.msg:''));
 }
 S.aoMudar(()=>{ recalcDemo(); if(!aplicandoSync) mudou(); });
 function mudou(){
@@ -977,6 +985,7 @@ function chipSync(){ if(!Drive.configurado()||Drive.conectado()) sincronizar(); 
 
 /* --- Meus números --- */
 T.numeros = () => {
+  if(SIMPLES()) return numerosSimples();
   const n=S.st.numeros||{}, d=DEMO, reais=!!d.real;
   if(!reais) return `<div class="head"><div><h1>Meus números</h1><div class="sub">Os números que o app ainda não sabe.</div></div></div>${pn('Só com dados reais',`<div class="small">Esta tela alimenta a previsão com os seus números. Importe o arquivo de dados reais para usá-la.</div>${MOB()?'<button class="btn" id="imp_btn" style="margin-top:12px;width:100%">Importar dados reais</button>':''}`,'teal')}`;
   const parc=(real.faturas_futuras_parcelas_antigas||[]).filter(f=>f.parte_mae>0);
@@ -1019,11 +1028,16 @@ function bindNumeros(){
 
 /* ===== Primeira abertura: importar os dados reais ===== */
 function telaImportar(){
-  return `<div class="head"><div><h1>Bem-vindo ao Tutor Financeiro</h1><div class="sub">Falta trazer os seus números. Eles ficam só neste aparelho e no seu Google Drive.</div></div></div>
-  <div class="grid g2">
-    ${pn('Importar dados reais',`<div class="small" style="margin-bottom:12px">Escolha o arquivo <b>dados_reais_AAAA-MM-DD.json</b> que está na pasta Financeiro do computador. O app lê o arquivo aqui no aparelho e não envia para nenhum site.</div><input type="file" id="imp_f" accept=".json,application/json"><div class="small" id="imp_m" style="margin-top:12px"></div>`,'teal')}
-    ${pn('Já importou em outro aparelho?',`<div class="small">Toque na pílula no topo e entre com a conta Google. Os dados chegam sozinhos pelo Drive.</div><div style="margin-top:14px"><button class="btn ghost" id="imp_demo">Só olhar com dados de exemplo</button></div><div class="hint">O modo de exemplo usa números fictícios e não sincroniza.</div>`,'vio')}
-  </div>`;
+  const imp=pn('Importar dados reais',`<div class="small" style="margin-bottom:12px">Escolha o arquivo <b>dados_reais_AAAA-MM-DD.json</b> que está na pasta Financeiro do computador. O app lê o arquivo aqui no aparelho e não envia para nenhum site.</div><input type="file" id="imp_f" accept=".json,application/json"><div class="small" id="imp_m" style="margin-top:12px"></div>`,'teal');
+  const campo=(id,rot,ajuda)=>`<div class="field"><label for="ini_${id}">${rot}</label><input id="ini_${id}" type="number" inputmode="decimal" step="0.01" placeholder="0,00" aria-describedby="ini_${id}_a"><div class="hint" id="ini_${id}_a">${ajuda}</div></div>`;
+  const comeco=S.st.real
+    ? pn('Seus dados continuam aqui',`<div class="small">Eles não foram apagados. Você pode voltar para eles agora.</div><button class="btn" id="ini_voltar" style="margin-top:12px">Voltar aos meus dados</button>`,'teal','margin-bottom:14px')
+    : pn('Para começar',`${campo('renda','Renda por mês (R$)','O que entra em um mês normal.')}${campo('fixos','Gastos fixos por mês (R$)','Tudo junto, em um número só: aluguel, contas, assinaturas.')}${campo('saldo','Saldo de hoje (R$)','Quanto você tem agora. Pode ser aproximado.')}<button class="btn" id="ini_ok" style="width:100%">Começar</button><div class="hint" id="ini_msg" role="status"></div>`,'teal','margin-bottom:14px');
+  return `<div class="head"><div><h1>Bem-vindo ao Tutor Financeiro</h1><div class="sub">Três números e o app já mostra quanto dá para gastar por dia. Valores aproximados servem; você muda depois.</div></div></div>
+  ${comeco}
+  <div class="row" style="justify-content:flex-start;flex-wrap:wrap;margin-bottom:14px"><button class="btn ghost" id="imp_demo">Ver exemplo</button><span class="hint">Dados fictícios, separados dos seus.</span></div>
+  <details class="det"><summary>Já uso em outro aparelho</summary><div class="detc small">Toque no ícone de nuvem no topo e entre com a sua conta Google. Seus dados chegam pelo Drive.</div></details>
+  <details class="det"><summary>Opções avançadas</summary><div class="detc">${imp}</div></details>`;
 }
 function bindImportar(){
   $('#imp_f').onchange=async e=>{
@@ -1035,7 +1049,89 @@ function bindImportar(){
     }catch(err){ m.innerHTML='<span class="tag ru" role="alert">✖ '+esc(err.message)+'</span>'; }
   };
   $('#imp_demo').onclick=()=>{ S.definirModo('demo'); location.reload(); };
+  const vt=$('#ini_voltar'); if(vt) vt.onclick=()=>{ S.definirModo('real'); location.reload(); };
+  const ok=$('#ini_ok'); if(ok) ok.onclick=()=>{
+    const r=S.comecar({renda:$('#ini_renda').value,fixos:$('#ini_fixos').value,saldo:$('#ini_saldo').value});
+    ['renda','fixos','saldo'].forEach(k=>$('#ini_'+k).setAttribute('aria-invalid',r.ok||!r.erros||!r.erros[k]?'false':'true'));
+    if(!r.ok){ $('#ini_msg').innerHTML='<span class="tag ru" role="alert">✖ '+esc(Object.values(r.erros||{})[0]||r.erro)+'</span>'; return; }
+    location.reload(); };
 }
+
+/* ===== Primeiro uso: Hoje simples, telas vazias que dizem o que ganham, instalação ===== */
+let rapidoPendente='';
+const PLAT = () => TFStore.plataforma(navigator.userAgent, !!(navigator.standalone || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)));
+const INSTALAR = {
+  ios:'No Safari, toque em Compartilhar e depois em "Adicionar à Tela de Início". Depois disso, abra sempre pelo ícone.',
+  'ios-outro':'Abra este endereço no Safari. Lá, toque em Compartilhar e depois em "Adicionar à Tela de Início". Depois disso, abra sempre pelo ícone.',
+  android:'No Chrome, abra o menu e toque em "Instalar app". Depois ele abre como qualquer outro aplicativo.',
+  computador:'Abra este endereço no navegador do celular para instalar por lá.',
+  instalado:'O app já está instalado neste aparelho.'
+};
+const blocoInstalar = (fechar) => pn('Instalar no celular',`<div class="small">${INSTALAR[PLAT()]}</div><div class="small" style="margin-top:8px">Conecte o Google Drive: é o backup dos seus dados.</div><div class="row" style="justify-content:flex-start;flex-wrap:wrap;margin-top:12px"><button class="btn ghost" id="inst_drive">Conectar o Drive</button>${fechar?'<button class="btn ghost" id="inst_ok">Agora não</button>':''}</div>`,'sky','margin-bottom:14px');
+const gastoDoMes = () => gastosMes().reduce((t,l)=>t+l.valor,0);
+function hojeSimples(){
+  const ini=S.st.real._inicio, r=TFStore.porDia(ini.renda,ini.fixos,gastoDoMes(),diaHoje,diasMes), al=[];
+  if(r.livre<=0) al.push([3,alerta('ru','Os gastos fixos informados passam da renda do mês.')]);
+  else if(r.resta<0) al.push([3,alerta('ru','Os gastos do mês passaram da sobra em '+brl(-r.resta)+'.')]);
+  if(S.st.real.cartao.limite>0){ const c=cartaoInfo(DEMO.cartoes[0]); if(c.utilizacao>.3) al.push([c.utilizacao>.6?2:1,alerta(c.utilizacao>.6?'ru':'at','Você usa '+pc(c.utilizacao,0)+' do limite do cartão (ideal até 30%).')]); }
+  const mostra=!load('tf_inst_visto',false) && ['ios','ios-outro','android'].includes(PLAT());
+  const passos=[['cartao','Cartão','quanto do limite você usa'],['agenda','Contas','o que vence e se o caixa cobre'],['metas','Metas','quanto guardar por mês'],['orcamento','Orçamento','quanto ainda dá para gastar em cada área']];
+  return `<div class="head"><div><h1>Hoje</h1><div class="sub">Resumo de ${hoje.toLocaleDateString('pt-BR',{day:'numeric',month:'long'})}</div></div></div>
+  ${alertas(al)}
+  ${pn('Para gastar por dia'+info('A renda menos os gastos fixos e o que você já lançou no mês, dividido pelos dias que faltam. É uma conta com os números que você informou, não uma promessa.'),`<div class="big">${aprox(Math.floor(r.porDia))}</div><div class="mu small">até o fim do mês, ${r.diasRestantes} ${r.diasRestantes===1?'dia':'dias'} · sobra ${brl(Math.max(r.resta,0))}</div>`,'teal','margin-bottom:14px')}
+  ${pn('Lançamento rápido',`<label for="hq_txt" class="small">Escreva como falaria</label><div class="row" style="gap:8px"><input id="hq_txt" type="text" placeholder="Ex.: 45 mercado pix" autocomplete="off"><button class="ibtn tonal" id="hq_ok" type="button" aria-label="Preencher o lançamento com o texto" title="Preencher o lançamento com o texto">${I.enviar}</button></div>`,'teal','margin-bottom:14px')}
+  ${pn('Caixa hoje',`<div class="big">${brl(ini.saldo)}</div><div class="mu small">saldo informado em ${new Date(S.st.real._meta.as_of+'T12:00').toLocaleDateString('pt-BR')}</div>`,'teal','margin-bottom:14px')}
+  ${mostra?blocoInstalar(true):''}
+  ${load('tf_passos_ok',false)?'':pn('Quando quiser',`${passos.map(([k,n,g])=>`<div class="row" style="padding:4px 0"><span class="small"><b>${n}</b> <span class="mu">${g}</span></span><button class="btn ghost" data-ir="${k}">Abrir</button></div>`).join('')}<button class="btn ghost" id="pp_pular" style="margin-top:8px">Pular</button>`,'vio')}`;
+}
+function bindHojeSimples(){
+  const vai=()=>{ rapidoPendente=$('#hq_txt').value; ir('lancar'); };
+  $('#hq_ok').onclick=vai; $('#hq_txt').onkeydown=e=>{ if(e.key==='Enter'){ e.preventDefault(); vai(); } };
+  const pp=$('#pp_pular'); if(pp) pp.onclick=()=>{ save0('tf_passos_ok',true); ir('hoje'); };
+  bindInstalar();
+}
+function bindInstalar(){
+  const io=$('#inst_ok'); if(io) io.onclick=()=>{ save0('tf_inst_visto',true); ir('hoje'); };
+  const id=$('#inst_drive'); if(id) id.onclick=()=>chipSync();
+}
+T.instalar = () => `<div class="head"><div><h1>Instalar no celular</h1></div></div>${blocoInstalar(false)}<button class="btn ghost" data-ir="hoje">Voltar</button>`;
+function numerosSimples(){
+  const v=S.st.real._inicio, campo=(id,rot,val)=>`<div class="field"><label for="n_${id}">${rot}</label><input id="n_${id}" type="number" inputmode="decimal" step="0.01" value="${val}"></div>`;
+  return `<div class="head"><div><h1>Meus números</h1><div class="sub">Corrija quando quiser. Valores aproximados servem.</div></div></div>
+  ${pn('Os três números',campo('renda','Renda por mês (R$)',v.renda)+campo('fixos','Gastos fixos por mês (R$)',v.fixos)+campo('saldo','Saldo de hoje (R$)',v.saldo)+`<div class="row" style="justify-content:flex-start;gap:14px"><button class="btn" id="n_ok">Salvar números</button><span id="n_msg" class="small" role="status"></span></div>`,'teal')}`;
+}
+function bindNumerosSimples(){
+  $('#n_ok').onclick=()=>{ const r=S.atualizarInicio({renda:$('#n_renda').value,fixos:$('#n_fixos').value,saldo:$('#n_saldo').value});
+    if(!r.ok){ $('#n_msg').innerHTML='<span class="tag ru" role="alert">✖ '+esc(Object.values(r.erros)[0])+'</span>'; return; }
+    ir('numeros'); $('#n_msg').innerHTML='<span class="tag ok">✔ Salvo.</span>'; };
+}
+function metasVazio(){ return !metas.length ? pn('Nenhuma meta por aqui ainda',`<div class="small mu">Crie uma meta com valor e prazo para ver quanto guardar por mês.</div><button class="btn" id="m_primeira" style="margin-top:12px;width:100%;--h:var(--sky)">Criar primeira meta</button>${SIMPLES()?'<button class="btn ghost" id="m_pular" style="margin-top:8px;width:100%">Pular</button>':''}`,'sky','margin-bottom:14px') : ''; }
+/* Telas ainda vazias no primeiro uso: dizem o que a pessoa ganha ao preencher e sempre têm "Pular". */
+const telaVaziaDe = k => { if(!SIMPLES()) return false; const r=S.st.real; return k==='cartao'?!(r.cartao.limite>0):k==='agenda'?!r.pendencias_novembro.length:k==='orcamento'?!Object.keys(S.st.tetos).length:k==='futuro'||k==='saude'; };
+function telaVazia(k){
+  const num=(id,rot,extra='')=>`<div class="field"><label for="vz_${id}">${rot}</label><input id="vz_${id}" type="number" inputmode="decimal" step="0.01" ${extra}></div>`;
+  const pular='<button class="btn ghost" id="vz_pular" style="margin-top:8px;width:100%">Pular</button>', salvar=(r)=>`<button class="btn" id="vz_ok" style="width:100%">${r}</button><div class="hint" id="vz_msg" role="status"></div>`;
+  const t={
+    cartao:['Cartão','vio','Com o limite e a fatura, o app mostra quanto do limite você usa, quando a fatura fecha e o melhor dia de comprar.',num('lim','Limite do cartão (R$)')+num('fat','Fatura atual (R$)')+num('fec','Dia de fechamento','min="1" max="28" step="1"')+num('ven','Dia de vencimento','min="1" max="28" step="1"')+salvar('Salvar cartão')],
+    agenda:['Agenda','vio','Com as contas e os vencimentos, o app lembra o que vence e mostra se o caixa cobre. Cadastre uma de cada vez.',`<div class="field"><label for="vz_nome">Nome da conta</label><input id="vz_nome" type="text" maxlength="60" placeholder="Ex.: internet"></div>`+num('val','Valor (R$)')+num('dia','Dia de vencimento','min="1" max="28" step="1"')+salvar('Salvar conta')],
+    orcamento:['Orçamento','pink','Com um teto por área, o app mostra quanto ainda dá para gastar em cada uma. Preencha só as que quiser.',Object.keys({Mercado:1,Transporte:1,Estudos:1,'Saúde':1,Outros:1}).map(c=>`<div class="field"><label for="vz_t_${c}">${c} (R$ por mês)</label><input id="vz_t_${c}" data-cat="${c}" type="number" inputmode="decimal" step="10" min="0"></div>`).join('')+salvar('Salvar tetos')],
+    futuro:['Futuro','sky','Com a renda e os gastos fixos que você informou, esta é uma previsão simples do saldo. Com cartão e contas, ela fica mais completa.',(()=>{ const d=DEMO, b=d.cenarios['Base'].slice(0,7); return `<div class="mid">${aprox(b[b.length-1])}</div><div class="mu small">saldo previsto em ${d.meses[6]}</div>${lineChart(d.meses.slice(0,7),[{name:'Saldo previsto',values:b,c:'var(--sky)',area:true,w:3}],[],220,CW(1))}<div class="disc">Previsão com os números que você informou. Não é promessa.</div>`; })()],
+    saude:['Patrimônio','sky','Com investimentos e dívidas, o app mostra o que você tem em comparação com o que deve.','<div class="mu small">Ainda não dá para cadastrar isso aqui.</div>']
+  }[k];
+  return `<div class="head"><div><h1>${t[0]}</h1></div></div>${pn('O que você ganha',`<div class="small" style="margin-bottom:12px">${t[2]}</div>${t[3]}${pular}`,t[1])}`;
+}
+function bindVazia(k){
+  $('#vz_pular').onclick=()=>ir('hoje');
+  const msg=(r)=>{ $('#vz_msg').innerHTML='<span class="tag ru" role="alert">✖ '+esc(Object.values(r.erros||{})[0]||'Confira os campos.')+'</span>'; };
+  const ok=$('#vz_ok'); if(!ok) return;
+  ok.onclick=()=>{
+    if(k==='cartao'){ const r=S.atualizarCartao({limite:$('#vz_lim').value,fatura:$('#vz_fat').value,fechamento:$('#vz_fec').value,vencimento:$('#vz_ven').value}); if(!r.ok) return msg(r); }
+    if(k==='agenda'){ const r=S.addConta({nome:$('#vz_nome').value,valor:$('#vz_val').value,dia:$('#vz_dia').value}); if(!r.ok) return msg(r); }
+    if(k==='orcamento'){ const vs=$$('input[data-cat]').filter(i=>+i.value>0); if(!vs.length) return msg({erros:{a:'Preencha ao menos um teto ou toque em Pular.'}}); vs.forEach(i=>S.setTeto(i.dataset.cat,i.value)); }
+    ir(k);
+  };
+}
+function sairExemplo(){ S.definirModo(load('tf_real',null)?'real':null); location.reload(); }
 
 /* ===== Acessibilidade: liga cada rótulo ao seu campo e dá nome aos campos sem rótulo ===== */
 let rotN = 0;
@@ -1122,24 +1218,31 @@ window.addEventListener('resize',()=>{ larguraAnt=window.innerWidth; if(MOB()!==
 function ir(k){
   fecharMenuTema(false);
   atual=k; const btnNav=([id,n,h])=>`<button data-k="${id}" aria-current="${id===k}" style="--h:${hue(h)}">${ic[id]}<span>${n}</span></button>`;
-  $('#nav').innerHTML=`<div class="brand"><i>$</i>Tutor Financeiro</div>`+TELAS.filter(t=>PRIM.includes(t[0])).map(btnNav).join('')+`<button class="maisbtn${PRIM.includes(k)?'':' ativo'}" id="maisbtn" aria-expanded="false" aria-controls="secw" style="--h:var(--teal)">${ic.mais}<span>Mais</span></button><div class="secw" id="secw">`+TELAS.filter(t=>!PRIM.includes(t[0])).map(btnNav).join('')+`<div class="demo">${MODO==='real'?'Dados informados por você em '+new Date(DEMO.asOf+'T12:00').toLocaleDateString('pt-BR')+'. Tecle N para lançar.<br><a href="#" id="reimp" style="color:var(--teal)">Reimportar dados</a>':'Dados de exemplo (fictícios). Nada aqui é seu dinheiro real.<br><a href="#" id="reimp" style="color:var(--teal)">Importar dados reais</a>'}<br><button class="ibtn tonal" id="tema" type="button" aria-label="Escolher tema" title="Escolher tema" aria-haspopup="menu" aria-expanded="false" style="margin-top:8px">${I.paleta}</button></div></div>`;
+  $('#nav').innerHTML=`<div class="brand"><i>$</i>Tutor Financeiro</div>`+TELAS.filter(t=>PRIM.includes(t[0])).map(btnNav).join('')+`<button class="maisbtn${PRIM.includes(k)?'':' ativo'}" id="maisbtn" aria-expanded="false" aria-controls="secw" style="--h:var(--teal)">${ic.mais}<span>Mais</span></button><div class="secw" id="secw">`+TELAS.filter(t=>!PRIM.includes(t[0])).map(btnNav).join('')+`<div class="demo">${MODO==='real'?'Dados informados por você em '+new Date(DEMO.asOf+'T12:00').toLocaleDateString('pt-BR')+'. Tecle N para lançar.<br><a href="#" id="reimp" style="color:var(--teal)">Reimportar dados</a>':'Dados de exemplo (fictícios). Nada aqui é seu dinheiro real.<br><a href="#" id="reimp" style="color:var(--teal)">Importar dados reais</a>'}<br>${MODO==='real'?'<button class="linkbtn" id="ver_ex" type="button">Ver exemplo</button>':MODO==='demo'?'<button class="linkbtn" id="sair_ex" type="button">Sair do exemplo</button>':''}<button class="linkbtn" id="inst_ab" type="button">Instalar no celular</button><br><button class="ibtn tonal" id="tema" type="button" aria-label="Escolher tema" title="Escolher tema" aria-haspopup="menu" aria-expanded="false" style="margin-top:8px">${I.paleta}</button></div></div>`;
   $$('#nav button[data-k]').forEach(b=>b.onclick=()=>ir(b.dataset.k));
   $('#maisbtn').onclick=()=>{ const ab=$('#nav').classList.toggle('aberto'); $('#maisbtn').setAttribute('aria-expanded',ab); };
   const tm=$('#tema'); if(tm){ tm.onclick=()=>abrirMenuTema(tm); tm.onkeydown=e=>{ if(e.key==='ArrowDown'||e.key==='ArrowUp'){ e.preventDefault(); abrirMenuTema(tm); } }; }
   const ri=$('#reimp'); if(ri) ri.onclick=e=>{ e.preventDefault(); S.definirModo(null); location.reload(); };
+  const ve=$('#ver_ex'); if(ve) ve.onclick=()=>{ S.definirModo('demo'); location.reload(); };
+  const se=$('#sair_ex'); if(se) se.onclick=sairExemplo;
+  const ia=$('#inst_ab'); if(ia) ia.onclick=()=>ir('instalar');
   if(!MODO){ $('#main').innerHTML=telaImportar(); bindImportar(); return; }
-  const scroll=window.scrollY; $('#main').innerHTML=T[k](); fecharMais();
-  if(k==='hoje') bindHoje();
+  const scroll=window.scrollY;
+  if(telaVaziaDe(k)){ $('#main').innerHTML=telaVazia(k); fecharMais(); bindVazia(k); window.scrollTo(0,0); return; }
+  $('#main').innerHTML=T[k](); fecharMais();
+  if(k==='instalar') bindInstalar();
+  if(k==='hoje'){ if(SIMPLES()) bindHojeSimples(); else bindHoje(); }
   if(k==='lancar') bindLancar();
   if(k==='agenda') bindAgenda();
   if(k==='orcamento') bindOrc();
   if(k==='metas') bindMetas();
-  if(k==='numeros') bindNumeros();
+  if(k==='numeros'){ if(SIMPLES()) bindNumerosSimples(); else bindNumeros(); }
   if(k==='cartao'){ drawCartao(); $$('#cts .chip').forEach(b=>b.onclick=()=>{cartSel=b.dataset.c; $$('#cts .chip').forEach(x=>x.setAttribute('aria-pressed',x===b)); drawCartao();}); }
   if(k==='futuro'){ drawFuturo(); $$('#cen .chip[data-c]').forEach(b=>b.onclick=()=>{cenSel=b.dataset.c; $$('#cen .chip[data-c]').forEach(x=>x.setAttribute('aria-pressed',x===b)); drawFuturo();}); const hzb=$('#hz'); if(hzb) hzb.onclick=()=>{ HZ=HZ>=12?7:12; save0('tf_hz',HZ); ir('futuro'); }; const cmb=$('#cmp'); if(cmb) cmb.onclick=()=>{cmpAll=!cmpAll; cmb.setAttribute('aria-pressed',cmpAll); drawFuturo();}; }
   if(k==='decidir'){ drawCalc(); $$('#calcs button').forEach(b=>b.onclick=()=>{calcSel=b.dataset.k; $$('#calcs button').forEach(x=>x.setAttribute('aria-selected',x===b)); drawCalc();}); }
   window.scrollTo(0, ['agenda','orcamento','metas'].includes(k)?scroll:0);
 }
+if(MODO==='demo'){ const b=document.createElement('button'); b.type='button'; b.id='selo'; b.className='selo'; b.textContent='Exemplo · sair'; b.setAttribute('aria-label','Você está vendo dados de exemplo. Sair do exemplo'); b.onclick=sairExemplo; $('.topbar').prepend(b); }
 const h0=(location.hash||'#hoje').slice(1); ir(Object.hasOwn(T,h0) ? h0 : 'hoje');
 if('serviceWorker' in navigator && (location.protocol==='https:'||location.hostname==='localhost'||location.hostname==='127.0.0.1')) navigator.serviceWorker.register('sw.js').then(reg=>{
   // atualização: procura sw.js novo ao voltar para o app; quando a versão nova assume, avisa em vez de recarregar sozinho (não perde o que está sendo digitado)

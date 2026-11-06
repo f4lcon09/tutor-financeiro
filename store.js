@@ -65,23 +65,98 @@
   ];
   var FORMAS_TXT = [['Crédito', /\b(cr[eé]dito|cart[aã]o)\b/i], ['Débito', /\bd[eé]bito\b/i], ['Dinheiro', /\b(dinheiro|esp[eé]cie)\b/i], ['Pix', /\bpix\b/i]];
   function somarDias(iso, n) { var p = iso.split('-').map(Number), d = new Date(Date.UTC(p[0], p[1] - 1, p[2] + n)); return d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate()); }
+  var RE_NUM = /\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d+(?:[.,]\d{1,2})?/g;
+  var RE_UNIDADE = /^\s*(?:tb|gb|mb|kb|kg|mg|ml|km|cm|mm|g|l|m|un|und|unid|unidades?|cx|pct|p[cç]s?|itens?)(?![a-zà-ÿ0-9])/i;
+  var RE_VEZES = /^\s*x(?![a-zà-ÿ0-9])/i;
+  /* "1.200" no texto é milhar pt-BR. lerNumero segue tratando "12.06" como decimal (campos numéricos). */
+  function lerValorTexto(t) { return lerNumero(/^\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?$/.test(t) ? t.replace(/\./g, '') : t); }
+  /* Acha o valor no texto. Não contam: "3x" (parcelas), número seguido de unidade ("1tb", "4 un"), número colado em
+     palavra ("ps5") e partes de data ("10/11"). Entre os que sobram, vence o marcado com R$ ou "reais", depois o que tem
+     centavos ou milhar e, por fim, o último número solto ("2 pizzas 40"). */
+  function acharValor(base) {
+    var cands = [], vezes = null, m;
+    RE_NUM.lastIndex = 0;
+    while ((m = RE_NUM.exec(base))) {
+      var ini = m.index, fim = ini + m[0].length, antes = base.slice(0, ini), depois = base.slice(fim);
+      if (/[a-zà-ÿ]$/i.test(antes) || /\/$/.test(antes) || /^\//.test(depois)) continue;
+      var x = RE_VEZES.exec(depois);
+      if (x && /^\d{1,2}$/.test(m[0])) { if (!vezes) vezes = { n: +m[0], ini: ini, fim: fim + x[0].length }; continue; }
+      if (RE_UNIDADE.test(depois)) continue;
+      cands.push({ txt: m[0], ini: ini, fim: fim, moeda: /R\$\s*$/i.test(antes) || /^\s*(?:reais|real|conto)\b/i.test(depois), marcado: /[.,]/.test(m[0]) });
+    }
+    var filtra = function (k) { return cands.filter(function (c) { return c[k]; }); };
+    var moeda = filtra('moeda'), marcado = filtra('marcado');
+    return { cand: moeda[0] || marcado[marcado.length - 1] || cands[cands.length - 1] || null, vezes: vezes };
+  }
   function interpretarTexto(txt, hojeISO) {
     var s = String(txt || '').trim();
     if (!s) return { ok: false, erro: 'Digite algo como "45 mercado pix".' };
-    var m = s.match(/(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d+(?:[.,]\d{1,2})?)/);
     var diaTxt = s.match(/\bdia\s+(\d{1,2})\b/i);
-    if (diaTxt) { var semDia = s.replace(diaTxt[0], ' '); m = semDia.match(/(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d+(?:[.,]\d{1,2})?)/); }
-    var valor = m ? lerNumero(m[1]) : NaN;
+    var base = diaTxt ? s.replace(diaTxt[0], diaTxt[0].replace(/./g, ' ')) : s;   // mesmas posições do texto original
+    var achado = acharValor(base), m = achado.cand;
+    var valor = m ? lerValorTexto(m.txt) : NaN;
     if (!(valor > 0)) return { ok: false, erro: 'Não achei o valor. Escreva o número, como em "45 mercado pix".' };
     var tipo = /\b(recebi|recebido|entrada|sal[aá]rio|ganhei)\b/i.test(s) ? 'entrada' : 'gasto';
-    var cat = 'Outros'; for (var i = 0; i < PALAVRAS.length; i++) { if (PALAVRAS[i][1].test(s)) { cat = PALAVRAS[i][0]; break; } }
-    var forma = 'Pix'; for (var j = 0; j < FORMAS_TXT.length; j++) { if (FORMAS_TXT[j][1].test(s)) { forma = FORMAS_TXT[j][0]; break; } }
+    var cat = 'Outros', padroes = [], achouCat = false, achouForma = false;
+    for (var i = 0; i < PALAVRAS.length; i++) { if (PALAVRAS[i][1].test(s)) { cat = PALAVRAS[i][0]; achouCat = true; break; } }
+    var forma = 'Pix'; for (var j = 0; j < FORMAS_TXT.length; j++) { if (FORMAS_TXT[j][1].test(s)) { forma = FORMAS_TXT[j][0]; achouForma = true; break; } }
+    if (!achouForma) padroes.push('forma');   // a tela pode avisar que Pix ou Outros foram supostos
+    if (!achouCat) padroes.push('cat');
+    var v = achado.vezes, parcelas = v && tipo === 'gasto' && forma === 'Crédito' && v.n >= 2 ? v.n : null;   // sem cartão, "3x" é ignorado
+    var cortes = [m].concat(v ? [v] : []).sort(function (a, b) { return b.ini - a.ini; }), semValor = s;
+    cortes.forEach(function (c) { semValor = semValor.slice(0, c.ini) + ' ' + semValor.slice(c.fim); });
     var data = hojeISO;
     if (/\banteontem\b/i.test(s)) data = somarDias(hojeISO, -2); else if (/\bontem\b/i.test(s)) data = somarDias(hojeISO, -1);
     else if (diaTxt && +diaTxt[1] >= 1 && +diaTxt[1] <= 31) { var cand = hojeISO.slice(0, 8) + pad(+diaTxt[1]); if (dataValida(cand)) data = cand; }
-    var desc = s.replace(m[0], ' ').replace(/R\$/gi, ' ').replace(/\b(pix|d[eé]bito|cr[eé]dito|cart[aã]o|dinheiro|esp[eé]cie|hoje|ontem|anteontem|recebi|recebido|entrada|ganhei)\b/gi, ' ').replace(/\bdia\s+\d{1,2}\b/gi, ' ').replace(/\s+/g, ' ').trim();
+    var desc = semValor.replace(/R\$/gi, ' ').replace(/\b(pix|d[eé]bito|cr[eé]dito|cart[aã]o|dinheiro|esp[eé]cie|hoje|ontem|anteontem|recebi|recebido|entrada|ganhei)\b/gi, ' ').replace(/\bdia\s+\d{1,2}\b/gi, ' ').replace(/\s+/g, ' ').trim();
     desc = desc ? desc.charAt(0).toUpperCase() + desc.slice(1) : cat;
-    return { ok: true, tipo: tipo, valor: valor, cat: cat, forma: forma, data: data, desc: desc };
+    return { ok: true, tipo: tipo, valor: valor, cat: cat, forma: forma, data: data, desc: desc, parcelas: parcelas, padroes: padroes };
+  }
+
+  /* Primeiro uso: três números aproximados. "1.200" é milhar, como no texto rápido; "12.06" segue decimal em lerNumero. */
+  function lerAprox(v) { var t = String(v == null ? '' : v).trim().replace(/\s|R\$/g, ''); return lerNumero(/^-?\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?$/.test(t) ? t.replace(/\./g, '') : t); }
+  function validarInicio(d) {
+    d = d || {}; var erros = {}, renda = lerAprox(d.renda), fixos = lerAprox(d.fixos), saldo = lerAprox(d.saldo);
+    if (!(renda > 0)) erros.renda = 'Informe a renda do mês. Pode ser aproximada.';
+    if (!(fixos >= 0)) erros.fixos = 'Informe os gastos fixos do mês. Pode ser aproximado; zero também vale.';
+    if (isNaN(saldo)) erros.saldo = 'Informe o saldo de hoje. Pode ser aproximado.';
+    return Object.keys(erros).length ? { ok: false, erros: erros } : { ok: true, valores: { renda: r2(renda), fixos: r2(fixos), saldo: r2(saldo) } };
+  }
+  /* Monta o mesmo formato do arquivo importado, com os blocos ainda vazios: cada tela diz o que ganha quando for preenchida. */
+  function montarInicio(v, hojeISO) {
+    return {
+      _meta: { as_of: hojeISO }, _inicio: { renda: v.renda, fixos: v.fixos, saldo: v.saldo },
+      liquidez: { total: v.saldo, conta_corrente: 0, onde: 'Saldo informado' },
+      cartao: { emissor: 'Cartão', fechamento_dia: 1, limite: 0, fatura_atual: { total: 0, vence_em: hojeISO } },
+      pendencias_novembro: [], plano_de_pagamento: [], sobra_apos_pagar_tudo: 0,
+      entradas_esperadas: [{ descricao: 'Salário ou renda do mês', valor_estimado: v.renda }],
+      gastos_fixos_mensais: { ajuda_em_casa_a_partir_de_dezembro: v.fixos, faculdade_2026: 0, faculdade_2027_estimado: 0, assinaturas_no_cartao: {}, teto_lazer_mes: 0 },
+      faturas_futuras_parcelas_antigas: [], regras_e_metas: { meta_17_01_2027: 0, piso_17_01_2027: 0, alerta_dezembro: 0, piso_absoluto_status: 'definido' },
+      pendente_do_usuario: [], _traducoes: {}, cartoes_extra: []
+    };
+  }
+  /* Quanto dá para gastar por dia até o fim do mês, em centavos. Arredonda para baixo: nunca promete a mais. */
+  function porDia(renda, fixos, gasto, dia, diasMes) {
+    var c = function (x) { return Math.round(Number(x) * 100) || 0; };
+    var livre = c(renda) - c(fixos), resta = livre - c(gasto), dias = Math.max(1, Math.floor(diasMes) - Math.floor(dia) + 1);
+    var d = resta > 0 ? Math.floor(resta / dias) : 0;
+    return { livreCentavos: livre, restaCentavos: resta, porDiaCentavos: d, diasRestantes: dias, livre: livre / 100, resta: resta / 100, porDia: d / 100 };
+  }
+  /* O modo exemplo guarda tudo em chaves próprias: trocar de modo nunca mistura dados. Só a chave do modo é comum. */
+  var PREF_EXEMPLO = 'tf_demo_';
+  function armazenamentoDoModo(storage) {
+    var modo = null; try { modo = JSON.parse(storage.getItem(CHAVES.modo)); } catch (e) { modo = null; }
+    if (modo !== 'demo') return storage;
+    var k = function (c) { return c === CHAVES.modo ? c : PREF_EXEMPLO + c; };
+    return { getItem: function (c) { return storage.getItem(k(c)); }, setItem: function (c, v) { storage.setItem(k(c), v); }, removeItem: function (c) { storage.removeItem(k(c)); } };
+  }
+  /* Qual explicação de instalação mostrar. */
+  function plataforma(ua, instalado) {
+    if (instalado) return 'instalado';
+    ua = String(ua || '');
+    if (/iPhone|iPad|iPod/.test(ua)) return /CriOS|FxiOS|EdgiOS|OPiOS/.test(ua) ? 'ios-outro' : 'ios';
+    if (/Android/.test(ua)) return 'android';
+    return 'computador';
   }
 
   function criarStore(storage, agora) {
@@ -188,6 +263,39 @@
 
       /* ---- modo e dados reais ---- */
       definirModo: function (m) { st.modo = m; gravar(CHAVES.modo, m); },
+      comecar: function (d) {
+        var v = validarInicio(d); if (!v.ok) return v;
+        return S.importarReal(montarInicio(v.valores, S.hojeISO()));
+      },
+      atualizarInicio: function (d) {
+        var v = validarInicio(d); if (!v.ok) return v; if (!st.real || !st.real._inicio) return { ok: false, erros: { geral: 'Sem dados de início.' } };
+        var x = v.valores, r = st.real;
+        r._inicio = { renda: x.renda, fixos: x.fixos, saldo: x.saldo }; r.liquidez.total = x.saldo;
+        r.entradas_esperadas = [{ descricao: 'Salário ou renda do mês', valor_estimado: x.renda }];
+        r.gastos_fixos_mensais.ajuda_em_casa_a_partir_de_dezembro = x.fixos;
+        mudou({ real: 1 }); return { ok: true };
+      },
+      atualizarCartao: function (d) {
+        d = d || {}; var erros = {}, lim = lerAprox(d.limite), fat = lerAprox(d.fatura || '0'), fe = +d.fechamento, ve = +d.vencimento;
+        if (!(lim > 0)) erros.limite = 'Informe o limite do cartão.';
+        if (!(fat >= 0)) erros.fatura = 'Informe a fatura atual; zero também vale.';
+        if (!(fe >= 1 && fe <= 28)) erros.fechamento = 'Informe o dia de fechamento, de 1 a 28.';
+        if (!(ve >= 1 && ve <= 28)) erros.vencimento = 'Informe o dia de vencimento, de 1 a 28.';
+        if (!st.real) erros.geral = 'Sem dados.';
+        if (Object.keys(erros).length) return { ok: false, erros: erros };
+        var c = st.real.cartao; c.limite = r2(lim); c.fechamento_dia = fe; c.fatura_atual = { total: r2(fat), vence_em: S.mesAtual() + '-' + pad(ve) };
+        mudou({ real: 1 }); return { ok: true };
+      },
+      addConta: function (d) {
+        d = d || {}; var nome = String(d.nome || '').trim().slice(0, 60), v = lerAprox(d.valor), dia = +d.dia, erros = {};
+        if (!nome) erros.nome = 'Informe o nome da conta.';
+        if (!(v > 0)) erros.valor = 'Informe o valor da conta.';
+        if (!(dia >= 1 && dia <= 28)) erros.dia = 'Informe o dia de vencimento, de 1 a 28.';
+        if (!st.real) erros.geral = 'Sem dados.';
+        if (Object.keys(erros).length) return { ok: false, erros: erros };
+        st.real.pendencias_novembro.push({ descricao: nome, valor: r2(v), vence: S.mesAtual() + '-' + pad(dia) });
+        mudou({ real: 1 }); return { ok: true };
+      },
       importarReal: function (j) {
         var v = Seg.validarImportacao(j); if (!v.ok) return v;
         var ok = j && j._meta && j.liquidez && j.cartao && j.pendencias_novembro && j.gastos_fixos_mensais && j.faturas_futuras_parcelas_antigas && j.regras_e_metas && j.entradas_esperadas;
@@ -215,6 +323,6 @@
     return S;
   }
 
-  var api = { criarStore: criarStore, lerNumero: lerNumero, dataValida: dataValida, sugerir: sugerir, validarLancamento: validarLancamento, interpretarTexto: interpretarTexto, ritmoMes: ritmoMes, RITMO_MIN_DIAS: RITMO_MIN_DIAS, CATEGORIAS: CATEGORIAS, FORMAS: FORMAS };
+  var api = { criarStore: criarStore, lerNumero: lerNumero, dataValida: dataValida, sugerir: sugerir, validarLancamento: validarLancamento, interpretarTexto: interpretarTexto, validarInicio: validarInicio, montarInicio: montarInicio, porDia: porDia, armazenamentoDoModo: armazenamentoDoModo, plataforma: plataforma, ritmoMes: ritmoMes, RITMO_MIN_DIAS: RITMO_MIN_DIAS, CATEGORIAS: CATEGORIAS, FORMAS: FORMAS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TFStore = api;
 })(typeof window !== 'undefined' ? window : this);

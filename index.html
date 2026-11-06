@@ -56,6 +56,7 @@ h1{font-family:var(--fn);font-size:28px;font-weight:600;letter-spacing:.005em}
 .big{font-family:var(--fn);font-size:34px;font-weight:600;letter-spacing:-.005em;line-height:1.05}
 .mid{font-family:var(--fn);font-size:22px;font-weight:600}
 .mu{color:var(--mu)} .small{font-size:13px}
+.gl{width:1.05em;height:1.05em;flex:none;vertical-align:-.16em;fill:currentColor}
 .tag{white-space:nowrap;display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:2px;font-size:12.5px;font-weight:600;letter-spacing:.01em}
 .ok{color:var(--ok);background:var(--ok-bg)} .at{color:var(--at);background:var(--attention-bg)} .ru{color:var(--ru);background:var(--risk-bg)} .ne{color:var(--mu);background:var(--p2)}
 .verdict{display:grid;grid-template-columns:auto 1fr auto;gap:24px;align-items:center;padding:24px 26px;margin-bottom:14px}
@@ -194,7 +195,11 @@ tr.clk.sel td:first-child{box-shadow:inset 3px 0 0 var(--teal)}
 #menutema .nm{flex:1}
 #menutema .ck{width:20px;height:20px;color:var(--teal)}
 #menutema .ck svg{width:20px;height:20px}
+#imp_f{display:block;width:100%;max-width:100%;min-width:0}
+.selo{all:unset;box-sizing:border-box;margin-right:auto;min-height:44px;display:inline-flex;align-items:center;padding:0 14px;border-radius:22px;background:var(--attention-bg);color:var(--at);font-family:var(--fn);font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+.selo:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
 .sync svg{display:none;width:22px;height:22px}
+.sync b{display:none}
 .sync{position:static;display:inline-flex;align-items:center;gap:7px;min-height:32px;font-family:var(--fn);font-size:12px;letter-spacing:.02em;color:var(--mu);background:var(--p1);border:1px solid var(--ln2);border-radius:14px;padding:6px 12px;cursor:pointer;user-select:none}
 .sync i{width:8px;height:8px;border-radius:50%;background:var(--mu)}
 .sync.ok i{background:var(--ok)} .sync.at i{background:var(--at)} .sync.ru i{background:var(--ru)} .sync.go i{background:var(--sky);animation:pulso 1s infinite}
@@ -240,7 +245,7 @@ tr.clk.sel td:first-child{box-shadow:inset 3px 0 0 var(--teal)}
   .pn>h2{flex-wrap:wrap;row-gap:4px}
   .pn>h2>em{white-space:nowrap}
   .sync i{position:absolute;right:8px;top:8px;width:9px;height:9px;border:2px solid var(--p1);box-sizing:content-box}
-  .sync span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  .sync span{display:none}
   .verdict.compacto .ico{display:none}
   .verdict.compacto{padding:14px 16px;gap:8px}
   .verdict.compacto h2{font-size:21px}
@@ -257,6 +262,11 @@ tr.clk.sel td:first-child{box-shadow:inset 3px 0 0 var(--teal)}
   .app{grid-template-columns:minmax(0,1fr)}
   .topbar{padding:calc(8px + env(safe-area-inset-top)) 14px 0}
   .sync{min-height:44px;padding:6px 14px}
+  .sync.comtexto{width:auto;border-radius:22px;padding:0 14px 0 10px;gap:6px}
+  .sync.comtexto i{display:none}
+  .sync.comtexto b{display:inline;font-family:var(--fn);font-size:13px;font-weight:600;white-space:nowrap}
+  .sync.ru{color:var(--ru);border-color:var(--ru)}
+  .sync.at{color:var(--at);border-color:var(--at)}
   main{min-width:0;overflow-x:hidden;overflow-x:clip;padding:12px 14px calc(var(--navh) + env(safe-area-inset-bottom) + 24px)}
   h1{font-size:23px} .verdict{grid-template-columns:1fr} .big{font-size:29px}
   .pn{padding:16px 14px 16px 16px;overflow-x:auto}
@@ -319,7 +329,7 @@ tr.clk.sel td:first-child{box-shadow:inset 3px 0 0 var(--teal)}
 <body>
 <div class="app">
 <nav aria-label="Principal" id="nav"></nav>
-<div class="col"><div class="topbar"><button class="ibtn" id="olho" type="button" aria-label="Ocultar valores" aria-pressed="false" title="Ocultar valores"></button><div class="sync" id="sync" role="button" tabindex="0" title="Sincronização com o Google Drive" aria-label="Sincronização com o Google Drive"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 18a4 4 0 010-8 5.5 5.5 0 0110.6 1.2A3.5 3.5 0 0117 18z"/></svg><i></i><span>…</span></div></div>
+<div class="col"><div class="topbar"><button class="ibtn" id="olho" type="button" aria-label="Ocultar valores" aria-pressed="false" title="Ocultar valores"></button><div class="sync" id="sync" role="button" tabindex="0" title="Sincronização com o Google Drive" aria-label="Sincronização com o Google Drive"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 18a4 4 0 010-8 5.5 5.5 0 0110.6 1.2A3.5 3.5 0 0117 18z"/></svg><i></i><span>…</span><b></b></div></div>
 <main id="main"></main></div>
 </div>
 <script src="config.js"></script>
