@@ -925,7 +925,7 @@ function pvEscolhe(i){ if(i===pvSel) return; pvSel=i; pvDesenha(); const vv=$('#
 function pvDoPonteiro(e){ const sv=$('#pv_area svg'); if(!sv||!pvUlt) return; const r=sv.getBoundingClientRect(), m=pvUlt.m, vx=(e.clientX-r.left)*(m.W/(r.width||m.W)); let i=0; m.pa.forEach((p,k)=>{ if(Math.abs(p.x-vx)<Math.abs(m.pa[i].x-vx)) i=k; }); pvEscolhe(i); }
 function pvHtml(){
   return `<div class="pv-cab" id="pv_cab"></div>
-    <div class="pv-seg" id="pv_modo" role="group" aria-label="Cenário do gráfico"><button type="button" data-m="base" aria-pressed="${pvModo==='base'}">Base</button><button type="button" data-m="se" aria-pressed="${pvModo==='se'}">E se...</button></div>
+    <div class="pv-seg" id="pv_modo" role="group" aria-label="Cenário do gráfico"><button type="button" data-m="base" aria-pressed="${pvModo==='base'}"><span>Base</span></button><button type="button" data-m="se" aria-pressed="${pvModo==='se'}"><span>E se...</span></button></div>
     <div id="pv_area" class="pv-grafico" role="group" tabindex="0"></div><div id="pv_tabela" hidden></div>
     <div class="pv-pe"><button type="button" class="btn ghost pv-tab" id="pv_tab" aria-pressed="false">Ver em tabela</button><span class="pv-nota">~ = projeção com base no que você lançou.</span></div>
     <div class="pv-sr" id="pv_vivo" aria-live="polite"></div>`;

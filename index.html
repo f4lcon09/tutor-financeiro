@@ -236,9 +236,11 @@ tr.clk.sel td:first-child{box-shadow:inset 3px 0 0 var(--teal)}
 .pv-lin{display:flex;justify-content:space-between;gap:12px;font-size:14px;color:var(--mu);font-variant-numeric:tabular-nums;margin-top:3px}
 .pv-lin b{color:var(--tx);white-space:nowrap}
 .pv-seg{display:flex;gap:8px;margin-bottom:12px}
-.pv-seg button{all:unset;box-sizing:border-box;cursor:pointer;display:inline-flex;align-items:center;height:36px;min-height:36px;padding:0 14px;font-size:13px;font-weight:400;border:1px solid var(--ln2);border-radius:18px;color:var(--mu)}
-.pv-seg button[aria-pressed=true]{background:var(--primary-tonal);border-color:var(--primary);color:var(--primary);font-weight:400}
-.pv-seg button:focus-visible,.pv-grafico:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+.pv-seg button{all:unset;box-sizing:border-box;cursor:pointer;display:inline-flex;align-items:center;height:44px;min-height:44px;margin:-4px 0;font-size:13px;font-weight:400;color:var(--mu)}
+.pv-seg button span{box-sizing:border-box;display:inline-flex;align-items:center;height:36px;padding:0 14px;border:1px solid var(--ln2);border-radius:18px}
+.pv-seg button[aria-pressed=true]{color:var(--primary);font-weight:400}
+.pv-seg button[aria-pressed=true] span{background:var(--primary-tonal);border-color:var(--primary)}
+.pv-seg button:focus-visible span,.pv-grafico:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
 .pv-grafico{touch-action:pan-y;user-select:none;-webkit-user-select:none}
 .pv-svg{display:block;width:100%;height:auto;max-width:100%;font-variant-numeric:tabular-nums}
 .pv-pe{display:flex;gap:10px;align-items:center;margin-top:8px}

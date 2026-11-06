@@ -18,6 +18,7 @@ const barra = (A, id, v) => { const s = A.$(id); s.value = v; s.dispatchEvent(ne
     t('o cabeçalho responde primeiro', /^Mais apertado, em /.test(A.$('.pv-cap').textContent) && /^~R\$/.test(A.$('.pv-val').textContent));
     t('selo com ícone desenhado e texto', !!A.$('#pv_cab .tag svg') && A.$('#pv_cab .tag').textContent.length > 5);
     t('selo não leva ~: o alerta é número seu, não projeção', !/~/.test(A.$('#pv_cab .tag').textContent));
+    t('Base e E se...: 44 px de toque com desenho de 36 px', /\.pv-seg button\{[^}]*height:44px/.test(A.d.documentElement.innerHTML) && /\.pv-seg button span\{[^}]*height:36px/.test(A.d.documentElement.innerHTML));
     t('sem legenda', !A.$('#pv_area .legend') && !/Legenda do gráfico/.test(A.texto()));
     t('nota de rodapé', /~ = projeção com base no que você lançou\./.test(A.texto()));
     t('sem erro de script', A.erros.length === 0);
