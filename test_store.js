@@ -258,6 +258,27 @@ t('categoria inválida é erro', S.validarLancamento({ ...base, cat: 'Xis' }).er
   t('início: renda é obrigatória', S.validarInicio({ renda: '', fixos: '100', saldo: '10' }).ok === false && !!S.validarInicio({ renda: '', fixos: '100', saldo: '10' }).erros.renda);
   t('início: gastos fixos são obrigatórios (zero vale)', !!S.validarInicio({ renda: '100', fixos: '', saldo: '10' }).erros.fixos && S.validarInicio({ renda: '100', fixos: '0', saldo: '10' }).ok === true);
   t('início: saldo é obrigatório (zero e negativo valem)', !!S.validarInicio({ renda: '100', fixos: '1', saldo: '' }).erros.saldo && S.validarInicio({ renda: '100', fixos: '1', saldo: '-50' }).ok === true);
+  /* mês incompleto: começou depois do dia 1 */
+  {
+    const dia = d => S.criarStore(mem(), () => new Date(2026, 10, d));
+    const um = dia(1); um.comecar(dados);
+    t('mês incompleto: dia 1 não marca', !um.mesIncompleto() && !('mes_incompleto' in um.st.real._inicio));
+    const m = mem(), quinze = S.criarStore(m, () => new Date(2026, 10, 15)); quinze.comecar(dados);
+    t('mês incompleto: dia 15 marca com ano e mês', quinze.mesIncompleto() && quinze.st.real._inicio.mes_incompleto === '2026-11');
+    t('mês incompleto: dia 2 já marca', (() => { const l = dia(2); l.comecar(dados); return l.mesIncompleto(); })());
+    t('mês incompleto: editar os números mantém a marca', quinze.atualizarInicio({ renda: '5200', fixos: '3000', saldo: '900' }).ok && quinze.mesIncompleto());
+    t('mês incompleto: o Drive não apaga a marca', (() => { quinze.aplicar({ real: JSON.parse(JSON.stringify(quinze.st.real)) }); return quinze.mesIncompleto(); })());
+    t('mês incompleto: vale no mesmo mês', S.criarStore(m, () => new Date(2026, 10, 28)).mesIncompleto());
+    t('mês incompleto: limpa sozinho no mês seguinte', !S.criarStore(m, () => new Date(2026, 11, 2)).mesIncompleto());
+    t('mês incompleto: o mesmo mês de outro ano não conta', !S.criarStore(m, () => new Date(2027, 10, 15)).mesIncompleto());
+    quinze.limparMesIncompleto();
+    t('mês incompleto: limpar tira a marca e grava', !quinze.mesIncompleto() && !('mes_incompleto' in JSON.parse(m._o.tf_real)._inicio));
+    t('mês incompleto: sem dados não quebra', novo().mesIncompleto() === false && (novo().limparMesIncompleto(), true));
+    const ex = S.criarStore(mem(), () => new Date(2026, 10, 15)); ex.definirModo('demo');
+    t('mês incompleto: modo exemplo não conta', ex.mesIncompleto() === false);
+    const a = S.porDia(5000, 3000, 0, 15, 30), b = dia(15); b.comecar(dados);
+    t('mês incompleto: a conta do valor por dia é a mesma', a.porDia === 125);
+  }
   const loja = novo();
   const r = loja.comecar(dados);
   t('início: comecar entra em modo real', r.ok === true && loja.st.modo === 'real');

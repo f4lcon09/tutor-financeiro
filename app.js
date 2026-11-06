@@ -410,6 +410,7 @@ function bindLancar(){
     window.scrollTo(0,0); drawLista(); };
   $('#busca').oninput=()=>drawLista();
   if(prefillData){ $('#f_data').value=prefillData; prefillData=null; }
+  if(lancarAntes){ lancarAntes=false; const e=$('#f_data'), caixa=e.closest('details'); if(caixa) caixa.open=true; e.min=mesAtual+'-01'; e.max=mesAtual+'-'+pad2(diaHoje); }
   $('#mprev').onclick=()=>{ mesVer=mesMove(mesVer,-1); drawLista(); };
   $('#mnext').onclick=()=>{ mesVer=mesMove(mesVer,1); drawLista(); };
   $('#exp').onclick=()=>{ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['\ufeff'+S.exportarCSV()],{type:'text/csv'})); a.download='lancamentos_reais_'+mesAtual+'.csv'; a.click(); };
@@ -1067,7 +1068,7 @@ function bindImportar(){
 }
 
 /* ===== Primeiro uso: Hoje simples, telas vazias que dizem o que ganham, instalação ===== */
-let rapidoPendente='';
+let rapidoPendente='', lancarAntes=false;
 const PLAT = () => TFStore.plataforma(navigator.userAgent, !!(navigator.standalone || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)));
 const INSTALAR = {
   ios:'No Safari, toque em Compartilhar e depois em "Adicionar à Tela de Início". Depois disso, abra sempre pelo ícone.',
@@ -1087,7 +1088,7 @@ function hojeSimples(){
   const passos=[['cartao','Cartão','quanto do limite você usa'],['agenda','Contas','o que vence e se o caixa cobre'],['metas','Metas','quanto guardar por mês'],['orcamento','Orçamento','quanto ainda dá para gastar em cada área']];
   return `<div class="head"><div><h1>Hoje</h1><div class="sub">Resumo de ${hoje.toLocaleDateString('pt-BR',{day:'numeric',month:'long'})}</div></div></div>
   ${alertas(al)}
-  ${pn('Para gastar por dia'+info('A renda menos os gastos fixos e o que você já lançou no mês, dividido pelos dias que faltam. É uma conta com os números que você informou, não uma promessa.'),`<div class="big">${aprox(Math.floor(r.porDia))}</div><div class="mu small">até o fim do mês, ${r.diasRestantes} ${r.diasRestantes===1?'dia':'dias'} · sobra ${brl(Math.max(r.resta,0))}</div>`,'teal','margin-bottom:14px')}
+  ${pn('Para gastar por dia'+info('A renda menos os gastos fixos e o que você já lançou no mês, dividido pelos dias que faltam. É uma conta com os números que você informou, não uma promessa.'),`<div class="big">${aprox(Math.floor(r.porDia))}</div><div class="mu small">até o fim do mês, ${r.diasRestantes} ${r.diasRestantes===1?'dia':'dias'} · sobra ${brl(Math.max(r.resta,0))}</div>${S.mesIncompleto()?`<div class="small" id="mi_nota" style="margin-top:10px">Esse valor conta só o que você lançou desde que começou. Se já gastou algo neste mês antes disso, adicione e ele fica mais certo.</div><div class="row" style="justify-content:flex-start;flex-wrap:wrap;gap:8px;margin-top:10px"><button class="btn ghost" id="mi_add">Adicionar o que já gastei</button><button class="btn ghost" id="mi_ok">Já lancei tudo</button></div>`:''}`,'teal','margin-bottom:14px')}
   ${pn('Lançamento rápido',`<label for="hq_txt" class="small">Escreva como falaria</label><div class="row" style="gap:8px"><input id="hq_txt" type="text" placeholder="Ex.: 45 mercado pix" autocomplete="off"><button class="ibtn tonal" id="hq_ok" type="button" aria-label="Preencher o lançamento com o texto" title="Preencher o lançamento com o texto">${I.enviar}</button></div>`,'teal','margin-bottom:14px')}
   ${pn('Caixa hoje',`<div class="big">${brl(ini.saldo)}</div><div class="mu small">saldo informado em ${new Date(S.st.real._meta.as_of+'T12:00').toLocaleDateString('pt-BR')}</div>`,'teal','margin-bottom:14px')}
   ${mostra?blocoInstalar(true):''}
@@ -1096,6 +1097,8 @@ function hojeSimples(){
 function bindHojeSimples(){
   const vai=()=>{ rapidoPendente=$('#hq_txt').value; ir('lancar'); };
   $('#hq_ok').onclick=vai; $('#hq_txt').onkeydown=e=>{ if(e.key==='Enter'){ e.preventDefault(); vai(); } };
+  const mi=$('#mi_add'); if(mi) mi.onclick=()=>{ lancarAntes=true; ir('lancar'); };
+  const mk=$('#mi_ok'); if(mk) mk.onclick=()=>{ S.limparMesIncompleto(); ir('hoje'); };
   const pp=$('#pp_pular'); if(pp) pp.onclick=()=>{ save0('tf_passos_ok',true); ir('hoje'); };
   bindInstalar();
 }

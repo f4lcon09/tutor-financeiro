@@ -128,7 +128,7 @@
   /* Monta o mesmo formato do arquivo importado, com os blocos ainda vazios: cada tela diz o que ganha quando for preenchida. */
   function montarInicio(v, hojeISO) {
     return {
-      _meta: { as_of: hojeISO }, _inicio: { renda: v.renda, fixos: v.fixos, saldo: v.saldo },
+      _meta: { as_of: hojeISO }, _inicio: Object.assign({ renda: v.renda, fixos: v.fixos, saldo: v.saldo }, +hojeISO.slice(8) > 1 ? { mes_incompleto: hojeISO.slice(0, 7) } : {}),   // começou depois do dia 1: o que veio antes ainda não foi lançado
       liquidez: { total: v.saldo, conta_corrente: 0, onde: 'Saldo informado' },
       cartao: { emissor: 'Cartão', fechamento_dia: 1, limite: 0, fatura_atual: { total: 0, vence_em: hojeISO } },
       pendencias_novembro: [], plano_de_pagamento: [], sobra_apos_pagar_tudo: 0,
@@ -273,11 +273,14 @@
       atualizarInicio: function (d) {
         var v = validarInicio(d); if (!v.ok) return v; if (!st.real || !st.real._inicio) return { ok: false, erros: { geral: 'Sem dados de início.' } };
         var x = v.valores, r = st.real;
-        r._inicio = { renda: x.renda, fixos: x.fixos, saldo: x.saldo }; r.liquidez.total = x.saldo;
+        var incompleto = r._inicio.mes_incompleto; r._inicio = { renda: x.renda, fixos: x.fixos, saldo: x.saldo }; if (incompleto) r._inicio.mes_incompleto = incompleto; r.liquidez.total = x.saldo;
         r.entradas_esperadas = [{ descricao: 'Salário ou renda do mês', valor_estimado: x.renda }];
         r.gastos_fixos_mensais.ajuda_em_casa_a_partir_de_dezembro = x.fixos;
         mudou({ real: 1 }); return { ok: true };
       },
+      /* A marca guarda o ano e o mês: no mês seguinte deixa de valer sem ninguém apagar. */
+      mesIncompleto: function () { return st.modo === 'real' && !!(st.real && st.real._inicio) && st.real._inicio.mes_incompleto === S.mesAtual(); },
+      limparMesIncompleto: function () { if (!st.real || !st.real._inicio) return; delete st.real._inicio.mes_incompleto; mudou({ real: 1 }); },
       atualizarCartao: function (d) {
         d = d || {}; var erros = {}, lim = lerAprox(d.limite), fat = lerAprox(d.fatura || '0'), fe = +d.fechamento, ve = +d.vencimento;
         if (!(lim > 0)) erros.limite = 'Informe o limite do cartão.';
