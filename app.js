@@ -151,7 +151,7 @@ let HZ = load('tf_hz',7);   // horizonte dos gráficos de previsão: 7 ou 12 mes
 function lineChart(labels, series, refs, h=280, W=720, o={}){
   const id='ch'+Math.random().toString(36).slice(2,8), args=[labels,series,refs,h,W,o];
   if(!o.exact && window.innerWidth<=860) W=CW(1);
-  const estreito=W<=480, FS=estreito?11.5:12;
+  const estreito=W<=480, FS=12;
   if(labels.length>12-1 && HZ<labels.length){ const N=HZ; labels=labels.slice(0,N); series=series.map(s=>({...s,values:s.values.slice(0,N)})); o={...o,marks:(o.marks||[]).filter(m=>m.i<N)}; }
   const H=estreito?Math.min(h,250):h, L=estreito?46:78, R=estreito?12:18, T=22, B=34;
   const all=[...series.flatMap(s=>s.values), ...refs.map(r=>r.v)];
@@ -197,7 +197,7 @@ function ajustarGraficos(){
 }
 function ring(pct,color,label,sub,size=150){
   const r=size/2-12, c=2*Math.PI*r, off=c*(1-Math.min(Math.max(pct,0),1));
-  return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" role="img" aria-label="${esc('Progresso: '+label+(sub?' '+sub:''))}"><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--p2)" stroke-width="12"/><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="12" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${off}" transform="rotate(-90 ${size/2} ${size/2})"/><text x="50%" y="${sub?'49%':'54%'}" text-anchor="middle" font-size="${size/4.2}" font-weight="600" fill="var(--tx)" style="font-family:Bahnschrift,'Segoe UI',sans-serif">${label}</text>${sub?`<text x="50%" y="66%" text-anchor="middle" font-size="12" fill="var(--mu)">${sub}</text>`:''}</svg>`;
+  return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" role="img" aria-label="${esc('Progresso: '+label+(sub?' '+sub:''))}"><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--p2)" stroke-width="12"/><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="12" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${off}" transform="rotate(-90 ${size/2} ${size/2})"/><text x="50%" y="${sub?'49%':'54%'}" text-anchor="middle" font-size="${size/4.2}" font-weight="600" fill="var(--tx)">${label}</text>${sub?`<text x="50%" y="66%" text-anchor="middle" font-size="12" fill="var(--mu)">${sub}</text>`:''}</svg>`;
 }
 function status(v, meta, piso){ return v>=meta ? ['ok','✔','Acima da meta'] : v>=piso ? ['at',AV,'Entre piso e meta'] : ['ru','✖','Abaixo do piso']; }
 const COR = {ok:'var(--ok)',at:'var(--at)',ru:'var(--ru)'};
@@ -252,7 +252,7 @@ T.hoje = () => {
     faixa+=`<div><div data-d="${i}" class="c ${i===diaHoje?'hj':''} ${passado?'':'fut'}" style="${a?`background:color-mix(in srgb,var(--pink) ${Math.round(a*100)}%,transparent)`:''}" title="Dia ${i}${v?': gasto '+brl(v):''}${cont[i]?' | Vence: '+esc(cont[i].join(', ')):''}">${cont[i]?'<b></b>':''}</div><div class="l"><span class="${[1,5,10,15,20,25,diasMes].includes(i)?'key':''}">${i}</span></div></div>`;
   }
   const prox = proximasContas().slice(0,3);
-  const pCaixa = pn('Caixa hoje'+info('Caixinha (reserva) mais o saldo da conta corrente. O rótulo à direita mostra quantos meses do gasto essencial a caixinha cobre.'),`<div class="big">${brl(caixa)}</div><div class="mu small">caixinha ${brl(d.caixinha)} + conta ${brl(d.conta)}</div>`,'teal','','reserva '+num1(cob)+' m');
+  const pCaixa = pn('Caixa hoje'+info('Caixinha (reserva) mais o saldo da conta corrente. O rótulo à direita mostra quantos meses do gasto essencial a caixinha cobre.'),`<div class="big hero">${brl(caixa)}</div><div class="mu small">caixinha ${brl(d.caixinha)} + conta ${brl(d.conta)}</div>`,'teal','','reserva '+num1(cob)+' m');
   const pCart = semLim?pn('Fatura do cartão'+info('Fatura fechada em ' + d.cartoes[0].fecha + '. Informe o limite na tela Cartão para ver o quanto dele você usa.'),`<div class="big">${brl(d.cartoes[0].fatura)}</div><div class="mu small">vence dia ${d.cartoes[0].vence} · parcelas que ainda vêm ${brl0(d.cartoes[0].parcelasFuturas)}</div><span class="tag ne" style="margin-top:6px">Limite a informar</span>`,'vio'):pn('Limite do cartão usado'+info('Quanto do limite total você já comprometeu: fatura atual mais parcelas que ainda vêm. Até 30% é considerado saudável; acima de 60%, risco.'),`<div class="big">${pc(c1.utilizacao,0)}</div><div class="bar uso" style="--h:${COR[c1cls]}"><span style="width:${Math.min(c1.utilizacao,1)*100}%"></span><i style="left:30%"></i></div><div class="mu small">disponível ${brl0(c1.disponivel)} · ideal até 30%</div>`,'vio');
   const pLazer = pn('Lazer restante'+info('Teto de lazer do mês menos o que você já gastou em lançamentos marcados como lazer.'),`<div class="big">${brl0(Math.max(restante,0))}</div><div class="bar" style="--h:${COR[lzCls]}"><span style="width:${Math.min(pct,1)*100}%"></span></div><div class="mu small">gasto ${brl0(gasto)} de ${brl0(d.tetoLazer)}</div>`,'pink');
   const pJan = pn('Saldo em janeiro',`<div class="big">${brl0(jan)}</div><div class="mu small">meta ${brl0(d.meta)}</div><span class="tag ${cls}" style="margin-top:6px">${icn} ${txt}</span>`,'sky');
@@ -280,7 +280,7 @@ T.hoje = () => {
       <div><span class="tag ${cls}">${icn} ${txt}</span><h2 style="margin-top:8px">${cls==='ok'?'Você está no caminho certo':cls==='at'?'Atenção: dá para melhorar':'Alerta: o plano está apertado'}</h2><div class="mu">${frases[cls]}</div></div>
     </div>
     ${alertas(al)}
-    ${pn('Caixa hoje'+info('Caixinha (reserva) mais o saldo da conta corrente. O rótulo à direita mostra quantos meses do gasto essencial a caixinha cobre.'),`<div class="big">${brl(caixa)}</div><div class="mu small">caixinha ${brl(d.caixinha)} + conta ${brl(d.conta)}</div><div class="mu small" style="margin-top:6px">Contas até o fim do mês: <b style="color:var(--tx)">${brl0(aPagar)}</b> <span class="tag ${caixa>=aPagar?'ok':'ru'}">${caixa>=aPagar?'✔ Caixa cobre':'✖ Não cobre'}</span></div>`,'teal','','reserva '+num1(cob)+' m')}
+    ${pn('Caixa hoje'+info('Caixinha (reserva) mais o saldo da conta corrente. O rótulo à direita mostra quantos meses do gasto essencial a caixinha cobre.'),`<div class="big hero">${brl(caixa)}</div><div class="mu small">caixinha ${brl(d.caixinha)} + conta ${brl(d.conta)}</div><div class="mu small" style="margin-top:6px">Contas até o fim do mês: <b style="color:var(--tx)">${brl0(aPagar)}</b> <span class="tag ${caixa>=aPagar?'ok':'ru'}">${caixa>=aPagar?'✔ Caixa cobre':'✖ Não cobre'}</span></div>`,'teal','','reserva '+num1(cob)+' m')}
     ${vazio}
     ${pProxF(prox.slice(0,2))}
     ${det('hoje','det','Ver detalhes',mini+(DEMO.real?blocoReal():'')+pFaixa+pGraf+pPerc,'teal')}`;
@@ -877,7 +877,14 @@ function detalheOrc(rows){
   return pn('Lançamentos: '+esc(orcSel.split(' (')[0]),es.length?`<table><tr><th>Dia</th><th>O que</th><th class="n">Valor</th><th></th></tr>${es.map(l=>`<tr><td>${esc(l.data.slice(8))}</td><td>${esc(l.desc)}<div class="mu small">${esc(l.cat)}${l.forma?' · '+esc(l.forma):''}</div></td><td class="n">${brl(l.valor)}</td><td><button class="x" data-fix="${esc(l.id)}" title="Corrigir" aria-label="Corrigir">${I.editar}</button></td></tr>`).join('')}</table><div class="hint">Total: ${brl(es.reduce((s,l)=>s+l.valor,0))}. Toque no lápis para corrigir o lançamento.</div>`:'<div class="mu">Nenhum lançamento nesta categoria no mês.</div>','pink','margin-top:14px');
 }
 /* --- Gráfico de previsão: uma tela só para Base e E se... (cálculo em grafico.js) --- */
-let pvModo='base', pvSel=null, pvTabela=false, pvTinha=false, pvUlt=null, pvPress=false;
+let pvModo='base', pvSel=null, pvTabela=false, pvTinha=false, pvUlt=null, pvPress=false, pvFontes=true;
+const pvTinta=(()=>{ try{ return document.createElement('canvas').getContext('2d'); }catch(e){ return null; } })();
+const pvFamilia=()=>getComputedStyle(document.documentElement).getPropertyValue('--font-text').trim();
+const pvMede=(t,px,peso)=>{ if(!pvTinta||!pvTinta.measureText) return 0; pvTinta.font=peso+' '+px+'px '+pvFamilia(); return pvTinta.measureText(t).width; };
+if(document.fonts&&document.fonts.load){   // o gráfico mede o texto real, então só desenha com a fonte pronta (ou depois de 1,5 s, para nunca ficar vazio)
+  pvFontes=false; const carrega=Promise.all([400,600].map(p=>document.fonts.load(p+' 13px '+pvFamilia())));
+  Promise.race([carrega,new Promise(r=>setTimeout(r,1500))]).catch(()=>{}).then(()=>{ pvFontes=true; pvDesenha(); });
+}
 const pvNum=v=>Math.round(Math.abs(v)).toLocaleString('pt-BR');
 const pvValor=v=>PRIV?MASK:'~R$ '+(v<0?'−':'')+pvNum(v);
 const pvCurto=v=>PRIV?'••••':pvNum(v);
@@ -888,7 +895,7 @@ function pvInicio(d){ if(!d.asOf) return 0; const a=d.asOf.split('-'); return Ma
 function pvMonta(){
   const d=DEMO, v=d.cenarios[cenSel], adj=pvAplicado(v), mudou=adj.some((x,i)=>x!==v[i]), se=pvModo==='se'&&mudou, j=TFGrafico.janela(d.meses,pvInicio(d)), corta=a=>a.slice(j.ini,j.ini+j.n), el=$('#pv_area');
   const W=Math.max((el&&el.clientWidth)||(MOB()?CW(1):CW(.66)),240), base=corta(v);
-  return {d,v,adj,j,se,mudou,base,m:TFGrafico.montar({meses:corta(d.meses),base,cenario:se?corta(adj):null,meta:d.meta,piso:d.piso,alerta:d.alerta,W,H:MOB()?264:308,fmt:{valor:pvValor,fixo:pvFixo,curto:pvCurto}})};
+  return {d,v,adj,j,se,mudou,base,m:TFGrafico.montar({meses:corta(d.meses),base,cenario:se?corta(adj):null,meta:d.meta,piso:d.piso,alerta:d.alerta,W,H:MOB()?264:308,mede:pvMede,fmt:{valor:pvValor,fixo:pvFixo,curto:pvCurto}})};
 }
 const pvChip=e=>e?`<span class="tag ${e.cls}">${TFGrafico.iconeChip(e.cls)}${esc(e.texto)}</span>`:'';
 function pvCabecalho(x){
@@ -911,7 +918,7 @@ function pvFala(x){
   return l.mes+', fim do mês.'+(l.cenario==null?'':' Cenário '+pvValor(l.cenario)+'.')+' Base '+pvValor(l.base)+'.'+(l.cenario==null?'':' Diferença '+pvDifTxt(l.dif)+'.')+(l.estado?' '+l.estado.texto+'.':'');
 }
 function pvDesenha(){
-  const area=$('#pv_area'); if(!area) return;
+  const area=$('#pv_area'); if(!area||!pvFontes) return;
   const x=pvMonta(), m=x.m; pvUlt=x; if(pvSel!=null&&!m.pa[pvSel]) pvSel=null;
   $('#pv_cab').innerHTML=pvCabecalho(x);
   $$('#pv_modo button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.m===pvModo)));
@@ -1158,7 +1165,7 @@ function hojeSimples(){
   const passos=[['cartao','Cartão','quanto do limite você usa'],['agenda','Contas','o que vence e se o caixa cobre'],['metas','Metas','quanto guardar por mês'],['orcamento','Orçamento','quanto ainda dá para gastar em cada área']];
   return `<div class="head"><div><h1>Hoje</h1><div class="sub">Resumo de ${hoje.toLocaleDateString('pt-BR',{day:'numeric',month:'long'})}</div></div></div>
   ${alertas(al)}
-  ${pn('Para gastar por dia'+info('A renda menos os gastos fixos e o que você já lançou no mês, dividido pelos dias que faltam. É uma conta com os números que você informou, não uma promessa.'),`<div class="big">${aprox(Math.floor(r.porDia))}</div><div class="mu small">até o fim do mês, ${r.diasRestantes} ${r.diasRestantes===1?'dia':'dias'} · sobra ${brl(Math.max(r.resta,0))}</div>${S.mesIncompleto()?`<div class="small" id="mi_nota" style="margin-top:10px">Esse valor conta só o que você lançou desde que começou. Se já gastou algo neste mês antes disso, adicione e ele fica mais certo.</div><div class="row" style="justify-content:flex-start;flex-wrap:wrap;gap:8px;margin-top:10px"><button class="btn ghost" id="mi_add">Adicionar o que já gastei</button><button class="btn ghost" id="mi_ok">Já lancei tudo</button></div>`:''}`,'teal','margin-bottom:14px')}
+  ${pn('Para gastar por dia'+info('A renda menos os gastos fixos e o que você já lançou no mês, dividido pelos dias que faltam. É uma conta com os números que você informou, não uma promessa.'),`<div class="big hero">${aprox(Math.floor(r.porDia))}</div><div class="mu small">até o fim do mês, ${r.diasRestantes} ${r.diasRestantes===1?'dia':'dias'} · sobra ${brl(Math.max(r.resta,0))}</div>${S.mesIncompleto()?`<div class="small" id="mi_nota" style="margin-top:10px">Esse valor conta só o que você lançou desde que começou. Se já gastou algo neste mês antes disso, adicione e ele fica mais certo.</div><div class="row" style="justify-content:flex-start;flex-wrap:wrap;gap:8px;margin-top:10px"><button class="btn ghost" id="mi_add">Adicionar o que já gastei</button><button class="btn ghost" id="mi_ok">Já lancei tudo</button></div>`:''}`,'teal','margin-bottom:14px')}
   ${pn('Lançamento rápido',`<label for="hq_txt" class="small">Escreva como falaria</label><div class="row" style="gap:8px"><input id="hq_txt" type="text" placeholder="Ex.: 45 mercado pix" autocomplete="off"><button class="ibtn tonal" id="hq_ok" type="button" aria-label="Preencher o lançamento com o texto" title="Preencher o lançamento com o texto">${I.enviar}</button></div>`,'teal','margin-bottom:14px')}
   ${pn('Caixa hoje',`<div class="big">${brl(ini.saldo)}</div><div class="mu small">saldo informado em ${new Date(S.st.real._meta.as_of+'T12:00').toLocaleDateString('pt-BR')}</div>`,'teal','margin-bottom:14px')}
   ${mostra?blocoInstalar(true):''}
