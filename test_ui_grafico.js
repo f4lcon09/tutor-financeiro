@@ -52,6 +52,8 @@ const barra = (A, id, v) => { const s = A.$(id); s.value = v; s.dispatchEvent(ne
     t('tocar escolhe o mês', A.w.eval('pvSel') === 2 && !!A.$('.pv-guia') && !!A.$('.pv-halo'));
     t('cabeçalho vira leitura', /fim do mês/.test(A.$('#pv_cab').textContent) && /Cenário/.test(A.$('#pv_cab').textContent) && /Base/.test(A.$('#pv_cab').textContent) && /Diferença/.test(A.$('#pv_cab').textContent));
     t('selo continua na leitura', !!A.$('#pv_cab .tag'));
+    const lin = A.$$('.pv-lin b').map(b => b.textContent);
+    t('formato: projeção ~R$ −n e diferença −R$ n, sem ~ e com um sinal só', /^~R\$ /.test(lin[0]) && /^[−+]R\$ \d/.test(lin[2]) && !/~/.test(lin[2]) && !/~−|−R\$ −/.test(A.$('#pv_cab').textContent));
     t('etiquetas saem durante a leitura', !A.$('.pv-fim') && !A.$('.pv-baixo'));
     t('leitura anunciada', /fim do mês/.test(A.$('#pv_vivo').textContent));
     sv().getBoundingClientRect = () => ({ left: 0, top: 0, width: W, height: 300 });
@@ -106,7 +108,7 @@ const barra = (A, id, v) => { const s = A.$(id); s.value = v; s.dispatchEvent(ne
     const alto = await abrir(FX({ sobra_apos_pagar_tudo: 9000, liquidez: { total: 9000, conta_corrente: 500, onde: 'Banco Teste' } }), larg); await alto.ir('futuro'); await tick(10);
     t('tudo acima da meta: selo ok e sem risco', /Acima da meta/.test(alto.$('#pv_cab').textContent) && !alto.$('.pv-est-ru') && !!alto.$('.pv-est-ok'));
     const neg = await abrir(FX({ liquidez: { total: 100, conta_corrente: 0, onde: 'Banco Teste' }, sobra_apos_pagar_tudo: -2500 }), larg); await neg.ir('futuro'); await tick(10);
-    t('negativo desde o início: valor negativo visível', /−/.test(neg.$('.pv-val').textContent) && !!neg.$('.pv-est-ru') && /-\d/.test(neg.$('#pv_area').textContent));
+    t('negativo desde o início: valor negativo visível', /^~R\$ −/.test(neg.$('.pv-val').textContent) && !!neg.$('.pv-est-ru') && /−\d/.test(neg.$('#pv_area').textContent));
     t('negativo desde o início: fala quando volta ao positivo', /Volta ao positivo em /.test(neg.$('#pv_cab').textContent));
     const curto = await abrir(FX(), larg); curto.w.eval("DEMO.meses=DEMO.meses.slice(0,2);DEMO.cenarios={Base:DEMO.cenarios.Base.slice(0,12)}"); await curto.ir('futuro'); await tick(10);
     t('menos de quatro meses: desenha o que há', curto.$$('.pv-mes').length === 2 && curto.erros.length === 0);

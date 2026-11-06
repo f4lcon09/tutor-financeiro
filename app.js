@@ -881,14 +881,14 @@ let pvModo='base', pvSel=null, pvTabela=false, pvTinha=false, pvUlt=null, pvPres
 const pvNum=v=>Math.round(Math.abs(v)).toLocaleString('pt-BR');
 const pvValor=v=>PRIV?MASK:'~R$ '+(v<0?'−':'')+pvNum(v);
 const pvCurto=v=>PRIV?'••••':pvNum(v);
-const pvDifTxt=v=>PRIV?MASK:'~R$ '+(v>0?'+':v<0?'−':'')+pvNum(v);
+const pvDifTxt=v=>PRIV?MASK:(v>0?'+':v<0?'−':'')+'R$ '+pvNum(v);
 const pvFixo=v=>PRIV?MASK:'R$ '+pvNum(v);
 const pvAplicado=v=>{ let cum=0; return v.map((x,t)=>{ cum+=simS.entrada-simS.gasto; return x+cum-(t>=simS.mes?simS.compra:0); }); };
 function pvInicio(d){ if(!d.asOf) return 0; const a=d.asOf.split('-'); return Math.max(0,(hoje.getFullYear()-(+a[0]))*12+(hoje.getMonth()+1-(+a[1]))); }
 function pvMonta(){
   const d=DEMO, v=d.cenarios[cenSel], adj=pvAplicado(v), mudou=adj.some((x,i)=>x!==v[i]), se=pvModo==='se'&&mudou, j=TFGrafico.janela(d.meses,pvInicio(d)), corta=a=>a.slice(j.ini,j.ini+j.n), el=$('#pv_area');
   const W=Math.max((el&&el.clientWidth)||(MOB()?CW(1):CW(.66)),240), base=corta(v);
-  return {d,v,adj,j,se,mudou,base,m:TFGrafico.montar({meses:corta(d.meses),base,cenario:se?corta(adj):null,meta:d.meta,piso:d.piso,alerta:d.alerta,W,H:MOB()?300:320,fmt:{valor:pvValor,fixo:pvFixo,curto:pvCurto}})};
+  return {d,v,adj,j,se,mudou,base,m:TFGrafico.montar({meses:corta(d.meses),base,cenario:se?corta(adj):null,meta:d.meta,piso:d.piso,alerta:d.alerta,W,H:MOB()?256:300,fmt:{valor:pvValor,fixo:pvFixo,curto:pvCurto}})};
 }
 const pvChip=e=>e?`<span class="tag ${e.cls}">${TFGrafico.iconeChip(e.cls)}${esc(e.texto)}</span>`:'';
 function pvCabecalho(x){
