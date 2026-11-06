@@ -116,9 +116,9 @@ t('categoria inválida é erro', S.validarLancamento({ ...base, cat: 'Xis' }).er
   t('setNumeros inválido não muda nada', s.setNumeros({ salario: '0' }).ok === false && s.st.numeros.salario === 3640);
   t('setNumeros vazio apaga o campo', s.setNumeros({ mercado: '' }).ok && s.st.numeros.mercado === undefined);
   t('repasse marcar e desmarcar', (s.marcarRepasse('2026-11', true), s.st.numeros.repasse['2026-11'] === true) && (s.marcarRepasse('2026-11', false), s.st.numeros.repasse['2026-11'] === undefined));
-  s.setNumeros({ limites: { c2: '600' } });
-  t('limite por cartão', s.st.numeros.limites.c2 === 600);
-  t('persistência dos números', novo(m).st.numeros.salario === 3640 && novo(m).st.numeros.limites.c2 === 600);
+  s.setNumeros({ limites: { c2: '777' } });
+  t('limite por cartão', s.st.numeros.limites.c2 === 777);
+  t('persistência dos números', novo(m).st.numeros.salario === 3640 && novo(m).st.numeros.limites.c2 === 777);
 }
 
 /* modo e dados reais */
@@ -161,9 +161,9 @@ t('categoria inválida é erro', S.validarLancamento({ ...base, cat: 'Xis' }).er
   const b = it('13,07 uber ontem');
   t('texto: ontem e vírgula decimal', b.valor === 13.07 && b.cat === 'Transporte' && b.data === '2026-11-04' && b.desc === 'Uber');
   t('texto: anteontem atravessa o mês', S.interpretarTexto('10 mercado anteontem', '2026-11-01').data === '2026-10-30');
-  const c = it('recebi 250 do tio');
-  t('texto: entrada', c.tipo === 'entrada' && c.valor === 250 && c.desc === 'Do tio');
-  const d = it('1.234,56 faculdade crédito');
+  const c = it('recebi 250 do cliente');
+  t('texto: entrada', c.tipo === 'entrada' && c.valor === 250 && c.desc === 'Do cliente');
+  const d = it('1.234,56 curso crédito');
   t('texto: milhar, estudos, crédito', d.valor === 1234.56 && d.cat === 'Estudos' && d.forma === 'Crédito');
   t('texto: pizza vira comida e número depois', it('pizza 30').cat === 'Comida' && it('pizza 30').valor === 30);
   t('texto: dia 3 usa o dia do mês atual', it('20 farmácia dia 3').data === '2026-11-03' && it('20 farmácia dia 3').valor === 20 && it('20 farmácia dia 3').cat === 'Saúde');

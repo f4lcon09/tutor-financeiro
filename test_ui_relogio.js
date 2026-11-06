@@ -1,5 +1,5 @@
 /* Roda a suíte de interface (test_ui_casos, test_ui_1b, test_ui_1c) com o relógio do navegador simulado fixado em dois dias do mês.
-   Motivo: "poucos dados" e o ritmo dependem do dia. No dia 6, por exemplo, a projeção de R$ 30 dá R$ 150, que coincide com o teto da
+   Motivo: "poucos dados" e o ritmo dependem do dia. Em certos dias a projeção coincide com o teto da
    fixture, e o teste reprova sem que haja defeito. Nenhuma asserção muda: só a data de partida do relógio é fixada (dia 3 cobre "poucos dados", dia 20 cobre a projeção).
    Os arquivos da suíte são ignorados pelo git; este arquivo não contém dados.
    Rodar: node test_ui_relogio.js */

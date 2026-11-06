@@ -10,16 +10,16 @@ const tick = (ms = 0) => new Promise(r => setTimeout(r, ms));
 
 /* ---------- dados sintéticos ---------- */
 const REAL = () => JSON.parse(JSON.stringify({
-  _meta: { as_of: '2026-11-04' }, liquidez: { total: 1000.5, conta_corrente: 0, onde: 'Banco X (CDB)' },
-  cartao: { emissor: 'Cartão A', fechamento_dia: 3, limite: 6000, fatura_atual: { total: 500.25, vence_em: '2026-11-10' } },
-  pendencias_novembro: [{ descricao: 'Fatura', valor: 500.25, vence: '2026-11-10' }, { descricao: 'Água', valor: 120.4, vence: '2026-11-10' }],
-  plano_de_pagamento: [{ data: '2026-11-09', acao: 'Withdraw 620.65 from X, pay fatura (500.25) + agua (120.40)' }],
-  sobra_apos_pagar_tudo: 77.7, entradas_esperadas: [{ descricao: 'Salário cheio (estimativa)', valor_estimado: 2000 }],
-  gastos_fixos_mensais: { ajuda_em_casa_a_partir_de_dezembro: 400, faculdade_2026: 150, faculdade_2027_estimado: 170, assinaturas_no_cartao: { a: 70, b: 110 }, teto_lazer_mes: 150 },
-  faturas_futuras_parcelas_antigas: [{ mes: '2026-12', fatura_total: 111.11, parte_mae: 33.3 }, { mes: '2027-01', fatura_total: 222.22, parte_mae: 33.3 }],
-  regras_e_metas: { meta_17_01_2027: 1500, piso_17_01_2027: 1000, alerta_dezembro: 700, piso_absoluto_status: 'temporarily violated; new floor NOT yet defined' },
-  pendente_do_usuario: ['holerite (exact net)', 'algo'], _traducoes: { 'holerite (exact net)': 'Holerite (líquido exato)' },
-  cartoes_extra: [{ id: 'c2', nome: 'Cartão B', limite: 600, fatura: 0 }]
+  _meta: { as_of: '2026-01-15' }, liquidez: { total: 2790.35, conta_corrente: 0, onde: 'Banco Teste' },
+  cartao: { emissor: 'Cartão A', fechamento_dia: 5, limite: 3300, fatura_atual: { total: 180.4, vence_em: '2026-02-12' } },
+  pendencias_novembro: [{ descricao: 'Fatura', valor: 180.4, vence: '2026-02-12' }, { descricao: 'Conta de teste', valor: 52.6, vence: '2026-02-12' }],
+  plano_de_pagamento: [{ data: '2026-02-11', acao: 'Withdraw 233.00 from X, pay fatura (180.40) + agua (52.60)' }],
+  sobra_apos_pagar_tudo: 2557.35, entradas_esperadas: [{ descricao: 'Salário de teste', valor_estimado: 4700 }],
+  gastos_fixos_mensais: { ajuda_em_casa_a_partir_de_dezembro: 410, faculdade_2026: 230, faculdade_2027_estimado: 240, assinaturas_no_cartao: { a: 19, b: 120 }, teto_lazer_mes: 260 },
+  faturas_futuras_parcelas_antigas: [{ mes: '2026-02', fatura_total: 310.25, parte_mae: 20.5 }, { mes: '2026-03', fatura_total: 275.1, parte_mae: 10.5 }],
+  regras_e_metas: { meta_17_01_2027: 4550, piso_17_01_2027: 2450, alerta_dezembro: 1550, piso_absoluto_status: 'definido' },
+  pendente_do_usuario: ['item de teste', 'algo'], _traducoes: { 'item de teste': 'Item de teste' },
+  cartoes_extra: [{ id: 'c2', nome: 'Cartão B', limite: 650, fatura: 0 }]
 }));
 const PAYLOADS = [
   '<img src=x onerror="window.__xss=1">',
