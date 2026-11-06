@@ -303,6 +303,7 @@
         mudou({ real: 1 }); return { ok: true };
       },
       importarReal: function (j) {
+        if (st.modo === 'demo') return { ok: false, erro: 'No modo de exemplo não dá para importar. Seus dados ficam só no modo real.' };
         var v = Seg.validarImportacao(j); if (!v.ok) return v;
         var ok = j && j._meta && j.liquidez && j.cartao && j.pendencias_novembro && j.gastos_fixos_mensais && j.faturas_futuras_parcelas_antigas && j.regras_e_metas && j.entradas_esperadas;
         if (!ok) return { ok: false, erro: 'Arquivo não reconhecido: confira se é o dados_reais_*.json.' };
