@@ -40,5 +40,8 @@ test_ui_casos.js
 !/test_ui_aria.js
 !/test_ui_mes.js
 !/test_ui_iphone.js
+!/grafico.js
+!/test_grafico.js
+!/test_ui_grafico.js
 !/app.js
 !/seguranca.js
