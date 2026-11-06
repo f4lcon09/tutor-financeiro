@@ -141,6 +141,9 @@
   --attention-bg: color-mix(in srgb, var(--attention) 16%, var(--card));
   --risk-bg: color-mix(in srgb, var(--risk) 16%, var(--card));
   --accent-mix: color-mix(in srgb, var(--accent-cool) 55%, var(--accent-warm));
+  --zone-ok: color-mix(in srgb, var(--ok) 11%, transparent);
+  --zone-attention: color-mix(in srgb, var(--attention) 10%, transparent);
+  --zone-risk: color-mix(in srgb, var(--risk) 13%, transparent);
   --shadow-pop: 0 8px 24px rgba(0,0,0,.45);
   /* amostras do seletor de tema: cada linha mostra as cores do próprio tema, não do tema ativo */
   --sw-cafe-bg: #0F0A07; --sw-cafe-primary: #E9A23B;
