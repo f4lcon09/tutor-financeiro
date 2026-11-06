@@ -1201,6 +1201,17 @@ function abrirMenuTema(btn){
 }
 let atual = 'hoje';
 const PRIM = ['hoje','lancar','cartao','orcamento'];
+const temTeclado=()=>{ try{ return matchMedia('(hover:hover) and (pointer:fine)').matches; }catch(e){ return false; } };
+function confirmarReimportar(volta){
+  const fundo=document.createElement('div'); fundo.className='conf';
+  fundo.innerHTML=`<div class="confc" role="alertdialog" aria-modal="true" aria-labelledby="conf_t" aria-describedby="conf_d"><h2 id="conf_t">Reimportar dados?</h2><p id="conf_d">Isso substitui os dados deste aparelho pelos do arquivo que você escolher.</p><div class="confb"><button class="btn ghost" id="conf_nao" type="button">Cancelar</button><button class="btn" id="conf_sim" type="button">Reimportar</button></div></div>`;
+  document.body.appendChild(fundo);
+  const nao=fundo.querySelector('#conf_nao'), sim=fundo.querySelector('#conf_sim'), fecha=()=>{ fundo.remove(); if(volta&&volta.isConnected) volta.focus(); };
+  nao.onclick=fecha; sim.onclick=()=>{ S.definirModo(null); location.reload(); };
+  fundo.onclick=e=>{ if(e.target===fundo) fecha(); };
+  fundo.onkeydown=e=>{ if(e.key==='Escape'){ e.stopPropagation(); fecha(); } else if(e.key==='Tab'){ e.preventDefault(); (document.activeElement===nao?sim:nao).focus(); } };
+  nao.focus();
+}
 function fecharMais(){ const n=$('#nav'); if(n&&n.classList.contains('aberto')){ n.classList.remove('aberto'); const b=$('#maisbtn'); if(b) b.setAttribute('aria-expanded','false'); } }
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') fecharMais(); });
 $('#main').addEventListener('click',fecharMais);
@@ -1232,11 +1243,11 @@ window.addEventListener('resize',()=>{ larguraAnt=window.innerWidth; if(MOB()!==
 function ir(k){
   fecharMenuTema(false);
   atual=k; const btnNav=([id,n,h])=>`<button data-k="${id}" aria-current="${id===k}" style="--h:${hue(h)}">${ic[id]}<span>${n}</span></button>`;
-  $('#nav').innerHTML=`<div class="brand"><i>$</i>Tutor Financeiro</div>`+TELAS.filter(t=>PRIM.includes(t[0])).map(btnNav).join('')+`<button class="maisbtn${PRIM.includes(k)?'':' ativo'}" id="maisbtn" aria-expanded="false" aria-controls="secw" style="--h:var(--teal)">${ic.mais}<span>Mais</span></button><div class="secw" id="secw">`+TELAS.filter(t=>!PRIM.includes(t[0])).map(btnNav).join('')+`<div class="demo">${MODO==='real'?'Dados informados por você em '+new Date(DEMO.asOf+'T12:00').toLocaleDateString('pt-BR')+'. Tecle N para lançar.<br><a href="#" id="reimp" style="color:var(--teal)">Reimportar dados</a>':'Dados de exemplo (fictícios). Nada aqui é seu dinheiro real.<br><a href="#" id="reimp" style="color:var(--teal)">Importar dados reais</a>'}<br>${MODO==='real'?'<button class="linkbtn" id="ver_ex" type="button">Ver exemplo</button>':MODO==='demo'?'<button class="linkbtn" id="sair_ex" type="button">Sair do exemplo</button>':''}<button class="linkbtn" id="inst_ab" type="button">Instalar no celular</button><br><button class="ibtn tonal" id="tema" type="button" aria-label="Escolher tema" title="Escolher tema" aria-haspopup="menu" aria-expanded="false" style="margin-top:8px">${I.paleta}</button></div></div>`;
+  $('#nav').innerHTML=`<div class="brand"><i>$</i>Tutor Financeiro</div>`+TELAS.filter(t=>PRIM.includes(t[0])).map(btnNav).join('')+`<button class="maisbtn${PRIM.includes(k)?'':' ativo'}" id="maisbtn" aria-expanded="false" aria-controls="secw" style="--h:var(--teal)">${ic.mais}<span>Mais</span></button><div class="secw" id="secw">`+TELAS.filter(t=>!PRIM.includes(t[0])).map(btnNav).join('')+`<div class="demo">${MODO==='real'?'Dados informados por você em '+new Date(DEMO.asOf+'T12:00').toLocaleDateString('pt-BR')+'.'+(temTeclado()?' Tecle N para lançar.':'')+'<br><a href="#" id="reimp" style="color:var(--teal)">Reimportar dados</a>':'Dados de exemplo (fictícios). Nada aqui é seu dinheiro real.<br><a href="#" id="reimp" style="color:var(--teal)">Importar dados reais</a>'}<br>${MODO==='real'?'<button class="linkbtn" id="ver_ex" type="button">Ver exemplo</button>':MODO==='demo'?'<button class="linkbtn" id="sair_ex" type="button">Sair do exemplo</button>':''}<button class="linkbtn" id="inst_ab" type="button">Instalar no celular</button><br><button class="ibtn tonal" id="tema" type="button" aria-label="Escolher tema" title="Escolher tema" aria-haspopup="menu" aria-expanded="false" style="margin-top:8px">${I.paleta}</button></div></div>`;
   $$('#nav button[data-k]').forEach(b=>b.onclick=()=>ir(b.dataset.k));
   $('#maisbtn').onclick=()=>{ const ab=$('#nav').classList.toggle('aberto'); $('#maisbtn').setAttribute('aria-expanded',ab); };
   const tm=$('#tema'); if(tm){ tm.onclick=()=>abrirMenuTema(tm); tm.onkeydown=e=>{ if(e.key==='ArrowDown'||e.key==='ArrowUp'){ e.preventDefault(); abrirMenuTema(tm); } }; }
-  const ri=$('#reimp'); if(ri) ri.onclick=e=>{ e.preventDefault(); S.definirModo(null); location.reload(); };
+  const ri=$('#reimp'); if(ri) ri.onclick=e=>{ e.preventDefault(); if(MODO==='real'){ confirmarReimportar(ri); return; } S.definirModo(null); location.reload(); };
   const ve=$('#ver_ex'); if(ve) ve.onclick=()=>{ S.definirModo('demo'); location.reload(); };
   const se=$('#sair_ex'); if(se) se.onclick=sairExemplo;
   const ia=$('#inst_ab'); if(ia) ia.onclick=()=>ir('instalar');
