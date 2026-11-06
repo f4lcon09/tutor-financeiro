@@ -8,7 +8,7 @@
   var PASSOS = [500, 1000, 2000, 2500, 5000];
   var LIMITE = { dx: 2, dy: 2 };                                 // nada encosta na borda da área do gráfico
 
-  var largura = function (t, px) { return Math.ceil(String(t).length * px * (px > 12 ? 0.62 : 0.55)); };   // tests/grafico.js confere com a largura real do texto
+  var estimada = function (t, px) { return Math.ceil(String(t).length * px * (px > 12 ? 0.62 : 0.55)); };   // só sem medidor (node); no app a largura vem do texto real
   var sobre = function (a, b, p) { p = p || 0; return a.x < b.x + b.w + p && b.x < a.x + a.w + p && a.y < b.y + b.h + p && b.y < a.y + a.h + p; };
   /* segmento contra retângulo (Liang-Barsky), com folga */
   function cruza(s, c, p) {
@@ -80,6 +80,7 @@
   }
   function desenho(o, E) {
     var W = o.W, H = o.H || 264, n = o.meses.length, ativa = o.cenario || o.base, tem = !!o.cenario;
+    var largura = function (t, px, peso) { var m = o.mede ? o.mede(String(t), px, peso || 400) : 0; return m > 0 ? Math.ceil(m) + 2 : estimada(t, px); };
     var P = { l: M.l, r: W - M.r, t: M.t, b: H - M.b };
     var y = function (v) { return P.b - (v - E.lo) / (E.hi - E.lo) * (P.b - P.t); };
     var x = function (i) { return n < 2 ? (P.l + P.r) / 2 : P.l + (P.r - P.l) * i / (n - 1); };
@@ -118,7 +119,7 @@
     });
 
     /* ponto mais baixo: ícone junto do ponto, etiqueta do lado que tem espaço */
-    var li = menor(ativa), lp = pa[li], est = estado(lp.v, o.meta, o.piso, o.alerta, o.fmt.fixo), tb = o.fmt.valor(lp.v), wb = largura(tb, PX.valor) + 16, baixo = null, ALT = 22, IC = 20;
+    var li = menor(ativa), lp = pa[li], est = estado(lp.v, o.meta, o.piso, o.alerta, o.fmt.fixo), tb = o.fmt.valor(lp.v), wb = largura(tb, PX.valor, 600) + 16, baixo = null, ALT = 22, IC = 20;
     [true, false].some(function (cuidaLinha) {
       [lp.y + 9, lp.y + 20, lp.y + 4, lp.y - 9 - ALT, lp.y - 20 - ALT, lp.y - 4, lp.y - 11, lp.y + 32].some(function (fy) {
         [0, 16, -16, 32, -32, 48, -48, 64, -64, 80, -80, 96, -96, 112, -112].some(function (dx) {
@@ -136,7 +137,7 @@
     if (baixo) { caixas.push(baixo.ic); caixas.push(baixo.pill); }
 
     /* fim da janela: acima do ponto, abaixo, à esquerda */
-    var ult = pa[pa.length - 1], tf = o.fmt.valor(ult.v), wf = largura(tf, PX.valor) + 16, fim = null, xd = P.r - LIMITE.dx - wf;
+    var ult = pa[pa.length - 1], tf = o.fmt.valor(ult.v), wf = largura(tf, PX.valor, 600) + 16, fim = null, xd = P.r - LIMITE.dx - wf;
     var lugares = [{ x: xd, y: ult.y - 8 - ALT }, { x: xd, y: ult.y + 8 }, { x: ult.x - 10 - wf, y: ult.y - ALT / 2 }];
     for (var dd = 12; dd <= 72; dd += 12) { lugares.push({ x: xd, y: ult.y - 8 - ALT - dd }, { x: xd, y: ult.y + 8 + dd }, { x: ult.x - 10 - wf - dd, y: ult.y - ALT / 2 }, { x: xd - dd, y: ult.y - 8 - ALT }, { x: xd - dd, y: ult.y + 8 }); }
     for (var ex = 12; ex <= 96; ex += 12) for (var ey = -60; ey <= 60; ey += 12) lugares.push({ x: xd - ex, y: ult.y + ey });
