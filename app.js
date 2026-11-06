@@ -925,6 +925,7 @@ const Drive = TFSync.criarDrive(window.TF_CONFIG||{}, arm);
 let sincStatus = {t:'off'}, sincOcupado = false, sincTimer = null;
 
 function capturar(){
+  if(MODO==='demo') return {};   // o exemplo nunca toca nos itens dos dados reais nem nas horas deles
   const itens = TFSync.semBase(TFSync.atualizar(estado(), TFSync.juntar(BASE, load('tf_items',{})), Date.now()));
   save0('tf_items', itens); return itens;
 }
@@ -958,7 +959,7 @@ async function sincronizar(){
     const local=capturar();
     const junto=TFSync.semBase(TFSync.juntar(local,remoto));
     const novo=TFSync.montar(TFSync.juntar(BASE,junto));
-    if(MODO!=='real' && novo.real){ aplicarEstado(novo); S.definirModo('real'); save0('tf_items',junto); sincOcupado=false; location.reload(); return; }
+    if(MODO!=='real' && novo.real && !S.st.real){ aplicarEstado(novo); S.definirModo('real'); save0('tf_items',junto); sincOcupado=false; location.reload(); return; }
     const mudouTela=!TFSync.igual(novo,estado());
     if(mudouTela){ aplicarEstado(novo); }
     if(!TFSync.igual(junto,remoto) && !Drive.descartados) await Drive.escrever(id,TFSync.doc(junto));   // se o Drive trouxe itens recusados, não sobrescreve: nada é perdido em silêncio

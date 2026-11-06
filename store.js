@@ -310,7 +310,7 @@
         if (novo.real !== undefined) st.real = novo.real;
         mudou({ lanc: 1, pagos: 1, tetos: 1, metas: 1, taxa: 1, numeros: 1, real: novo.real !== undefined });
       },
-      paraSync: function () { return { lanc: st.lanc, pagos: st.pagos, tetos: st.tetos, metas: st.metas, taxa: st.taxa, numeros: Object.keys(st.numeros).length ? st.numeros : undefined, real: st.modo === 'real' ? st.real : undefined }; },
+      paraSync: function () { return { lanc: st.lanc, pagos: st.pagos, tetos: st.tetos, metas: st.metas, taxa: st.taxa, numeros: Object.keys(st.numeros).length ? st.numeros : undefined, real: st.modo === 'demo' || (st.modo !== 'real' && !st.real) ? undefined : st.real }; },   // sem modo, os dados guardados continuam valendo: nunca viram lápide no Drive
 
       exportarCSV: function () {
         var q = function (t) { t = String(t); if (/^[=+@\t\r-]/.test(t)) t = "'" + t; return /[",\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
