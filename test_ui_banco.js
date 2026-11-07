@@ -370,5 +370,109 @@ const foto = A => JSON.stringify(['tf_lanc3', 'tf_banco_ids', 'tf_banco_inv', 't
     marca(A, 2, true); A.click('#bc_ok'); await tick(10);
     t('marca: o dono pode importar mesmo assim', A.w.eval('S.st.lanc.length') === 2 && A.w.eval('S.st.lanc').some(l => l.idExterno === 'f1'));
   }
+  /* pluggy-3: fora dos gastos, sem tocar no caixa */
+  {
+    const D1 = mes + '-01';
+    const L = (id, cat, valor, x) => ({ id, data: D1, desc: 'Item ' + id, cat, valor, forma: 'Pix', essencial: false, lazer: false, ...(x || {}) });
+    const base = [L(1, 'Outros', 9100), L(2, 'Mercado', 300), L(3, 'Comida', 600)];
+    const comN = base.map(l => l.id === 1 ? { ...l, neutro: true } : l);
+    const barras = A => [...A.d.querySelectorAll('.bar')];
+    const quebra = async (lanc, extra) => { const A = await abreCom(RESP([]), { tf_lanc3: lanc, ...(extra || {}) }); await A.ir('hoje'); await tick(10); return A; };
+    const A = await quebra(base), B9 = await quebra(comN);
+    const ct = X => JSON.stringify(X.w.eval('catTotals()'));
+    t('quebra: sem a marca, o item pesa 91%', /Outros[\s\S]*91%/.test(A.w.eval('catBars()')));
+    t('quebra: com a marca, ele sai', !/Outros/.test(B9.w.eval('catBars()')));
+    t('quebra: percentuais refeitos', /Comida[\s\S]*67%/.test(B9.w.eval('catBars()')) && /Mercado[\s\S]*33%/.test(B9.w.eval('catBars()')));
+    t('total do mês: sem o item', A.w.eval('gastoDoMes()') === 10000 && B9.w.eval('gastoDoMes()') === 900);
+    t('categorias: valores certos', ct(B9) === JSON.stringify([['Comida', 600], ['Mercado', 300]]));
+    const o = async (lanc, sel) => { const X = await abreCom(RESP([]), { tf_lanc3: lanc }); await X.ir('orcamento'); await tick(10); return X; };
+    const O1 = await o(comN); t('Orçamento: fora do total', !/9\.100/.test(O1.texto()));
+
+    /* Faixa do mês: dia só com o item marcado fica sem cor */
+    const so = [L(1, 'Outros', 9100, { neutro: true })], Fx = await quebra(so), dia = Fx.d.querySelector('.c[data-d="1"]');
+    t('Faixa: dia sem gasto fica sem cor', !/color-mix/.test(dia.getAttribute('style') || '') && !/gasto/.test(dia.getAttribute('title')));
+    const Fy = await quebra([L(1, 'Outros', 100)]);
+    t('Faixa: dia com gasto segue com cor', /color-mix/.test(Fy.d.querySelector('.c[data-d="1"]').getAttribute('style')) && /gasto/.test(Fy.d.querySelector('.c[data-d="1"]').getAttribute('title')));
+    const Fi = await quebra([L(1, 'Outros', 9100, { neutro: true }), L(2, 'Mercado', 50)]);
+    t('Faixa: intensidade ignora o item', /100%/.test(Fi.d.querySelector('.c[data-d="1"]').getAttribute('style')));
+    Fx.w.eval('diaDetalhe(1)'); await tick(5);
+    t('detalhe do dia: o item aparece, com a etiqueta', /Item 1/.test(Fx.$('#diadet').textContent) && /não é gasto/.test(Fx.$('#diadet').textContent));
+
+    /* alertas de gasto */
+    const teto = A.w.eval('DEMO.tetoLazer'), acima = teto + 500;
+    const Z1 = await quebra([L(5, 'Jogos', acima, { lazer: true })]), Z2 = await quebra([L(5, 'Jogos', acima, { lazer: true, neutro: true })]);
+    t('alerta: lazer acima do teto aparece sem a marca', /lazer passou do teto/.test(Z1.texto()));
+    t('alerta: com a marca, some', !/lazer passou do teto/.test(Z2.texto()));
+    t('lazer: valor restante ignora o item', Z2.w.eval('lazerGasto()') === 0 && Z1.w.eval('lazerGasto()') === acima);
+    const Z3 = await abreCom(RESP([]), { tf_lanc3: [L(5, 'Jogos', acima, { lazer: true, neutro: true })] }); await Z3.ir('lancar'); await tick(10);
+    t('Lançar: resumo do lazer ignora o item', !/passou/.test(Z3.$('#lz_resumo').textContent));
+    const ini = () => { const r = REALFX(); r._inicio = { renda: 3000, fixos: 2000, saldo: 800 }; return r; };
+    const P1 = await abreCom(RESP([]), { tf_real: ini(), tf_lanc3: [L(9, 'Outros', 1500)] }), P2 = await abreCom(RESP([]), { tf_real: ini(), tf_lanc3: [L(9, 'Outros', 1500, { neutro: true })] });
+    await P1.ir('hoje'); await P2.ir('hoje'); await tick(10);
+    t('primeiros passos: alerta de sobra sem a marca', /passaram da sobra/.test(P1.texto()));
+    t('primeiros passos: com a marca, some', !/passaram da sobra/.test(P2.texto()));
+
+    /* caixa, saldo e previsão */
+    const vis = async lanc => { const X = await abreCom(RESP([]), { tf_lanc3: lanc }); await X.ir('hoje'); await tick(10); const cx = X.$('.big.hero').textContent; await X.ir('futuro'); await tick(10); return JSON.stringify({ demo: X.w.eval('JSON.stringify(DEMO)'), cx, liq: X.w.eval('S.st.real.liquidez'), base: X.w.eval("DEMO.cenarios['Base']") }); };
+    const mix = [L(1, 'Mercado', 9100), L(2, 'Mercado', 300), L(3, 'Comida', 600)];
+    t('caixa e previsão: idênticos antes e depois da marca', await vis(mix) === await vis(mix.map(l => l.id === 1 ? { ...l, neutro: true } : l)));
+    t('caixa e previsão: idênticos também em Outros', await vis(base) === await vis(comN));
+    const Ca = await quebra(base), Cb = await quebra(comN);
+    t('saúde: caixa de Hoje igual', Ca.$('.big.hero').textContent === Cb.$('.big.hero').textContent);
+  }
+  /* pluggy-3: formulário e linha */
+  {
+    const D1 = mes + '-01', A = await abreCom(RESP([]), { tf_lanc3: [{ id: 1, data: D1, desc: 'Reserva inventada', cat: 'Outros', valor: 50, forma: 'Pix', essencial: false, lazer: false }] });
+    await A.ir('lancar'); await tick(15);
+    const c = A.$('#f_neu');
+    t('formulário: caixa com texto', !!c && /Não é gasto \(transferência entre suas contas ou reserva\)/.test(c.closest('label').textContent));
+    t('formulário: começa desmarcada', c.checked === false);
+    A.click(A.d.querySelector('#lista [data-ed]')); await tick(10);
+    A.$('#f_neu').checked = true; A.$('#f_neu').dispatchEvent(new A.w.Event('change', { bubbles: true }));
+    t('formulário: resumo em texto', /Não é gasto/.test(A.$('#clas_txt').textContent));
+    A.click('#f_ok'); await tick(10);
+    t('editar: grava', A.w.eval('S.st.lanc[0].neutro') === true);
+    t('linha: etiqueta em texto', /não é gasto/.test(A.d.querySelector('#lista tr:nth-child(2)').textContent));
+    t('formulário: limpa depois de salvar', A.$('#f_neu').checked === false);
+    A.click(A.d.querySelector('#lista [data-ed]')); await tick(10);
+    t('editar: volta marcada', A.$('#f_neu').checked === true);
+    A.$('#f_neu').checked = false; A.click('#f_ok'); await tick(10);
+    t('editar: desmarcar tira', !('neutro' in A.w.eval('S.st.lanc[0]')) && !/não é gasto/.test(A.$('#lista').textContent));
+    A.set('#f_valor', '12'); A.set('#f_desc', 'Nova'); A.$('#f_neu').checked = true; A.click('#f_ok'); await tick(10);
+    t('novo lançamento: pode nascer marcado', A.w.eval('S.st.lanc').find(l => l.desc === 'Nova').neutro === true);
+    const P = await abrir({ tf_modo: 'real', tf_real: REALFX(), tf_lanc3: [] }, { largura: 1280 }); await P.ir('lancar'); await tick(15);
+    t('PC: a caixa existe', !!P.$('#f_neu'));
+  }
+  /* pluggy-3: prévia */
+  {
+    const R = { id: 'r1', conta: 'c1', data: mes + '-02', desc: 'Guardar na caixinha', valor: -500, tipo: 'DEBIT', status: 'POSTED' };
+    const manualR = "S.lancar({tipo:'gasto',valor:'500',desc:'guardar na caixinha',cat:'Outros',data:'" + R.data + "',forma:'Pix'})", manualP = "S.lancar({tipo:'gasto',valor:'12,50',desc:'padaria exemplo',cat:'Comida',data:'" + M1.data + "',forma:'Pix'})";
+    const A = await abreCom(RESP([R, M1])); A.w.eval(manualR); A.w.eval(manualP); await atualiza(A);
+    t('prévia: rótulo diz que marca', /Vincular conta e marcar como não é gasto/.test(fundo(A).textContent));
+    const f0 = foto2(A), l0 = JSON.stringify(A.w.eval('S.st.lanc')); A.click('#bc_ok'); await tick(5);
+    t('resumo: conta os marcados', /Vai atualizar 2 lançamentos existentes só com a conta\. 1 será marcado como não é gasto\. Nada mais muda\./.test(A.$('#conf_d').textContent));
+    t('resumo: foco em Cancelar', A.d.activeElement === A.$('#bc_vt'));
+    A.click('#bc_vt'); await tick(5);
+    t('resumo: cancelar não grava', foto2(A) === f0 && JSON.stringify(A.w.eval('S.st.lanc')) === l0);
+    A.click('#bc_ok'); await tick(5); A.click('#bc_sim'); await tick(15);
+    const ls = A.w.eval('S.st.lanc'), r = ls.find(l => l.desc === 'guardar na caixinha'), p = ls.find(l => l.desc === 'padaria exemplo');
+    t('vincular: neutro só no marcado', r.neutro === true && !('neutro' in p));
+    t('vincular: valor, data, descrição, categoria e forma iguais', r.valor === 500 && r.data === R.data && r.cat === 'Outros' && r.forma === 'Pix');
+    t('vincular: mensagem', /1 marcado como não é gasto/.test(msg(A)));
+    await atualiza(A);
+    t('segunda rodada: nada a fazer', !A.d.querySelector('.bc-vin') && A.$('#bc_ok').disabled === true);
+    A.click('#bc_cancel');
+    const B4 = await abreCom(RESP([R]), { tf_lanc3: [{ id: 5, data: R.data, desc: 'guardar na caixinha', cat: 'Outros', valor: 500, forma: 'Pix', essencial: false, lazer: false, origem: 'pluggy', idExterno: 'r1', contaId: 'c1', contaNome: 'Conta' }] }); await atualiza(B4);
+    t('já ligado: rótulo próprio', /Marcar como não é gasto/.test(B4.d.querySelector('.bc-vin').textContent) && !/Vincular conta/.test(B4.d.querySelector('.bc-vin').textContent));
+    const c1 = B4.d.querySelector('.bc-vin input'); c1.checked = false; c1.dispatchEvent(new B4.w.Event('change', { bubbles: true })); await tick(5);
+    t('já ligado: desligar não grava nada', B4.$('#bc_ok').disabled === true);
+    c1.checked = true; c1.dispatchEvent(new B4.w.Event('change', { bubbles: true })); B4.click('#bc_ok'); await tick(5); B4.click('#bc_sim'); await tick(10);
+    t('já ligado: ganha a marca', B4.w.eval('S.st.lanc[0].neutro') === true && B4.w.eval('S.st.lanc[0].contaNome') === 'Conta');
+    const C = await abreCom(RESP([R])); await atualiza(C); marca(C, 0, true); C.click('#bc_ok'); await tick(10);
+    t('importar marcado: entra como não é gasto', C.w.eval('S.st.lanc[0].neutro') === true);
+    const T = { id: 'r2', conta: 'c1', data: mes + '-02', desc: 'Guardar na caixinha', valor: -500, tipo: 'DEBIT', status: 'POSTED' };
+    const D = await abreCom(RESP([T])); D.w.eval(manualR); D.w.eval(manualR); await atualiza(D);
+    t('ambíguo: não marca', /ambíguo/.test(fundo(D).textContent) && !D.d.querySelector('.bc-vin'));
+  }
   process.exit(fim());
 })().catch(e => { console.log('ERRO NO TESTE:', e); process.exit(2); });

@@ -7,7 +7,8 @@
   var FORMAS = ['Pix', 'Débito', 'Crédito', 'Dinheiro'];
   var pad = function (n) { return String(n).padStart(2, '0'); };
   var r2 = function (x) { return Math.round(x * 100) / 100; };
-  var comOrigem = function (l, n) { if (l.origem) { n.origem = l.origem; n.idExterno = l.idExterno; } if (l.contaId) { n.contaId = l.contaId; n.contaNome = l.contaNome; } return n; };   // editar não apaga de onde o lançamento veio
+  var comOrigem = function (l, n) { if (l.origem) { n.origem = l.origem; n.idExterno = l.idExterno; } if (l.contaId) { n.contaId = l.contaId; n.contaNome = l.contaNome; } return n; };
+  var comNeutro = function (n, ligado) { if (ligado) n.neutro = true; return n; };   // editar não apaga de onde o lançamento veio
   var RITMO_MIN_DIAS = 7;   // antes disso a projeção do mês é ruído
 
   /* Ritmo do mês: gasto até hoje / dias passados * dias do mês, em centavos inteiros.
@@ -195,6 +196,7 @@
         var v = validarLancamento(o); if (!v.ok) return { ok: false, erros: v.erros };
         var tipo = o.tipo === 'entrada' ? 'entrada' : 'gasto';
         var l = { id: novoId(), data: o.data, desc: String(o.desc || '').trim().slice(0, Seg.LIM.desc) || o.cat, cat: o.cat, valor: r2(tipo === 'entrada' ? -v.valor : v.valor), forma: o.forma || 'Pix', essencial: tipo === 'gasto' && !!o.essencial, lazer: tipo === 'gasto' && !!o.lazer };
+        comNeutro(l, o.neutro === true);
         st.lanc.push(l); mudou({ lanc: 1 }); return { ok: true, id: l.id };
       },
       /* lançamentos confirmados na prévia do banco: tudo ou nada, id externo nunca repete */
@@ -212,6 +214,7 @@
           usados[String(id)] = 1;
           novos.push({ id: id, data: x.data, desc: String(x.desc || '').trim().slice(0, Seg.LIM.desc) || 'Outros', cat: 'Outros', valor: r2(x.direcao === 'entrada' ? -v : v), forma: x.forma, essencial: false, lazer: false, origem: 'pluggy', idExterno: x.idExterno });
           if (x.contaId && x.contaNome) { novos[novos.length - 1].contaId = x.contaId; novos[novos.length - 1].contaNome = String(x.contaNome).slice(0, Seg.LIM.nome); }
+          comNeutro(novos[novos.length - 1], x.neutro === true);
         }
         if (novos.length) { st.lanc = st.lanc.concat(novos); mudou({ lanc: 1 }); }
         return { ok: true, n: novos.length };
@@ -220,22 +223,25 @@
       vincularBanco: function (lista) {
         if (st.modo === 'demo') return { ok: false, erro: 'No modo de exemplo não dá para importar.' };
         if (!Array.isArray(lista)) return { ok: false, erro: 'Nada selecionado.' };
-        var pedidos = new Map(), n = 0;
+        var pedidos = new Map(), n = 0, nn = 0;
         lista.forEach(function (x) { if (x && x.alvo != null && typeof x.contaId === 'string' && x.contaId && typeof x.contaNome === 'string' && x.contaNome) pedidos.set(String(x.alvo), x); });
         var novo = st.lanc.map(function (l) {
-          var x = pedidos.get(String(l.id)); if (!x || l.contaId) return l;
-          var c = Object.assign({}, l); c.contaId = x.contaId; c.contaNome = x.contaNome.slice(0, Seg.LIM.nome);
+          var x = pedidos.get(String(l.id)); if (!x) return l;
+          var c;
+          if (l.contaId) { if (l.contaId !== x.contaId || x.neutro !== true || l.neutro) return l; c = Object.assign({}, l); c.neutro = true; n++; nn++; return c; }
+          c = Object.assign({}, l); c.contaId = x.contaId; c.contaNome = x.contaNome.slice(0, Seg.LIM.nome);
+          if (x.neutro === true && !c.neutro) { c.neutro = true; nn++; }
           if (!c.origem) c.origem = 'pluggy';
           if (!c.idExterno && typeof x.idExterno === 'string') c.idExterno = x.idExterno;
           n++; return c;
         });
         if (n) { st.lanc = novo; mudou({ lanc: 1 }); }
-        return { ok: true, n: n };
+        return { ok: true, n: n, neutros: nn };
       },
       editar: function (id, o) {
         var v = validarLancamento(o); if (!v.ok) return { ok: false, erros: v.erros };
         var achou = false, tipo = o.tipo === 'entrada' ? 'entrada' : 'gasto';
-        st.lanc = st.lanc.map(function (l) { if (String(l.id) !== String(id)) return l; achou = true; return comOrigem(l, { id: l.id, data: o.data, desc: String(o.desc || '').trim().slice(0, Seg.LIM.desc) || o.cat, cat: o.cat, valor: r2(tipo === 'entrada' ? -v.valor : v.valor), forma: o.forma || 'Pix', essencial: tipo === 'gasto' && !!o.essencial, lazer: tipo === 'gasto' && !!o.lazer }); });
+        st.lanc = st.lanc.map(function (l) { if (String(l.id) !== String(id)) return l; achou = true; return comNeutro(comOrigem(l, { id: l.id, data: o.data, desc: String(o.desc || '').trim().slice(0, Seg.LIM.desc) || o.cat, cat: o.cat, valor: r2(tipo === 'entrada' ? -v.valor : v.valor), forma: o.forma || 'Pix', essencial: tipo === 'gasto' && !!o.essencial, lazer: tipo === 'gasto' && !!o.lazer }), o.neutro === undefined ? l.neutro === true : o.neutro === true); });
         if (!achou) return { ok: false, erros: { geral: 'Lançamento não encontrado.' } };
         mudou({ lanc: 1 }); return { ok: true };
       },
@@ -245,7 +251,7 @@
       },
       desfazerApagar: function (l) { if (l && !st.lanc.some(function (x) { return String(x.id) === String(l.id); })) { st.lanc.push(l); mudou({ lanc: 1 }); return true; } return false; },
       doMes: function (mes) { mes = mes || S.mesAtual(); return st.lanc.filter(function (l) { return l.data.indexOf(mes) === 0; }); },
-      gastosMes: function (mes) { return S.doMes(mes).filter(function (l) { return l.valor > 0; }); },
+      gastosMes: function (mes) { return S.doMes(mes).filter(function (l) { return l.valor > 0 && !l.neutro; }); },   // neutro: dinheiro que só mudou de lugar
       lazerGasto: function (mes) { return r2(S.gastosMes(mes).filter(function (l) { return l.lazer; }).reduce(function (s, l) { return s + l.valor; }, 0)); },
       porCategoria: function (mes) { var o = {}; S.gastosMes(mes).filter(function (l) { return !l.lazer; }).forEach(function (l) { o[l.cat] = r2((o[l.cat] || 0) + l.valor); }); return o; },
       porDia: function (mes) { var o = {}; S.gastosMes(mes).forEach(function (l) { var d = +l.data.slice(8); o[d] = r2((o[d] || 0) + l.valor); }); return o; },

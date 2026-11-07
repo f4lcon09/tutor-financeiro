@@ -150,20 +150,20 @@
     var ids = new Set(idsLocais || []), porExt = new Map(), porChave = new Map();
     var poe = function (m, k, l) { if (!m.has(k)) m.set(k, []); m.get(k).push(l); };
     (lanc || []).forEach(function (l) { if (l.idExterno) { ids.add(l.idExterno); poe(porExt, l.idExterno, l); } poe(porChave, chave(l.data, l.valor, l.desc), l); });
-    var vistos = new Set(), inv = new Set(inversoes || []), alvos = new Map();
+    var vistos = new Set(), inv = new Set(inversoes || []), alvos = new Map(), feitos = new Map();
     var lista = dados.movs.map(function (m) {
       var c = porConta.get(m.conta), it = mapear(m, c, inv.has(c.id)), repetido = vistos.has(m.id);
       var dup = ids.has(m.id) || repetido, vazio = !(it.valor > 0), k = chave(it.data, it.direcao === 'entrada' ? -it.valor : it.valor, it.desc);
       vistos.add(m.id);
       it.contaNome = nomes.get(c.id);
       it.estado = dup ? 'importado' : vazio ? 'sem_valor' : porChave.has(k) ? 'existe' : 'novo';
-      it.marcado = it.estado === 'novo'; it.vinculo = null; it.alvo = null; it.marca = null;
+      it.marcado = it.estado === 'novo'; it.vinculo = null; it.alvo = null; it.marca = null; it.neutro = false; it.soNeutro = false;
       var acha = repetido ? [] : it.estado === 'importado' ? (porExt.get(m.id) || []) : it.estado === 'existe' ? porChave.get(k) : [];
       if (acha.length > 1) it.vinculo = 'ambiguo';
       else if (acha.length === 1) {
         var l = acha[0];
-        if (l.contaId) it.vinculo = l.contaId === c.id ? 'feito' : null;
-        else if (!l.idExterno || l.idExterno === m.id) { it.vinculo = 'sim'; it.alvo = l.id; alvos.set(String(l.id), (alvos.get(String(l.id)) || 0) + 1); }
+        if (l.contaId) { it.vinculo = l.contaId === c.id ? 'feito' : null; if (it.vinculo) feitos.set(it, l); }
+        else if (!l.idExterno || l.idExterno === m.id) { it.vinculo = 'sim'; it.alvo = l.id; }
       }
       if (it.estado !== 'sem_valor') {
         if (c.tipo !== 'CREDIT' && combina(PADROES.fatura, it.desc)) it.marca = 'fatura';
@@ -171,10 +171,17 @@
       }
       return it;
     });
-    /* dois movimentos para o mesmo lançamento: não dá para saber qual é */
-    lista.forEach(function (it) { if (it.alvo != null && alvos.get(String(it.alvo)) > 1) { it.vinculo = 'ambiguo'; it.alvo = null; } });
     marcarPares(lista).forEach(function (it) { if (!it.marca) it.marca = 'entre'; });
-    lista.forEach(function (it) { if (it.marca) it.marcado = false; });
+    /* entre contas e reserva não são gasto; quem já tem a conta só ganha essa marca */
+    lista.forEach(function (it) {
+      if (it.marca) it.marcado = false;
+      it.neutro = it.marca === 'entre';
+      var l = feitos.get(it);
+      if (l && it.neutro && !l.neutro) { it.vinculo = 'sim'; it.alvo = l.id; it.soNeutro = true; }
+      if (it.alvo != null) alvos.set(String(it.alvo), (alvos.get(String(it.alvo)) || 0) + 1);
+    });
+    /* dois movimentos para o mesmo lançamento: não dá para saber qual é */
+    lista.forEach(function (it) { if (it.alvo != null && alvos.get(String(it.alvo)) > 1) { it.vinculo = 'ambiguo'; it.alvo = null; it.soNeutro = false; } });
     return lista;
   }
 

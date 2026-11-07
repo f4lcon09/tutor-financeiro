@@ -331,6 +331,7 @@ function lancarM(){
     <div class="clas"><span id="clas_txt" role="status"></span><button class="linkbtn" id="clas_mudar" type="button" aria-expanded="false">mudar</button></div>
     ${det('lancar','mais','Mais opções: data e classificação',`<div class="field"><label for="f_data">Data</label><input id="f_data" type="date" value="${mesAtual}-${pad2(diaHoje)}"></div>
       <div class="toggle" style="margin-bottom:12px"><label><input type="checkbox" id="f_ess"> Essencial</label><label><input type="checkbox" id="f_laz" checked> Conta no lazer</label></div>
+      ${NEUTRO_CAMPO}
       <div class="dica" id="dica" style="margin-bottom:0"></div>`,'teal')}`,'teal')}
   <div class="salvarfixo acoes"><div id="f_msg" class="hint" role="status" style="flex:1 0 100%;margin:0"></div><button class="btn" id="f_ok">Salvar lançamento</button><button class="btn ghost" id="f_cancel" style="display:none">Cancelar</button></div>
   ${pn('Lançamentos',`<div id="lz_resumo"></div><div id="conta_filtro"></div><div id="lista"></div>
@@ -353,6 +354,7 @@ T.lancar = () => MOB() ? lancarM() : `
       <div class="g-dp"><div class="field"><label>Data</label><input id="f_data" type="date" value="${mesAtual}-${pad2(diaHoje)}"></div>
       <div class="field"><label>Pago com ${info('Crédito entra na fatura do cartão e pesa no limite. Pix, débito e dinheiro saem da conta na hora.',true)}</label><select id="f_forma"><option>Pix</option><option>Débito</option><option>Crédito</option><option>Dinheiro</option></select></div></div>
       <div class="toggle" style="margin-bottom:18px"><label><input type="checkbox" id="f_ess"> Essencial ${info('Gasto sem o qual sua rotina básica quebra: moradia, comida de casa, transporte para trabalho ou aula, saúde, faculdade, contas básicas. Não conta no teto de lazer.')}</label><label><input type="checkbox" id="f_laz" checked> Conta no lazer ${info('Marque se é escolha e dá para adiar: jogos, cinema, delivery, passeios. Entra no teto de lazer do mês.',true)}</label></div>
+      ${NEUTRO_CAMPO}
       <div class="dica" id="dica"></div>
       <div class="row acoes" style="justify-content:flex-start"><button class="btn" id="f_ok">Salvar lançamento</button><button class="btn ghost" id="f_cancel" style="display:none">Cancelar</button></div><div id="f_msg" class="hint"></div>`,'teal')}
     ${pn('Lançamentos',`<input type="text" id="busca" placeholder="Buscar por nome, categoria ou forma de pagamento…" style="margin-bottom:12px"><div id="lz_resumo"></div><div id="conta_filtro"></div><div id="lista"></div>
@@ -380,18 +382,18 @@ function bindLancar(){
   const sincForma=()=>{ $$('#f_forma_b button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.f===$('#f_forma').value)); };
   $$('#f_forma_b button').forEach(b=>b.onclick=()=>{ $('#f_forma').value=b.dataset.f; sincForma(); });
   $('#f_forma').addEventListener('change',sincForma);
-  const clasTxt=()=>{ const t=$('#clas_txt'); if(!t) return; t.textContent = tipo==='entrada' ? 'Entrada · não conta como essencial nem lazer' : $('#f_laz').checked ? 'Conta no lazer' : $('#f_ess').checked ? 'Essencial' : 'Sem classificação'; };
-  $('#f_ess').onchange=$('#f_laz').onchange=clasTxt;
+  const clasTxt=()=>{ const t=$('#clas_txt'); if(!t) return; t.textContent = $('#f_neu').checked ? 'Não é gasto' : tipo==='entrada' ? 'Entrada · não conta como essencial nem lazer' : $('#f_laz').checked ? 'Conta no lazer' : $('#f_ess').checked ? 'Essencial' : 'Sem classificação'; };
+  $('#f_ess').onchange=$('#f_laz').onchange=$('#f_neu').onchange=clasTxt;
   const cm=$('#clas_mudar'); if(cm) cm.onclick=()=>{ const d=$('details[data-det="lancar:mais"]'); if(d){ d.open=true; DET['lancar:mais']=1; save0('tf_det',DET); } cm.setAttribute('aria-expanded','true'); $('#f_ess').focus(); };
   const setTipo=t=>{ tipo=t; $$('#tipo button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.t===t)); };
-  const reset=()=>{ editId=null; $('#f_valor').value=''; $('#f_desc').value=''; $('#f_data').value=mesAtual+'-'+pad2(diaHoje); $('#f_ess').checked=false; $('#f_laz').checked=true; setTipo('saida'); setCat('Lazer'); $('#ftitle').textContent='Novo lançamento'; $('#f_ok').textContent='Salvar lançamento'; $('#f_cancel').style.display='none'; aplica(); };
+  const reset=()=>{ editId=null; $('#f_valor').value=''; $('#f_desc').value=''; $('#f_data').value=mesAtual+'-'+pad2(diaHoje); $('#f_ess').checked=false; $('#f_laz').checked=true; $('#f_neu').checked=false; setTipo('saida'); setCat('Lazer'); $('#ftitle').textContent='Novo lançamento'; $('#f_ok').textContent='Salvar lançamento'; $('#f_cancel').style.display='none'; aplica(); };
   $$('#freq .chip').forEach(b=>b.onclick=()=>{ const f=FREQ[+b.dataset.i]; reset(); $('#f_valor').value=f.valor; $('#f_desc').value=f.desc; setCat(f.cat); $('#f_forma').value=f.forma; sincForma(); $('#f_laz').checked=f.lazer; clasTxt(); $('#f_valor').focus(); });
   $$('#tipo button').forEach(b=>b.onclick=()=>{ setTipo(b.dataset.t); if(b.dataset.t==='entrada'){ $('#f_laz').checked=false; $('#f_ess').checked=false; $('#dica').innerHTML='<b>Entrada é dinheiro que chegou</b> (salário, repasse, extra). Não é essencial nem lazer.'; clasTxt(); } else aplica(); });
   $$('#f_cat .chip').forEach(b=>b.onclick=()=>{ setCat(b.dataset.c); aplica(); });
   $('#f_desc').oninput=()=>{ if(cat==='Comida') aplica(); };
   aplica();
   $('#f_ok').onclick=()=>{
-    const dados={tipo:tipo==='entrada'?'entrada':'gasto',valor:$('#f_valor').value,desc:$('#f_desc').value,cat,data:$('#f_data').value,forma:$('#f_forma').value,essencial:$('#f_ess').checked,lazer:$('#f_laz').checked};
+    const dados={tipo:tipo==='entrada'?'entrada':'gasto',valor:$('#f_valor').value,desc:$('#f_desc').value,cat,data:$('#f_data').value,forma:$('#f_forma').value,essencial:$('#f_ess').checked,lazer:$('#f_laz').checked,neutro:$('#f_neu').checked};
     const editando=editId!=null, r=editando?S.editar(editId,dados):S.lancar(dados);
     ['valor','data'].forEach(k=>{ const el=$('#f_'+k); if(el) el.setAttribute('aria-invalid',r.ok||!r.erros[k]?'false':'true'); });
     if(!r.ok){ $('#f_msg').innerHTML='<span class="tag ru" role="alert">'+IX+' '+esc(r.erros.valor||r.erros.data||r.erros.cat||r.erros.geral)+'</span>'; return; }
@@ -410,7 +412,7 @@ function bindLancar(){
   if(rapidoPendente){ $('#q_txt').value=rapidoPendente; rapidoPendente=''; rapido(); }
   $('#f_cancel').onclick=()=>{ reset(); $('#f_msg').textContent=''; drawLista(); };
   startEditFn=id=>{ const l=lanc.find(x=>String(x.id)===String(id)); if(!l) return; editId=l.id;
-    $('#f_valor').value=Math.abs(l.valor); $('#f_desc').value=l.desc; $('#f_data').value=l.data; $('#f_forma').value=l.forma; sincForma(); $('#f_ess').checked=l.essencial; $('#f_laz').checked=l.lazer;
+    $('#f_valor').value=Math.abs(l.valor); $('#f_desc').value=l.desc; $('#f_data').value=l.data; $('#f_forma').value=l.forma; sincForma(); $('#f_ess').checked=l.essencial; $('#f_laz').checked=l.lazer; $('#f_neu').checked=l.neutro===true;
     setTipo(l.valor<0?'entrada':'saida'); setCat(l.cat); $('#ftitle').textContent='Corrigir lançamento'; $('#f_ok').textContent='Salvar alteração'; $('#f_cancel').style.display=''; $('#f_msg').textContent='Corrija o que precisar e salve.'; aplica();
     window.scrollTo(0,0); drawLista(); };
   $('#busca').oninput=()=>drawLista();
@@ -421,6 +423,7 @@ function bindLancar(){
   $('#exp').onclick=()=>{ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['\ufeff'+S.exportarCSV()],{type:'text/csv'})); a.download='lancamentos_reais_'+mesAtual+'.csv'; a.click(); };
   drawLista();
 }
+const NEUTRO_TAG='<span class="tag ne">não é gasto</span>', NEUTRO_CAMPO='<div class="toggle bc-neu"><label><input type="checkbox" id="f_neu"> Não é gasto (transferência entre suas contas ou reserva)</label></div>';
 /* filtro por conta: só aparece quando o mês tem lançamento com conta */
 let contaFiltro='';
 function contaFiltroPinta(doM){
@@ -436,13 +439,13 @@ function contaFiltroPinta(doM){
   if(voltou) $('#flt_conta').focus();
 }
 function drawLista(){
-  const doM=lanc.filter(l=>l.data.startsWith(mesVer)), g=doM.filter(l=>l.lazer&&l.valor>0).reduce((s,l)=>s+l.valor,0), pct=g/DEMO.tetoLazer, cls=pct<=.75?'ok':pct<=1?'at':'ru';
+  const doM=lanc.filter(l=>l.data.startsWith(mesVer)), g=doM.filter(l=>l.lazer&&l.valor>0&&!l.neutro).reduce((s,l)=>s+l.valor,0), pct=g/DEMO.tetoLazer, cls=pct<=.75?'ok':pct<=1?'at':'ru';
   $('#mnome').textContent=mesTitulo(mesVer);
   if(!DEMO.tetoLazer) $('#lz_resumo').innerHTML=''; else $('#lz_resumo').innerHTML=`<div class="row"><span class="mu small">Lazer: ${brl(g)} de ${brl0(DEMO.tetoLazer)}</span><span class="tag ${cls}">${ST[cls][0]} ${pct>1?'passou '+brl0(g-DEMO.tetoLazer):brl0(DEMO.tetoLazer-g)+' restantes'}</span></div><div class="bar" style="--h:${COR[cls]}"><span style="width:${Math.min(pct,1)*100}%"></span></div>`;
   const q=(($('#busca')||{}).value||'').toLowerCase().trim();
   contaFiltroPinta(doM);
   const rows=[...doM].filter(l=>!q||(l.desc+' '+l.cat+' '+(l.forma||'')+' '+(l.contaNome||'')).toLowerCase().includes(q)).filter(l=>!contaFiltro||(contaFiltro==='__sem'?!l.contaId:l.contaId===contaFiltro)).sort((a,b)=>b.data.localeCompare(a.data));
-  $('#lista').innerHTML = rows.length ? `<table class="lt"><tr><th>Dia</th><th>O que</th><th class="n">Valor</th><th></th><th></th></tr>${rows.map(l=>`<tr style="${String(l.id)===String(editId)?'background:var(--p2)':''}"><td>${esc(l.data.slice(8))}</td><td>${esc(l.desc)}<div class="mu small">${esc(l.cat)}${l.lazer?' · lazer':''}${l.forma?' · '+esc(l.forma):''}${l.contaNome?' · '+esc(l.contaNome):''}</div></td><td class="n" style="color:${l.valor<0?'var(--ok)':'inherit'}">${l.valor<0?'+':''}${brl(Math.abs(l.valor))}</td><td class="b"><button class="x" data-ed="${l.id}" title="Corrigir" aria-label="Corrigir">${I.editar}</button></td><td class="b"><button class="x" data-id="${l.id}" title="Apagar" aria-label="Apagar">${I.apagar}</button></td></tr>`).join('')}</table>` : '<div class="mu">Nenhum lançamento neste mês.</div>'+(MOB()?'<button class="btn ghost" id="primeiro" style="margin-top:12px;width:100%">Lançar o primeiro gasto</button>':'');
+  $('#lista').innerHTML = rows.length ? `<table class="lt"><tr><th>Dia</th><th>O que</th><th class="n">Valor</th><th></th><th></th></tr>${rows.map(l=>`<tr style="${String(l.id)===String(editId)?'background:var(--p2)':''}"><td>${esc(l.data.slice(8))}</td><td>${esc(l.desc)}<div class="mu small">${esc(l.cat)}${l.lazer?' · lazer':''}${l.forma?' · '+esc(l.forma):''}${l.contaNome?' · '+esc(l.contaNome):''}</div>${l.neutro?NEUTRO_TAG:''}</td><td class="n" style="color:${l.valor<0?'var(--ok)':'inherit'}">${l.valor<0?'+':''}${brl(Math.abs(l.valor))}</td><td class="b"><button class="x" data-ed="${l.id}" title="Corrigir" aria-label="Corrigir">${I.editar}</button></td><td class="b"><button class="x" data-id="${l.id}" title="Apagar" aria-label="Apagar">${I.apagar}</button></td></tr>`).join('')}</table>` : '<div class="mu">Nenhum lançamento neste mês.</div>'+(MOB()?'<button class="btn ghost" id="primeiro" style="margin-top:12px;width:100%">Lançar o primeiro gasto</button>':'');
   const pr1=$('#primeiro'); if(pr1) pr1.onclick=()=>{ const v=$('#f_valor'); if(v.scrollIntoView) v.scrollIntoView({block:'center'}); v.focus(); };
   if(q||contaFiltro) $('#lista').insertAdjacentHTML('beforeend',`<div class="hint">${rows.length} resultado(s) · total ${brl(rows.reduce((s,l)=>s+Math.abs(l.valor),0))}</div>`);
   $$('#lista [data-ed]').forEach(b=>b.onclick=()=>startEditFn&&startEditFn(b.dataset.ed));
@@ -875,9 +878,9 @@ function diaDetalhe(i){
   $$('#main .strip .c').forEach(c=>c.classList.toggle('sel',+c.dataset.d===i));
   $$('#main .strip .l').forEach((l,k)=>l.classList.toggle('sel',k+1===i));
   diaSel=i;
-  const gs=gastosMes().filter(l=>+l.data.slice(8)===i), bs=DEMO.agenda.filter(a=>a.dia===i), el=$('#diadet'); if(!el) return;
+  const gs=doMes().filter(l=>l.valor>0&&+l.data.slice(8)===i), bs=DEMO.agenda.filter(a=>a.dia===i), el=$('#diadet'); if(!el) return;
   const nome=new Date(hoje.getFullYear(),hoje.getMonth(),i).toLocaleDateString('pt-BR',{day:'numeric',month:'long'});
-  const linhas=[...gs.map(l=>`<div class="row small"><span>${esc(l.desc)} <span class="mu">· ${esc(l.cat)}</span></span><span style="font-family:var(--fn)">${brl(l.valor)}</span></div>`),
+  const linhas=[...gs.map(l=>`<div class="row small"><span>${esc(l.desc)} <span class="mu">· ${esc(l.cat)}</span>${l.neutro?' '+NEUTRO_TAG:''}</span><span style="font-family:var(--fn)">${brl(l.valor)}</span></div>`),
     ...bs.map(a=>`<div class="row small"><span>${esc(a.nome)} <span class="tag ${isPago(a)?'ok':'ne'}">${isPago(a)?IOK+' pago':'vence'}</span></span><span style="font-family:var(--fn)">${brl(a.valor)}</span></div>`)];
   el.innerHTML=`<div class="dica" style="margin:0"><div class="row" style="margin-bottom:8px"><b>${nome}</b><button class="btn ghost" id="dd_l" style="padding:6px 12px;font-size:12.5px">Lançar neste dia</button></div>${linhas.length?linhas.join(''):'<span class="mu small">Nada lançado nem vencendo neste dia.</span>'}</div>`;
   $('#dd_l').onclick=()=>{ prefillData=mesAtual+'-'+pad2(i); ir('lancar'); };
@@ -1361,6 +1364,7 @@ async function bancoAtualizar(){
   if(!r.dados.movs.length){ bancoAviso('ok','Nenhum movimento encontrado nesse período.'); return; }
   bancoPrevia(r.dados);
 }
+const bancoVinTxt=it=>it.soNeutro?'Marcar como não é gasto':it.neutro?'Vincular conta e marcar como não é gasto':'Vincular conta';
 const bancoContas=()=>{ const r=load('tf_banco_contas',[]); return Array.isArray(r)?r:[]; };
 const bancoRenomes=()=>new Map(bancoContas().filter(c=>c.renome).map(c=>[c.id,c.renome]));
 function bancoNomesHtml(contas,prefixo){ return contas.map((c,i)=>`<div class="field"><label for="${prefixo}${i}">Nome de ${esc(c.padrao)}</label><input id="${prefixo}${i}" type="text" maxlength="60" autocomplete="off" data-n="${i}" value="${esc(c.renome||'')}"></div>`).join(''); }
@@ -1372,7 +1376,7 @@ function bancoPrevia(dados0){
   const sentido=it=>it.direcao==='entrada'?'entrada':'saída';
   const etiqueta=it=>[it.estado==='novo'?'':`<span class="tag ne">${it.estado==='sem_valor'?'sem valor':'já existe'}</span>`,it.vinculo==='ambiguo'?'<span class="tag ne">ambíguo</span>':'',it.vinculo==='feito'?'<span class="tag ne">conta vinculada</span>':''].join('');
   const marcaTxt=it=>it.marca==='fatura'?`<span class="tag ne">pagamento de fatura</span><span class="bc-razao">${esc(TFBanco.RAZOES.fatura)}</span>`:it.marca==='entre'?'<span class="tag ne">entre suas contas</span>':'';
-  const linha=(it,i)=>`<div class="bc-lin"><label class="bc-it"><input type="checkbox" data-i="${i}"${marcado(it)?' checked':''}${liga(it)?'':' disabled'}><span class="bc-tx"><b>${esc(it.desc)}</b><span class="mu small">${esc(it.data.split('-').reverse().join('/'))} · ${esc(it.contaNome)}${it.pendente?' · pendente':''}</span>${marcaTxt(it)}</span><span class="bc-val"><b>${brl(it.valor)}</b><span class="small">${sentido(it)}</span>${etiqueta(it)}</span></label>${it.vinculo==='sim'?`<label class="bc-vin"><input type="checkbox" data-v="${i}"${escolhaV.get(it.idExterno)===false?'':' checked'}><span>Vincular conta</span></label>`:''}</div>`;
+  const linha=(it,i)=>`<div class="bc-lin"><label class="bc-it"><input type="checkbox" data-i="${i}"${marcado(it)?' checked':''}${liga(it)?'':' disabled'}><span class="bc-tx"><b>${esc(it.desc)}</b><span class="mu small">${esc(it.data.split('-').reverse().join('/'))} · ${esc(it.contaNome)}${it.pendente?' · pendente':''}</span>${marcaTxt(it)}</span><span class="bc-val"><b>${brl(it.valor)}</b><span class="small">${sentido(it)}</span>${etiqueta(it)}</span></label>${it.vinculo==='sim'?`<label class="bc-vin"><input type="checkbox" data-v="${i}"${escolhaV.get(it.idExterno)===false?'':' checked'}><span>${bancoVinTxt(it)}</span></label>`:''}</div>`;
   const fundo=document.createElement('div'); fundo.className='conf';
   const contasNomes=dados.contas.map(c=>({id:c.id,padrao:padroes.get(c.id),renome:renomes.get(c.id)||''}));
   fundo.innerHTML=`<div class="confc bc-prev" role="dialog" aria-modal="true" aria-labelledby="bc_t" aria-describedby="bc_d"><h2 id="bc_t">Importar do banco</h2><p id="bc_d">Confira antes de salvar. Nada é gravado até você confirmar.</p>
@@ -1389,9 +1393,9 @@ function bancoPrevia(dados0){
     const rv=lig.length?S.vincularBanco(lig):{ok:true,n:0}; if(!rv.ok){ bancoAviso('ru',rv.erro); fecha(); return; }
     save0('tf_banco_ids',[...new Set(load('tf_banco_ids',[]).concat(sel.map(x=>x.idExterno),lig.map(x=>x.idExterno)))]); save0('tf_banco_inv',[...inv]);
     const reg=new Map(bancoContas().map(c=>[c.id,c])); dados.contas.forEach(c=>{ reg.set(c.id,{id:c.id,padrao:padroes.get(c.id),renome:renomes.get(c.id)||''}); }); save0('tf_banco_contas',[...reg.values()]);
-    fecha(); const p=[]; if(r.n||!rv.n) p.push(r.n===1?'1 lançamento importado.':r.n+' lançamentos importados.'); if(rv.n) p.push(rv.n===1?'1 lançamento vinculado à conta.':rv.n+' lançamentos vinculados à conta.'); bancoAviso('ok',p.join(' ')); };
-  const resumo=()=>{ const v=lista.filter(vincula).length, n=lista.filter(marcado).length, f2=document.createElement('div'); f2.className='conf';
-    f2.innerHTML=`<div class="confc" role="alertdialog" aria-modal="true" aria-labelledby="conf_t" aria-describedby="conf_d"><h2 id="conf_t">Confirmar</h2><p id="conf_d">Vai atualizar ${v===1?'1 lançamento existente':v+' lançamentos existentes'} só com a conta. Nada mais muda.${n?' E vai importar '+(n===1?'1 lançamento novo.':n+' lançamentos novos.'):''}</p><div class="confb"><button class="btn ghost" id="bc_vt" type="button">Cancelar</button><button class="btn" id="bc_sim" type="button">Confirmar</button></div></div>`;
+    fecha(); const p=[]; if(r.n||!rv.n) p.push(r.n===1?'1 lançamento importado.':r.n+' lançamentos importados.'); if(rv.n) p.push(rv.n===1?'1 lançamento vinculado à conta.':rv.n+' lançamentos vinculados à conta.'); if(rv.neutros) p.push(rv.neutros===1?'1 marcado como não é gasto.':rv.neutros+' marcados como não é gasto.'); bancoAviso('ok',p.join(' ')); };
+  const resumo=()=>{ const v=lista.filter(vincula).length, m=lista.filter(it=>vincula(it)&&it.neutro).length, n=lista.filter(marcado).length, f2=document.createElement('div'); f2.className='conf';
+    f2.innerHTML=`<div class="confc" role="alertdialog" aria-modal="true" aria-labelledby="conf_t" aria-describedby="conf_d"><h2 id="conf_t">Confirmar</h2><p id="conf_d">Vai atualizar ${v===1?'1 lançamento existente':v+' lançamentos existentes'} só com a conta.${m?' '+(m===1?'1 será marcado como não é gasto.':m+' serão marcados como não é gasto.'):''} Nada mais muda.${n?' E vai importar '+(n===1?'1 lançamento novo.':n+' lançamentos novos.'):''}</p><div class="confb"><button class="btn ghost" id="bc_vt" type="button">Cancelar</button><button class="btn" id="bc_sim" type="button">Confirmar</button></div></div>`;
     document.body.appendChild(f2); fundo.setAttribute('inert','');
     const nao=f2.querySelector('#bc_vt'), sim=f2.querySelector('#bc_sim'), sai=()=>{ f2.remove(); fundo.removeAttribute('inert'); q('#bc_ok').focus(); };
     nao.onclick=sai; sim.onclick=()=>{ f2.remove(); fundo.removeAttribute('inert'); salva(); };

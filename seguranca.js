@@ -115,6 +115,7 @@
     var o = { id: l.id, data: l.data, desc: corta(l.desc, LIM.desc), cat: CATS.indexOf(l.cat) >= 0 ? l.cat : 'Outros', valor: l.valor, forma: FORMAS.indexOf(l.forma) >= 0 ? l.forma : 'Pix', essencial: l.essencial === true, lazer: l.lazer === true };
     if (l.origem === 'pluggy' && typeof l.idExterno === 'string' && RE_EXT.test(l.idExterno) && !perigosa(l.idExterno)) { o.origem = 'pluggy'; o.idExterno = l.idExterno; }   // opcionais: quem não conhece só ignora
     if (typeof l.contaId === 'string' && RE_EXT.test(l.contaId) && !perigosa(l.contaId) && typeof l.contaNome === 'string' && l.contaNome.trim()) { o.contaId = l.contaId; o.contaNome = corta(l.contaNome, LIM.nome); }
+    if (l.neutro === true) o.neutro = true;
     return o;
   }
   function sanMeta(m) {

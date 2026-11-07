@@ -343,6 +343,107 @@ const L0 = (x) => ({ id: 41, data: '2026-11-02', desc: 'PADARIA  exemplo', cat: 
   t('versão anterior: lápide chega', Sync.juntar(velho, leTip(clone(apagou)))[k].d === true);
 }
 
+/* neutro: dinheiro que só mudou de lugar */
+const Real = require('./real.js');
+{
+  const mes = '2026-11', M = (id, dia, cat, valor, x) => ({ id, data: mes + '-' + String(dia).padStart(2, '0'), desc: 'Item ' + id, cat, valor, forma: 'Pix', essencial: false, lazer: false, ...(x || {}) });
+  const S = novo(); S.definirModo('real');
+  S.st.lanc.push(M(1, 2, 'Outros', 9100, { neutro: true }), M(2, 2, 'Mercado', 300), M(3, 3, 'Comida', 600), M(4, 4, 'Jogos', 80, { lazer: true }), M(5, 4, 'Jogos', 900, { lazer: true, neutro: true }), M(6, 5, 'Outros', -700, { neutro: true }));
+  t('neutro: fora dos gastos do mês', S.gastosMes(mes).length === 3 && S.gastosMes(mes).every(l => !l.neutro));
+  t('neutro: continua nos lançamentos do mês', S.doMes(mes).length === 6);
+  t('neutro: fora das categorias', JSON.stringify(S.porCategoria(mes)) === JSON.stringify({ Mercado: 300, Comida: 600 }));
+  t('neutro: fora do dia', S.porDia(mes)[2] === 300 && S.porDia(mes)[3] === 600);
+  t('neutro: fora do lazer', S.lazerGasto(mes) === 80);
+  t('neutro: busca continua achando', S.buscar(mes, 'item 1').length === 1);
+  t('neutro: exportação não muda de formato', S.exportarCSV().split('\n')[0] === 'data,descricao,categoria,valor,forma,essencial,mes,conta_no_lazer' && /Item 1/.test(S.exportarCSV()));
+  const Q = novo(); Q.definirModo('real');
+  const base = { tipo: 'gasto', valor: '10,00', desc: 'a', cat: 'Outros', data: '2026-11-02', forma: 'Pix' };
+  Q.lancar(base); Q.lancar({ ...base, neutro: true });
+  t('lançar: sem marca, sem campo', !('neutro' in Q.st.lanc[0]));
+  t('lançar: com marca', Q.st.lanc[1].neutro === true);
+  const id = Q.st.lanc[1].id;
+  Q.editar(id, { ...base, valor: '11,00' });
+  t('editar: sem dizer nada, mantém', Q.st.lanc[1].neutro === true && Q.st.lanc[1].valor === 11);
+  Q.editar(id, { ...base, neutro: false });
+  t('editar: desmarcar tira o campo', !('neutro' in Q.st.lanc[1]));
+  Q.editar(id, { ...base, neutro: true });
+  t('editar: marcar de novo', Q.st.lanc[1].neutro === true);
+  const l0 = { id: 7, data: '2026-11-02', desc: 'a', cat: 'Outros', valor: 1, forma: 'Débito', essencial: false, lazer: false };
+  t('limpeza mantém o campo', Seg.sanearEstado({ lanc: [{ ...l0, neutro: true }] }).estado.lanc[0].neutro === true);
+  ['sim', 1, {}, null, false].forEach(v => t('limpeza recusa neutro ' + JSON.stringify(v), !('neutro' in Seg.sanearEstado({ lanc: [{ ...l0, neutro: v }] }).estado.lanc[0])));
+  t('limparItens mantém o campo', Seg.limparItens({ 'lanc:7': { u: 1, d: false, v: { ...l0, neutro: true } } }).itens['lanc:7'].v.neutro === true);
+  const semMerc = [M(1, 2, 'Mercado', 500), M(2, 3, 'Outros', 10)], comMerc = semMerc.map(l => ({ ...l, neutro: true }));
+  t('previsão: média do mercado não muda', Real.mediaMercado(semMerc, '2026-12-20') === Real.mediaMercado(comMerc, '2026-12-20') && Real.mediaMercado(semMerc, '2026-12-20') > 0);
+}
+
+/* marcas viram neutro */
+{
+  const cts = [{ id: 'a', tipo: 'BANK', subtipo: null, nome: 'A', saldo: 1, item: null }, { id: 'b', tipo: 'BANK', subtipo: null, nome: 'B', saldo: 1, item: null }];
+  const M = (id, conta, data, valor, tipo, desc) => ({ id, conta, data, desc: desc || 'Movimento ' + id, valor, tipo, status: 'POSTED' });
+  const dados = ms => B.validarResposta({ ok: true, dados: { de: '2026-10-01', ate: '2026-11-05', contas: cts, movs: ms } }).dados;
+  const PAR = [M('s', 'a', '2026-11-02', -9100, 'DEBIT', 'Envio'), M('e', 'b', '2026-11-02', 9100, 'CREDIT', 'Chegada')];
+  const RES = M('r', 'a', '2026-11-03', -500, 'DEBIT', 'Guardar na caixinha'), FAT = M('f', 'a', '2026-11-04', -700, 'DEBIT', 'Pagamento de fatura'), PLN = M('p', 'a', '2026-11-05', -30, 'DEBIT', 'Padaria');
+  const p = B.montarPrevia(dados([...PAR, RES, FAT, PLN]), [], [], []);
+  t('marca: par é neutro', p[0].neutro && p[1].neutro);
+  t('marca: reserva é neutro', p[2].neutro);
+  t('marca: fatura não é neutro', p[3].marca === 'fatura' && !p[3].neutro);
+  t('marca: compra comum não é neutro', !p[4].neutro);
+  const S = novo(); S.definirModo('real'); S.importarBanco(p);
+  const ach = id => S.st.lanc.find(l => l.idExterno === id);
+  t('importar: marcados entram neutros', ach('s').neutro === true && ach('e').neutro === true && ach('r').neutro === true);
+  t('importar: fatura e compra sem o campo', !('neutro' in ach('f')) && !('neutro' in ach('p')));
+
+  const L1 = { id: 41, data: '2026-11-03', desc: 'guardar na caixinha', cat: 'Outros', valor: 500, forma: 'Pix', essencial: false, lazer: false };
+  const L2 = { id: 42, data: '2026-11-05', desc: 'padaria', cat: 'Comida', valor: 30, forma: 'Pix', essencial: true, lazer: false };
+  const Z = novo(); Z.definirModo('real'); Z.st.lanc.push({ ...L1 }, { ...L2 });
+  const it0 = Sync.atualizar({ ...Z.paraSync(), real: undefined }, {}, 1000);
+  const a1 = JSON.stringify(Z.st.lanc[0]), a2 = JSON.stringify(Z.st.lanc[1]);
+  const pv = B.montarPrevia(dados([RES, PLN]), Z.st.lanc, [], []), r = Z.vincularBanco(pv.filter(x => x.vinculo === 'sim'));
+  const v1 = Z.st.lanc[0], v2 = Z.st.lanc[1];
+  t('vincular: conta os dois e um neutro', r.n === 2 && r.neutros === 1);
+  t('vincular: neutro só no marcado', v1.neutro === true && !('neutro' in v2));
+  ['id', 'data', 'desc', 'cat', 'valor', 'forma', 'essencial', 'lazer'].forEach(k => t('vincular: neutro não muda ' + k, JSON.stringify(v1[k]) === JSON.stringify(JSON.parse(a1)[k])));
+  const so = {}; Object.keys(v1).filter(k => !['contaId', 'contaNome', 'origem', 'idExterno', 'neutro'].includes(k)).forEach(k => { so[k] = v1[k]; });
+  t('vincular: o resto fica idêntico byte a byte', JSON.stringify(so) === a1);
+  const so2 = {}; Object.keys(v2).filter(k => !['contaId', 'contaNome', 'origem', 'idExterno'].includes(k)).forEach(k => { so2[k] = v2[k]; });
+  t('vincular: o não marcado só ganha a conta', JSON.stringify(so2) === a2);
+  const it1 = Sync.atualizar({ ...Z.paraSync(), real: undefined }, it0, 2000);
+  t('hora: o item ganha hora nova', it1['lanc:41'].u === 2000);
+  const s1 = JSON.stringify(Z.st.lanc), pv2 = B.montarPrevia(dados([RES, PLN]), Z.st.lanc, [], []);
+  t('segunda rodada: nada a fazer', pv2.every(x => x.vinculo === 'feito'));
+  t('segunda rodada: a loja não muda', Z.vincularBanco(pv).n === 0 && JSON.stringify(Z.st.lanc) === s1);
+
+  /* já ligado por uma versão anterior: só ganha a marca */
+  const X = novo(); X.definirModo('real'); X.st.lanc.push({ ...L1, origem: 'pluggy', idExterno: 'r', contaId: 'a', contaNome: 'A · conta' });
+  const c0 = JSON.stringify(X.st.lanc[0]), pv3 = B.montarPrevia(dados([RES]), X.st.lanc, [], []);
+  t('já ligado: oferece só a marca', pv3[0].vinculo === 'sim' && pv3[0].soNeutro === true && pv3[0].alvo === 41);
+  const r3 = X.vincularBanco(pv3), v3 = X.st.lanc[0], { neutro, ...resto } = v3;
+  t('já ligado: muda só o neutro', r3.n === 1 && r3.neutros === 1 && neutro === true && JSON.stringify(resto) === c0);
+  t('já ligado: sem marca, não mexe', B.montarPrevia(dados([PLN]), [{ ...L2, origem: 'pluggy', idExterno: 'p', contaId: 'a', contaNome: 'A' }], [], [])[0].vinculo === 'feito');
+  t('outra conta: não mexe', B.montarPrevia(dados([RES]), [{ ...L1, contaId: 'zz', contaNome: 'Z' }], [], [])[0].vinculo === null);
+  const W = novo(); W.definirModo('real'); W.st.lanc.push({ ...L1, contaId: 'zz', contaNome: 'Z' });
+  t('outra conta: a loja recusa', W.vincularBanco([{ alvo: 41, contaId: 'a', contaNome: 'A', neutro: true, idExterno: 'r' }]).n === 0 && !W.st.lanc[0].neutro);
+  const am = B.montarPrevia(dados([RES]), [L1, { ...L1, id: 43 }], [], []);
+  t('ambíguo: pula e não marca', am[0].vinculo === 'ambiguo' && am[0].alvo === null);
+  const am2 = B.montarPrevia(dados([RES]), [{ ...L1, origem: 'pluggy', idExterno: 'r', contaId: 'a', contaNome: 'A' }, { ...L1, id: 43, origem: 'pluggy', idExterno: 'r', contaId: 'a', contaNome: 'A' }], [], []);
+  t('ambíguo por id: pula', am2[0].vinculo === 'ambiguo' && !am2[0].soNeutro);
+  t('prévia: duas vezes igual', JSON.stringify(B.montarPrevia(dados([...PAR, RES]), [L1], [], [])) === JSON.stringify(B.montarPrevia(dados([...PAR, RES]), [L1], [], [])));
+}
+
+/* aparelho na versão anterior: cópia congelada, sem neutro */
+{
+  const sanTip = l => { const o = sanAntigo(l); if (l.origem === 'pluggy' && l.idExterno) { o.origem = l.origem; o.idExterno = l.idExterno; } if (l.contaId && l.contaNome) { o.contaId = l.contaId; o.contaNome = l.contaNome; } return o; };
+  const leTip = itens => { const o = {}; Object.keys(itens).forEach(k => { const it = itens[k]; o[k] = !it.d && k.startsWith('lanc:') ? { u: it.u, d: false, v: sanTip(it.v) } : clone(it); }); return o; };
+  const v = { id: 7, data: '2026-11-02', desc: 'Reserva', cat: 'Outros', valor: 9100, forma: 'Débito', essencial: false, lazer: false, origem: 'pluggy', idExterno: 'r', contaId: 'a', contaNome: 'A', neutro: true };
+  const dono = Sync.atualizar({ lanc: [v], pagos: {}, tetos: {}, metas: [], taxa: 0.8 }, {}, 1000);
+  const velho0 = Sync.juntar({}, leTip(clone(dono))), stV = Sync.montar(velho0);
+  t('versão anterior: recebe o lançamento e tira neutro', stV.lanc.length === 1 && !('neutro' in stV.lanc[0]) && stV.lanc[0].contaId === 'a');
+  stV.lanc.push({ id: 8, data: '2026-11-03', desc: 'x', cat: 'Outros', valor: 1, forma: 'Pix', essencial: false, lazer: false });
+  const velho = Sync.atualizar(stV, velho0, 2000), n = Sync.montar(Sync.juntar(dono, Seg.limparItens(clone(velho)).itens));
+  t('versão anterior: ao escrever, neutro se perde no empate de hora', n.lanc.find(l => l.id === 7).valor === 9100 && !n.lanc.find(l => l.id === 7).neutro);
+  t('versão anterior: e o item volta a contar como gasto', (() => { const S = novo(); S.definirModo('real'); S.st.lanc = n.lanc; return S.gastosMes('2026-11').some(l => l.id === 7); })());
+}
+
 /* conversa com a ponte: fetch simulado */
 (async () => {
   const resp = (corpo, o) => ({ ok: !o || o.ok !== false, text: async () => corpo });
