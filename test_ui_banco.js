@@ -516,5 +516,27 @@ const foto = A => JSON.stringify(['tf_lanc3', 'tf_banco_ids', 'tf_banco_inv', 't
     const v2 = D5.d.querySelector('[data-d]'); v2.checked = true; v2.dispatchEvent(new D5.w.Event('change', { bubbles: true })); marca(D5, 0, true); await tick(5);
     t('duplicado: marcar para importar tira do vínculo', !/para vincular/.test(D5.$('#bc_cont').textContent));
   }
+  /* pluggy-4: pagamento de fatura, os dois lados */
+  {
+    const FA = { id: 'fa', conta: 'c1', data: mes + '-03', desc: 'Pagamento de fatura', valor: -500, tipo: 'DEBIT', status: 'POSTED' };
+    const FK = { id: 'fk', conta: 'c2', data: mes + '-03', desc: 'PAGAMÉNTO Recebido', valor: 500, tipo: 'CREDIT', status: 'POSTED' };
+    const BK = { id: 'bk', conta: 'c1', data: mes + '-04', desc: 'Pagamento recebido', valor: 80, tipo: 'CREDIT', status: 'POSTED' };
+    const lin = (A, d) => linhas(A).find(l => l.textContent.toLowerCase().includes(d));
+    const cx = (A, d) => lin(A, d).querySelector('input[data-i]');
+    const liga = (A, d) => { const c = cx(A, d); c.checked = true; c.dispatchEvent(new A.w.Event('change', { bubbles: true })); };
+    const A = await abreCom(RESP([FA, FK, BK])); await atualiza(A);
+    t('fatura: conta com etiqueta e caixa desligada', /pagamento de fatura/.test(lin(A, 'pagamento de fatura').textContent) && !cx(A, 'pagamento de fatura').checked);
+    t('fatura: cartão com não é gasto e caixa desligada', /não é gasto/.test(lin(A, 'pagaménto').textContent) && !/entre suas contas/.test(lin(A, 'pagaménto').textContent) && !cx(A, 'pagaménto').checked);
+    t('fatura: entrada em conta comum sem etiqueta', !/não é gasto|entre suas contas|possível duplicado/.test(lin(A, 'pagamento recebido').textContent) && cx(A, 'pagamento recebido').checked);
+    const g0 = A.w.eval("JSON.stringify(S.gastosMes('" + mes + "'))");
+    A.click('#bc_ok'); await tick(10);
+    t('fatura: caixas desligadas ficam fora', !A.w.eval('S.st.lanc').some(l => l.idExterno === 'fa' || l.idExterno === 'fk') && A.w.eval("JSON.stringify(S.gastosMes('" + mes + "'))") === g0);
+    const B2 = await abreCom(RESP([FA, FK])); await atualiza(B2);
+    liga(B2, 'pagamento de fatura'); liga(B2, 'pagaménto'); await tick(5);
+    B2.click('#bc_ok'); await tick(10);
+    const ls = B2.w.eval('S.st.lanc'), f = id => ls.find(l => l.idExterno === id);
+    t('fatura: os dois lados entram como não é gasto', f('fa') && f('fk') && f('fa').neutro === true && f('fk').neutro === true);
+    t('fatura: nenhum dos dois conta como gasto', !B2.w.eval("S.gastosMes('" + mes + "')").some(l => l.idExterno === 'fa' || l.idExterno === 'fk'));
+  }
   process.exit(fim());
 })().catch(e => { console.log('ERRO NO TESTE:', e); process.exit(2); });

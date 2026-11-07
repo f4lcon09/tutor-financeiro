@@ -101,9 +101,10 @@
     fatura: [/\bpagamento (de |da |do )?fatura\b/, /\bpag(t|to)? (de |da |do )?fatura\b/, /\bfatura (do |de )?cartao\b/, /\bpagamento (do |de )?cartao( de credito)?\b(?! debito)/, /\bpgto (do |de )?cartao\b/],
     reserva: [/\b(caixinha|cofrinho)\b/, /\bresgate\b/, /\baplicacao (rdb|cdb|automatica|financeira|em (rdb|cdb|reserva|poupanca))\b/, /\bguardar\b/, /\bguardad[oa]\b/, /\breserva de emergencia\b/, /\b(transferencia|transf) (para|pra|da|de|entre) .*\b(poupanca|reserva|cofre)\b/, /\bentre contas\b/, /\b(deposito|retirada) (em|na|no|da|do) (cofre|reserva|poupanca)\b/, /^dinheiro reservado\b/, /^dinheiro retirado\b/],
     transferencia: [/\bpix (recebido|enviado)\b/, /\b(transferencia|transf) (recebida|enviada)\b/, /\bted\b/, /\bdoc\b/],
-    compra: [/^pagamento com\b/, /\bcompra (no |na |em |de |com )?(debito|credito)\b/]
+    compra: [/^pagamento com\b/, /\bcompra (no |na |em |de |com )?(debito|credito)\b/],
+    cartaoFatura: [/\bpagamento recebido\b/, /\bpagamento (de |da |do )?fatura\b/]   // só em conta de cartão (CREDIT). Texto real do cartão: A Confirmar
   };
-  var RAZOES = { fatura: 'As compras já entram pelo cartão. Importar isto contaria o mesmo gasto duas vezes.' };
+  var RAZOES = { fatura: 'As compras já entram pelo cartão. Se importar, entra como não é gasto, para não contar duas vezes.', cartao: 'Pagamento da fatura só move dinheiro da conta para o cartão. Se importar, entra como não é gasto.' };
   var combina = function (lista, desc) { var d = normalizar(desc); return lista.some(function (r) { return r.test(d); }); };
 
   /* nomes das contas: nome + tipo; se dois baterem, entra o subtipo; se ainda baterem, um número. O nome dado pelo dono vale sobre tudo. */
@@ -170,7 +171,8 @@
         else if (!l.idExterno || l.idExterno === m.id) { it.vinculo = 'sim'; it.alvo = l.id; }
       }
       if (it.estado !== 'sem_valor') {
-        if (c.tipo !== 'CREDIT' && combina(PADROES.fatura, it.desc)) it.marca = 'fatura';
+        if (c.tipo === 'CREDIT' && combina(PADROES.cartaoFatura, it.desc)) it.marca = 'cartao';
+        else if (c.tipo !== 'CREDIT' && combina(PADROES.fatura, it.desc)) it.marca = 'fatura';
         else if (combina(PADROES.reserva, it.desc)) it.marca = 'entre';
       }
       return it;
@@ -179,7 +181,7 @@
     /* entre contas e reserva não são gasto; quem já tem a conta só ganha essa marca */
     lista.forEach(function (it) {
       if (it.marca || it.possivel) it.marcado = false;
-      it.neutro = it.marca === 'entre';
+      it.neutro = it.marca === 'entre' || ((it.marca === 'fatura' || it.marca === 'cartao') && it.vinculo == null);   // fatura: neutro só ao importar como novo; vínculos e lançamentos já salvos não mudam
       var l = feitos.get(it);
       if (l && it.neutro && !l.neutro) { it.vinculo = 'sim'; it.alvo = l.id; it.soNeutro = true; }
       var dest = it.alvo != null ? it.alvo : it.possivel && it.possivel.alvo;

@@ -296,9 +296,16 @@ const L0 = (x) => ({ id: 41, data: '2026-11-02', desc: 'PADARIA  exemplo', cat: 
   const f1 = (d, c) => pv([M('x', c || 'a', '2026-11-02', -50, 'DEBIT', d)])[0];
   ['Pagamento de fatura', 'PAGAMENTO FATURA', 'Pag fatura', 'Pagto da fatura', 'Pgto cartão', 'Fatura do cartão', 'Pagamento cartão de crédito', 'Pagamento do cartão'].forEach(d => t('fatura: ' + d, f1(d).marca === 'fatura' && f1(d).marcado === false));
   ['Compra no cartão', 'Loja Fatura Certa', 'Pagamento de boleto', 'Pagamento Exemplo', 'Pagamento cartão débito mercado', 'Cartão de visita', 'Capa para cartão de crédito'].forEach(d => t('não é fatura: ' + d, f1(d).marca !== 'fatura' && f1(d).marcado === true));
-  t('fatura: em conta de cartão não marca', f1('Pagamento de fatura', 'c').marca !== 'fatura' && f1('Pagamento de fatura', 'c').marcado === true);
+  t('fatura: em conta de cartão vira não é gasto, não fatura', f1('Pagamento de fatura', 'c').marca === 'cartao' && f1('Pagamento de fatura', 'c').marcado === false);
   const pf = pv([M('s', 'a', '2026-11-02', -700, 'DEBIT', 'Pagamento de fatura'), M('e', 'c', '2026-11-02', 700, 'CREDIT', 'Pagamento recebido')]);
-  t('fatura: conta fica como fatura, sem par com o cartão', pf.find(x => x.idExterno === 's').marca === 'fatura' && !pf.find(x => x.idExterno === 'e').marca);
+  t('fatura: conta fica como fatura, cartão como não é gasto, sem par', pf.find(x => x.idExterno === 's').marca === 'fatura' && pf.find(x => x.idExterno === 'e').marca === 'cartao' && pf.every(x => x.marca !== 'entre' && x.marcado === false));
+  const k1 = (d, c, v) => { const val = v == null ? 700 : v; return pv([M('x', c || 'c', '2026-11-02', val, val < 0 ? 'DEBIT' : 'CREDIT', d)])[0]; };
+  ['Pagamento recebido', 'PAGAMENTO RECEBIDO', 'Pagamento recebido - obrigado', 'Pagaménto recebído', 'Pagamento de fatura', 'PAGAMENTO DE FATURA', 'Pagamento da fatura', 'Pagamento de fatúra'].forEach(d => t('cartão: ' + d, k1(d).marca === 'cartao' && k1(d).marcado === false && k1(d).neutro === true));
+  t('cartão: vale também com valor negativo', k1('Pagamento recebido', 'c', -700).marca === 'cartao' && k1('Pagamento recebido', 'c', -700).neutro === true);
+  ['Pagamento recebido', 'PAGAMENTO RECEBIDO', 'Pagaménto recebído'].forEach(d => t('conta comum: não marca ' + d, !k1(d, 'a').marca && k1(d, 'a').marcado === true && k1(d, 'a').neutro === false));
+  ['Compra Exemplo', 'Estorno Exemplo', 'Pagamento Exemplo', 'Pix recebido', 'Pagamento'].forEach(d => t('cartão: não marca ' + d, k1(d).marca !== 'cartao' && k1(d).neutro === false));
+  t('cartão: padrões em um só lugar', Array.isArray(B.PADROES.cartaoFatura) && B.PADROES.cartaoFatura.length === 2);
+  t('cartão: razão em uma linha', /não é gasto/.test(B.RAZOES.cartao) && !B.RAZOES.cartao.includes('\n') && /não é gasto/.test(B.RAZOES.fatura));
   t('fatura: tem a razão em uma linha', /duas vezes/.test(B.RAZOES.fatura) && !B.RAZOES.fatura.includes('\n'));
   const fonte = fs.readFileSync('banco.js', 'utf8');
   t('padrões numa constante só', (fonte.match(/var PADROES = /g) || []).length === 1 && (fonte.match(/\/\\b/g) || []).length > 5);
@@ -376,6 +383,35 @@ const Real = require('./real.js');
   t('previsão: média do mercado não muda', Real.mediaMercado(semMerc, '2026-12-20') === Real.mediaMercado(comMerc, '2026-12-20') && Real.mediaMercado(semMerc, '2026-12-20') > 0);
 }
 
+/* pagamento de fatura: os dois lados nunca contam */
+{
+  const cts = [{ id: 'a', tipo: 'BANK', subtipo: null, nome: 'A', saldo: 1, item: null }, { id: 'k', tipo: 'CREDIT', subtipo: null, nome: 'K', saldo: 1, item: null }];
+  const M = (id, conta, data, valor, tipo, desc) => ({ id, conta, data, desc, valor, tipo, status: 'POSTED' });
+  const dados = ms => B.validarResposta({ ok: true, dados: { de: '2026-10-01', ate: '2026-11-05', contas: cts, movs: ms } }).dados;
+  const FA = M('fa', 'a', '2026-11-04', -700, 'DEBIT', 'Pagamento de fatura'), FK = M('fk', 'k', '2026-11-04', 700, 'CREDIT', 'Pagamento recebido'), BK = M('bk', 'a', '2026-11-04', 80, 'CREDIT', 'Pagamento recebido');
+  const p = B.montarPrevia(dados([FA, FK, BK]), [], [], []), q = id => p.find(x => x.idExterno === id);
+  t('fatura dos dois lados: conta fatura, cartão não é gasto', q('fa').marca === 'fatura' && q('fk').marca === 'cartao');
+  t('fatura dos dois lados: caixas desligadas', q('fa').marcado === false && q('fk').marcado === false);
+  t('fatura dos dois lados: sem par', p.every(x => x.marca !== 'entre'));
+  t('fatura dos dois lados: entrada em conta comum intacta', !q('bk').marca && q('bk').marcado === true && q('bk').neutro === false);
+  const L1 = { id: 51, data: '2026-11-02', desc: 'padaria exemplo', cat: 'Comida', valor: 30, forma: 'Pix', essencial: true, lazer: false };
+  const S = novo(); S.definirModo('real'); S.st.lanc.push({ ...L1 });
+  const antes = JSON.stringify(S.st.lanc), g0 = JSON.stringify(S.gastosMes('2026-11'));
+  S.importarBanco(p.filter(x => x.marcado));
+  t('caixa desligada: os dois lados ficam fora', !S.st.lanc.some(l => l.idExterno === 'fa' || l.idExterno === 'fk'));
+  t('caixa desligada: gastos do mês iguais', JSON.stringify(S.gastosMes('2026-11')) === g0);
+  const Z = novo(); Z.definirModo('real'); Z.st.lanc.push({ ...L1 });
+  Z.importarBanco([q('fa'), q('fk'), q('bk')]);
+  const ach = id => Z.st.lanc.find(l => l.idExterno === id);
+  t('importar marcando: os dois lados entram neutros', ach('fa').neutro === true && ach('fk').neutro === true);
+  t('importar marcando: entrada em conta comum sem o campo', !('neutro' in ach('bk')));
+  t('importar marcando: nenhum dos dois conta como gasto', !Z.gastosMes('2026-11').some(l => l.idExterno === 'fa' || l.idExterno === 'fk'));
+  t('importar marcando: lançamento antigo idêntico', JSON.stringify(Z.st.lanc.filter(l => l.id === 51)) === antes);
+  const LF = { id: 52, data: '2026-11-04', desc: 'pagamento de fatura', cat: 'Outros', valor: 700, forma: 'Pix', essencial: false, lazer: false };
+  const pl = B.montarPrevia(dados([FA]), [LF], [], [])[0];
+  t('vínculo de fatura já lançada: não muda neutro', pl.vinculo === 'sim' && pl.neutro === false);
+}
+
 /* marcas viram neutro */
 {
   const cts = [{ id: 'a', tipo: 'BANK', subtipo: null, nome: 'A', saldo: 1, item: null }, { id: 'b', tipo: 'BANK', subtipo: null, nome: 'B', saldo: 1, item: null }];
@@ -386,12 +422,12 @@ const Real = require('./real.js');
   const p = B.montarPrevia(dados([...PAR, RES, FAT, PLN]), [], [], []);
   t('marca: par é neutro', p[0].neutro && p[1].neutro);
   t('marca: reserva é neutro', p[2].neutro);
-  t('marca: fatura não é neutro', p[3].marca === 'fatura' && !p[3].neutro);
+  t('marca: fatura nova entra neutra', p[3].marca === 'fatura' && p[3].neutro === true);
   t('marca: compra comum não é neutro', !p[4].neutro);
   const S = novo(); S.definirModo('real'); S.importarBanco(p);
   const ach = id => S.st.lanc.find(l => l.idExterno === id);
   t('importar: marcados entram neutros', ach('s').neutro === true && ach('e').neutro === true && ach('r').neutro === true);
-  t('importar: fatura e compra sem o campo', !('neutro' in ach('f')) && !('neutro' in ach('p')));
+  t('importar: fatura neutra, compra sem o campo', ach('f').neutro === true && !('neutro' in ach('p')));
 
   const L1 = { id: 41, data: '2026-11-03', desc: 'guardar na caixinha', cat: 'Outros', valor: 500, forma: 'Pix', essencial: false, lazer: false };
   const L2 = { id: 42, data: '2026-11-05', desc: 'padaria', cat: 'Comida', valor: 30, forma: 'Pix', essencial: true, lazer: false };
