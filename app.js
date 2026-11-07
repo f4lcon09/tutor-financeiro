@@ -1369,32 +1369,36 @@ const bancoContas=()=>{ const r=load('tf_banco_contas',[]); return Array.isArray
 const bancoRenomes=()=>new Map(bancoContas().filter(c=>c.renome).map(c=>[c.id,c.renome]));
 function bancoNomesHtml(contas,prefixo){ return contas.map((c,i)=>`<div class="field"><label for="${prefixo}${i}">Nome de ${esc(c.padrao)}</label><input id="${prefixo}${i}" type="text" maxlength="60" autocomplete="off" data-n="${i}" value="${esc(c.renome||'')}"></div>`).join(''); }
 function bancoPrevia(dados0){
-  let dados=dados0, lista=[]; const volta=$('#bc_atu'), inv=new Set(load('tf_banco_inv',[])), escolha=new Map(), escolhaV=new Map(), renomes=bancoRenomes(), fora=[...document.querySelectorAll('nav,.col')];
+  let dados=dados0, lista=[]; const volta=$('#bc_atu'), inv=new Set(load('tf_banco_inv',[])), escolha=new Map(), escolhaV=new Map(), escolhaD=new Map(), renomes=bancoRenomes(), fora=[...document.querySelectorAll('nav,.col')];
   const padroes=TFBanco.rotulos(dados.contas);
   const liga=it=>it.estado==='novo'||it.estado==='existe', marcado=it=>liga(it)&&(escolha.has(it.idExterno)?escolha.get(it.idExterno):it.marcado);
   const vincula=it=>it.vinculo==='sim'&&!marcado(it)&&(escolhaV.has(it.idExterno)?escolhaV.get(it.idExterno):true);
+  const juntaDup=it=>!!it.possivel&&it.possivel.alvo!=null&&!marcado(it)&&escolhaD.get(it.idExterno)===true;
+  const ligs=()=>lista.filter(vincula).concat(lista.filter(juntaDup).map(it=>({...it,alvo:it.possivel.alvo,neutro:false})));
   const sentido=it=>it.direcao==='entrada'?'entrada':'saída';
-  const etiqueta=it=>[it.estado==='novo'?'':`<span class="tag ne">${it.estado==='sem_valor'?'sem valor':'já existe'}</span>`,it.vinculo==='ambiguo'?'<span class="tag ne">ambíguo</span>':'',it.vinculo==='feito'?'<span class="tag ne">conta vinculada</span>':''].join('');
+  const etiqueta=it=>[it.estado==='novo'?'':`<span class="tag ne">${it.estado==='sem_valor'?'sem valor':'já existe'}</span>`,it.vinculo==='ambiguo'?'<span class="tag ne">ambíguo</span>':'',it.vinculo==='feito'?'<span class="tag ne">conta vinculada</span>':'',it.possivel&&it.possivel.ambiguo?'<span class="tag ne">ambíguo</span>':''].join('');
+  const dupTxt=it=>it.possivel?`<span class="tag ne">possível duplicado</span>${it.possivel.alvo!=null?`<span class="bc-razao">Já existe: ${esc(it.possivel.desc)}</span>`:'<span class="bc-razao">Mais de um lançamento combina.</span>'}`:'';
   const marcaTxt=it=>it.marca==='fatura'?`<span class="tag ne">pagamento de fatura</span><span class="bc-razao">${esc(TFBanco.RAZOES.fatura)}</span>`:it.marca==='entre'?'<span class="tag ne">entre suas contas</span>':'';
-  const linha=(it,i)=>`<div class="bc-lin"><label class="bc-it"><input type="checkbox" data-i="${i}"${marcado(it)?' checked':''}${liga(it)?'':' disabled'}><span class="bc-tx"><b>${esc(it.desc)}</b><span class="mu small">${esc(it.data.split('-').reverse().join('/'))} · ${esc(it.contaNome)}${it.pendente?' · pendente':''}</span>${marcaTxt(it)}</span><span class="bc-val"><b>${brl(it.valor)}</b><span class="small">${sentido(it)}</span>${etiqueta(it)}</span></label>${it.vinculo==='sim'?`<label class="bc-vin"><input type="checkbox" data-v="${i}"${escolhaV.get(it.idExterno)===false?'':' checked'}><span>${bancoVinTxt(it)}</span></label>`:''}</div>`;
+  const linha=(it,i)=>`<div class="bc-lin"><label class="bc-it"><input type="checkbox" data-i="${i}"${marcado(it)?' checked':''}${liga(it)?'':' disabled'}><span class="bc-tx"><b>${esc(it.desc)}</b><span class="mu small">${esc(it.data.split('-').reverse().join('/'))} · ${esc(it.contaNome)}${it.pendente?' · pendente':''}</span>${marcaTxt(it)}${dupTxt(it)}</span><span class="bc-val"><b>${brl(it.valor)}</b><span class="small">${sentido(it)}</span>${etiqueta(it)}</span></label>${it.vinculo==='sim'?`<label class="bc-vin"><input type="checkbox" data-v="${i}"${escolhaV.get(it.idExterno)===false?'':' checked'}><span>${bancoVinTxt(it)}</span></label>`:''}${it.possivel&&it.possivel.alvo!=null?`<label class="bc-vin"><input type="checkbox" data-d="${i}"${escolhaD.get(it.idExterno)===true?' checked':''}><span>Vincular a este lançamento</span></label>`:''}</div>`;
   const fundo=document.createElement('div'); fundo.className='conf';
   const contasNomes=dados.contas.map(c=>({id:c.id,padrao:padroes.get(c.id),renome:renomes.get(c.id)||''}));
-  fundo.innerHTML=`<div class="confc bc-prev" role="dialog" aria-modal="true" aria-labelledby="bc_t" aria-describedby="bc_d"><h2 id="bc_t">Importar do banco</h2><p id="bc_d">Confira antes de salvar. Nada é gravado até você confirmar.</p>
+  fundo.innerHTML=`<div class="confc bc-prev" role="dialog" aria-modal="true" aria-labelledby="bc_t" aria-describedby="bc_d"><h2 id="bc_t">Importar do banco</h2><p id="bc_d">Confira antes de salvar. Nada é gravado até você confirmar.</p><div class="bc-res" id="bc_res" role="status"></div>
     <div id="bc_contas"></div>
     <div class="bc-cont" id="bc_cont" role="status"></div><div class="bc-lista" id="bc_lista" role="group" aria-label="Movimentos encontrados"></div>
     <details class="bc-nomes"><summary>Renomear contas</summary><div id="bc_nomes">${bancoNomesHtml(contasNomes,'bc_nm')}</div></details>
     <div class="confb"><button class="btn ghost" id="bc_cancel" type="button">Cancelar</button><button class="btn" id="bc_ok" type="button">Importar selecionados</button></div></div>`;
   const q=s=>fundo.querySelector(s);
-  const conta=()=>{ const n=lista.filter(marcado).length, v=lista.filter(vincula).length; q('#bc_cont').textContent=n+' de '+lista.length+' selecionados'+(v?' · '+v+' para vincular':''); q('#bc_ok').disabled=!n&&!v; };
+  const resumoTopo=()=>{ const l=ligs(), N=l.length, M=l.filter(x=>x.neutro).length, K=lista.filter(x=>x.possivel).length; return (N===1?'1 lançamento será atualizado':N+' lançamentos serão atualizados')+', '+(M===1?'1 marcado':M+' marcados')+' como não é gasto, '+(K===1?'1 possível duplicado':K+' possíveis duplicados')+'.'; };
+  const conta=()=>{ const n=lista.filter(marcado).length, v=ligs().length; q('#bc_cont').textContent=n+' de '+lista.length+' selecionados'+(v?' · '+v+' para vincular':''); q('#bc_res').textContent=resumoTopo(); q('#bc_ok').disabled=!n&&!v; };
   const pinta=()=>{ const rot=TFBanco.rotulos(dados.contas,renomes); q('#bc_contas').innerHTML=dados.contas.map((c,i)=>`<label class="bc-inv"><input type="checkbox" data-c="${i}"${inv.has(c.id)?' checked':''}><span>Inverter sinal de ${esc(rot.get(c.id))}</span></label>`).join(''); lista=TFBanco.montarPrevia(dados,S.st.lanc,load('tf_banco_ids',[]),[...inv],renomes); q('#bc_lista').innerHTML=lista.map(linha).join(''); conta(); };
-  const fecha=()=>{ dados=null; lista=[]; escolha.clear(); escolhaV.clear(); fundo.remove(); fora.forEach(e=>e.removeAttribute('inert')); if(volta.isConnected) volta.focus(); };   // a resposta não fica guardada depois de fechar
-  const salva=()=>{ const sel=lista.filter(marcado), lig=lista.filter(vincula), rot=TFBanco.rotulos(dados.contas,renomes);
+  const fecha=()=>{ dados=null; lista=[]; escolha.clear(); escolhaV.clear(); escolhaD.clear(); fundo.remove(); fora.forEach(e=>e.removeAttribute('inert')); if(volta.isConnected) volta.focus(); };   // a resposta não fica guardada depois de fechar
+  const salva=()=>{ const sel=lista.filter(marcado), lig=ligs(), rot=TFBanco.rotulos(dados.contas,renomes);
     const r=sel.length?S.importarBanco(sel):{ok:true,n:0}; if(!r.ok){ bancoAviso('ru',r.erro); fecha(); return; }
     const rv=lig.length?S.vincularBanco(lig):{ok:true,n:0}; if(!rv.ok){ bancoAviso('ru',rv.erro); fecha(); return; }
     save0('tf_banco_ids',[...new Set(load('tf_banco_ids',[]).concat(sel.map(x=>x.idExterno),lig.map(x=>x.idExterno)))]); save0('tf_banco_inv',[...inv]);
     const reg=new Map(bancoContas().map(c=>[c.id,c])); dados.contas.forEach(c=>{ reg.set(c.id,{id:c.id,padrao:padroes.get(c.id),renome:renomes.get(c.id)||''}); }); save0('tf_banco_contas',[...reg.values()]);
     fecha(); const p=[]; if(r.n||!rv.n) p.push(r.n===1?'1 lançamento importado.':r.n+' lançamentos importados.'); if(rv.n) p.push(rv.n===1?'1 lançamento vinculado à conta.':rv.n+' lançamentos vinculados à conta.'); if(rv.neutros) p.push(rv.neutros===1?'1 marcado como não é gasto.':rv.neutros+' marcados como não é gasto.'); bancoAviso('ok',p.join(' ')); };
-  const resumo=()=>{ const v=lista.filter(vincula).length, m=lista.filter(it=>vincula(it)&&it.neutro).length, n=lista.filter(marcado).length, f2=document.createElement('div'); f2.className='conf';
+  const resumo=()=>{ const v=ligs().length, m=ligs().filter(it=>it.neutro).length, n=lista.filter(marcado).length, f2=document.createElement('div'); f2.className='conf';
     f2.innerHTML=`<div class="confc" role="alertdialog" aria-modal="true" aria-labelledby="conf_t" aria-describedby="conf_d"><h2 id="conf_t">Confirmar</h2><p id="conf_d">Vai atualizar ${v===1?'1 lançamento existente':v+' lançamentos existentes'} só com a conta.${m?' '+(m===1?'1 será marcado como não é gasto.':m+' serão marcados como não é gasto.'):''} Nada mais muda.${n?' E vai importar '+(n===1?'1 lançamento novo.':n+' lançamentos novos.'):''}</p><div class="confb"><button class="btn ghost" id="bc_vt" type="button">Cancelar</button><button class="btn" id="bc_sim" type="button">Confirmar</button></div></div>`;
     document.body.appendChild(f2); fundo.setAttribute('inert','');
     const nao=f2.querySelector('#bc_vt'), sim=f2.querySelector('#bc_sim'), sai=()=>{ f2.remove(); fundo.removeAttribute('inert'); q('#bc_ok').focus(); };
@@ -1402,11 +1406,11 @@ function bancoPrevia(dados0){
     f2.onclick=e=>{ if(e.target===f2) sai(); };
     f2.onkeydown=e=>{ if(e.key==='Escape'){ e.stopPropagation(); sai(); } else if(e.key==='Tab'){ e.preventDefault(); (document.activeElement===nao?sim:nao).focus(); } };
     nao.focus(); };
-  q('#bc_lista').addEventListener('change',e=>{ const d=e.target.dataset; if(d.v!==undefined){ const it=lista[+d.v]; if(it){ escolhaV.set(it.idExterno,e.target.checked); conta(); } return; } const it=lista[+d.i]; if(it){ escolha.set(it.idExterno,e.target.checked); conta(); } });
+  q('#bc_lista').addEventListener('change',e=>{ const d=e.target.dataset; if(d.d!==undefined){ const it=lista[+d.d]; if(it){ escolhaD.set(it.idExterno,e.target.checked); conta(); } return; } if(d.v!==undefined){ const it=lista[+d.v]; if(it){ escolhaV.set(it.idExterno,e.target.checked); conta(); } return; } const it=lista[+d.i]; if(it){ escolha.set(it.idExterno,e.target.checked); conta(); } });
   q('#bc_contas').addEventListener('change',e=>{ const c=dados.contas[+e.target.dataset.c]; if(!c) return; if(e.target.checked) inv.add(c.id); else inv.delete(c.id); pinta(); });
   q('#bc_nomes').addEventListener('change',e=>{ const c=dados.contas[+e.target.dataset.n]; if(!c) return; const n=TFBanco.limparNome(e.target.value); if(n) renomes.set(c.id,n); else renomes.delete(c.id); pinta(); });
   q('#bc_cancel').onclick=fecha;
-  q('#bc_ok').onclick=()=>{ const n=lista.filter(marcado).length, v=lista.filter(vincula).length; if(!n&&!v) return; if(v) resumo(); else salva(); };
+  q('#bc_ok').onclick=()=>{ const n=lista.filter(marcado).length, v=ligs().length; if(!n&&!v) return; if(v) resumo(); else salva(); };
   fundo.onclick=e=>{ if(e.target===fundo) fecha(); };
   fundo.onkeydown=e=>{ if(e.key==='Escape'){ e.stopPropagation(); fecha(); return; } if(e.key!=='Tab') return; const f=[...fundo.querySelectorAll('input:not([disabled]),button:not([disabled]),summary')], a=f[0], z=f[f.length-1]; if(e.shiftKey&&document.activeElement===a){ e.preventDefault(); z.focus(); } else if(!e.shiftKey&&document.activeElement===z){ e.preventDefault(); a.focus(); } };
   document.body.appendChild(fundo); fora.forEach(e=>e.setAttribute('inert','')); pinta(); q('#bc_cancel').focus();

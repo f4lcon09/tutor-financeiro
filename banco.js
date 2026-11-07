@@ -99,7 +99,9 @@
   /* texto normalizado (sem acento, minúsculo). Lista única, sem nome de pessoa ou de empresa. A Confirmar com extratos reais. */
   var PADROES = {
     fatura: [/\bpagamento (de |da |do )?fatura\b/, /\bpag(t|to)? (de |da |do )?fatura\b/, /\bfatura (do |de )?cartao\b/, /\bpagamento (do |de )?cartao( de credito)?\b(?! debito)/, /\bpgto (do |de )?cartao\b/],
-    reserva: [/\b(caixinha|cofrinho)\b/, /\bresgate\b/, /\baplicacao (rdb|cdb|automatica|financeira|em (rdb|cdb|reserva|poupanca))\b/, /\bguardar\b/, /\bguardad[oa]\b/, /\breserva de emergencia\b/, /\b(transferencia|transf) (para|pra|da|de|entre) .*\b(poupanca|reserva|cofre)\b/, /\bentre contas\b/, /\b(deposito|retirada) (em|na|no|da|do) (cofre|reserva|poupanca)\b/]
+    reserva: [/\b(caixinha|cofrinho)\b/, /\bresgate\b/, /\baplicacao (rdb|cdb|automatica|financeira|em (rdb|cdb|reserva|poupanca))\b/, /\bguardar\b/, /\bguardad[oa]\b/, /\breserva de emergencia\b/, /\b(transferencia|transf) (para|pra|da|de|entre) .*\b(poupanca|reserva|cofre)\b/, /\bentre contas\b/, /\b(deposito|retirada) (em|na|no|da|do) (cofre|reserva|poupanca)\b/, /^dinheiro reservado\b/, /^dinheiro retirado\b/],
+    transferencia: [/\bpix (recebido|enviado)\b/, /\b(transferencia|transf) (recebida|enviada)\b/, /\bted\b/, /\bdoc\b/],
+    compra: [/^pagamento com\b/, /\bcompra (no |na |em |de |com )?(debito|credito)\b/]
   };
   var RAZOES = { fatura: 'As compras já entram pelo cartão. Importar isto contaria o mesmo gasto duas vezes.' };
   var combina = function (lista, desc) { var d = normalizar(desc); return lista.some(function (r) { return r.test(d); }); };
@@ -125,20 +127,18 @@
   }
   function limparNome(s) { return typeof s === 'string' ? s.trim().slice(0, 60) : ''; }
 
-  /* marca o que não é gasto nem ganho: pares entre contas do dono, reserva e pagamento de fatura. Nada some: só vem desmarcado. */
+  /* marca o que não é gasto nem ganho: pares entre contas do dono, reserva e pagamento de fatura. Nada some: só vem desmarcado.
+     Par exige mesmo valor, sentidos opostos, contas diferentes, até 1 dia e descrições com cara de transferência. Mais de um candidato: não forma par. */
+  var pareceTransferencia = function (desc) { return !combina(PADROES.compra, desc) && (combina(PADROES.transferencia, desc) || combina(PADROES.reserva, desc)); };
   function marcarPares(lista) {
     var dia = function (s) { var p = s.split('-'); return Date.UTC(+p[0], +p[1] - 1, +p[2]) / 86400000; };
-    var livres = lista.filter(function (x) { return x.estado !== 'sem_valor'; }).sort(function (a, b) { return a.data < b.data ? -1 : a.data > b.data ? 1 : a.idExterno < b.idExterno ? -1 : 1; });
-    var usado = new Set();
-    livres.forEach(function (a) {
-      if (a.direcao !== 'saida' || usado.has(a)) return;
-      var melhor = null, dist = 2;
-      livres.forEach(function (c) {
-        if (c.direcao !== 'entrada' || usado.has(c) || c.contaId === a.contaId || c.valor !== a.valor) return;
-        var d = Math.abs(dia(c.data) - dia(a.data));
-        if (d <= 1 && d < dist) { melhor = c; dist = d; }
-      });
-      if (melhor) { usado.add(a); usado.add(melhor); }
+    var aptos = lista.filter(function (x) { return x.estado !== 'sem_valor' && pareceTransferencia(x.desc); }), porValor = new Map(), usado = new Set();
+    aptos.forEach(function (x) { if (!porValor.has(x.valor)) porValor.set(x.valor, []); porValor.get(x.valor).push(x); });
+    var candidatos = function (x) { return porValor.get(x.valor).filter(function (c) { return c.direcao !== x.direcao && c.contaId !== x.contaId && Math.abs(dia(c.data) - dia(x.data)) <= 1; }); };
+    aptos.forEach(function (a) {
+      if (a.direcao !== 'saida') return;
+      var cs = candidatos(a);
+      if (cs.length === 1 && candidatos(cs[0]).length === 1) { usado.add(a); usado.add(cs[0]); }
     });
     return usado;
   }
@@ -147,9 +147,9 @@
      vinculo = sim | ambiguo | feito | null, sobre o lançamento que já existe. */
   function montarPrevia(dados, lanc, idsLocais, inversoes, renomes) {
     var porConta = new Map(dados.contas.map(function (c) { return [c.id, c]; })), nomes = rotulos(dados.contas, renomes);
-    var ids = new Set(idsLocais || []), porExt = new Map(), porChave = new Map();
+    var ids = new Set(idsLocais || []), porExt = new Map(), porChave = new Map(), manuais = new Map();
     var poe = function (m, k, l) { if (!m.has(k)) m.set(k, []); m.get(k).push(l); };
-    (lanc || []).forEach(function (l) { if (l.idExterno) { ids.add(l.idExterno); poe(porExt, l.idExterno, l); } poe(porChave, chave(l.data, l.valor, l.desc), l); });
+    (lanc || []).forEach(function (l) { if (l.idExterno) { ids.add(l.idExterno); poe(porExt, l.idExterno, l); } poe(porChave, chave(l.data, l.valor, l.desc), l); if (!l.origem && !l.contaId) poe(manuais, l.data + '|' + Math.round(l.valor * 100), l); });
     var vistos = new Set(), inv = new Set(inversoes || []), alvos = new Map(), feitos = new Map();
     var lista = dados.movs.map(function (m) {
       var c = porConta.get(m.conta), it = mapear(m, c, inv.has(c.id)), repetido = vistos.has(m.id);
@@ -157,7 +157,11 @@
       vistos.add(m.id);
       it.contaNome = nomes.get(c.id);
       it.estado = dup ? 'importado' : vazio ? 'sem_valor' : porChave.has(k) ? 'existe' : 'novo';
-      it.marcado = it.estado === 'novo'; it.vinculo = null; it.alvo = null; it.marca = null; it.neutro = false; it.soNeutro = false;
+      it.marcado = it.estado === 'novo'; it.vinculo = null; it.alvo = null; it.marca = null; it.neutro = false; it.soNeutro = false; it.possivel = null;
+      if (it.estado === 'novo') {
+        var pv = manuais.get(it.data + '|' + Math.round((it.direcao === 'entrada' ? -it.valor : it.valor) * 100));   // mesma data e valor, descrição diferente: nunca junta sozinho
+        if (pv) it.possivel = pv.length > 1 ? { ambiguo: true } : { alvo: pv[0].id, desc: pv[0].desc };
+      }
       var acha = repetido ? [] : it.estado === 'importado' ? (porExt.get(m.id) || []) : it.estado === 'existe' ? porChave.get(k) : [];
       if (acha.length > 1) it.vinculo = 'ambiguo';
       else if (acha.length === 1) {
@@ -174,14 +178,15 @@
     marcarPares(lista).forEach(function (it) { if (!it.marca) it.marca = 'entre'; });
     /* entre contas e reserva não são gasto; quem já tem a conta só ganha essa marca */
     lista.forEach(function (it) {
-      if (it.marca) it.marcado = false;
+      if (it.marca || it.possivel) it.marcado = false;
       it.neutro = it.marca === 'entre';
       var l = feitos.get(it);
       if (l && it.neutro && !l.neutro) { it.vinculo = 'sim'; it.alvo = l.id; it.soNeutro = true; }
-      if (it.alvo != null) alvos.set(String(it.alvo), (alvos.get(String(it.alvo)) || 0) + 1);
+      var dest = it.alvo != null ? it.alvo : it.possivel && it.possivel.alvo;
+      if (dest != null) alvos.set(String(dest), (alvos.get(String(dest)) || 0) + 1);
     });
     /* dois movimentos para o mesmo lançamento: não dá para saber qual é */
-    lista.forEach(function (it) { if (it.alvo != null && alvos.get(String(it.alvo)) > 1) { it.vinculo = 'ambiguo'; it.alvo = null; it.soNeutro = false; } });
+    lista.forEach(function (it) { if (it.alvo != null && alvos.get(String(it.alvo)) > 1) { it.vinculo = 'ambiguo'; it.alvo = null; it.soNeutro = false; } if (it.possivel && it.possivel.alvo != null && alvos.get(String(it.possivel.alvo)) > 1) it.possivel = { ambiguo: true }; });
     return lista;
   }
 

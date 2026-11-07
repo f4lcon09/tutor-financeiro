@@ -360,7 +360,7 @@ const foto = A => JSON.stringify(['tf_lanc3', 'tf_banco_ids', 'tf_banco_inv', 't
   }
   /* pluggy-2: marcas */
   {
-    const S1 = { id: 's1', conta: 'c1', data: mes + '-02', desc: 'Envio', valor: -100, tipo: 'DEBIT', status: 'POSTED' }, S2 = { id: 's2', conta: 'c2', data: mes + '-02', desc: 'Chegada', valor: 100, tipo: 'CREDIT', status: 'POSTED' };
+    const S1 = { id: 's1', conta: 'c1', data: mes + '-02', desc: 'Pix enviado', valor: -100, tipo: 'DEBIT', status: 'POSTED' }, S2 = { id: 's2', conta: 'c2', data: mes + '-02', desc: 'Pix recebido', valor: 100, tipo: 'CREDIT', status: 'POSTED' };
     const F = { id: 'f1', conta: 'c1', data: mes + '-03', desc: 'Pagamento de fatura', valor: -500, tipo: 'DEBIT', status: 'POSTED' };
     const A = await abreCom(RESP([S1, S2, F, M1])); await atualiza(A);
     t('marca: entre suas contas, desmarcado', /entre suas contas/.test(linhas(A)[0].textContent) && /entre suas contas/.test(linhas(A)[1].textContent) && !caixa(A, 0).checked && !caixa(A, 1).checked);
@@ -473,6 +473,48 @@ const foto = A => JSON.stringify(['tf_lanc3', 'tf_banco_ids', 'tf_banco_inv', 't
     const T = { id: 'r2', conta: 'c1', data: mes + '-02', desc: 'Guardar na caixinha', valor: -500, tipo: 'DEBIT', status: 'POSTED' };
     const D = await abreCom(RESP([T])); D.w.eval(manualR); D.w.eval(manualR); await atualiza(D);
     t('ambíguo: não marca', /ambíguo/.test(fundo(D).textContent) && !D.d.querySelector('.bc-vin'));
+  }
+  /* pluggy-4 */
+  {
+    const D2 = mes + '-02', D3 = mes + '-03', C = (id, desc, valor, data) => ({ id, conta: 'c1', data: data || D2, desc, valor, tipo: valor < 0 ? 'DEBIT' : 'CREDIT', status: 'POSTED' });
+    const man = (d, v, dt) => "S.lancar({tipo:'gasto',valor:'" + v + "',desc:'" + d + "',cat:'Comida',data:'" + (dt || D2) + "',forma:'Pix'})";
+    const A = await abreCom(RESP([C('b1', 'Lanchonete Exemplo', -21.14), C('b2', 'Farmácia Exemplo', -60.21, D3), C('b3', 'Dinheiro reservado Viagem', -300, D3)])); A.w.eval(man('almoço com colega', '21,14')); await atualiza(A);
+    const lin = linhas(A);
+    t('duplicado: etiqueta e descrição existente', /possível duplicado/.test(lin[0].textContent) && /Já existe: almoço com colega/.test(lin[0].textContent));
+    t('duplicado: desmarcado', !caixa(A, 0).checked && !caixa(A, 0).disabled);
+    const vd = A.d.querySelector('[data-d]');
+    t('duplicado: caixa explícita, desligada', !!vd && vd.checked === false && /Vincular a este lançamento/.test(vd.closest('label').textContent));
+    t('reserva: marcada e fora de marcados', /entre suas contas/.test(lin[2].textContent) && !caixa(A, 2).checked);
+    const R = () => A.$('#bc_res').textContent;
+    t('topo: resumo antes de confirmar', R() === '0 lançamentos serão atualizados, 0 marcados como não é gasto, 1 possível duplicado.');
+    t('topo: anunciado', A.$('#bc_res').getAttribute('role') === 'status' && A.$('#bc_res').closest('.bc-prev') !== null);
+    const f0 = foto2(A), l0 = JSON.stringify(A.w.eval('S.st.lanc'));
+    vd.checked = true; vd.dispatchEvent(new A.w.Event('change', { bubbles: true })); await tick(5);
+    t('topo: acompanha a escolha', R() === '1 lançamento será atualizado, 0 marcados como não é gasto, 1 possível duplicado.');
+    t('contagem: para vincular', /1 para vincular/.test(A.$('#bc_cont').textContent));
+    A.click('#bc_ok'); await tick(5);
+    t('resumo: pede confirmação com foco em Cancelar', A.d.activeElement === A.$('#bc_vt') && /Vai atualizar 1 lançamento existente só com a conta/.test(A.$('#conf_d').textContent));
+    A.click('#bc_vt'); await tick(5);
+    t('cancelar: nada gravado', foto2(A) === f0 && JSON.stringify(A.w.eval('S.st.lanc')) === l0);
+    A.click('#bc_ok'); await tick(5); A.click('#bc_sim'); await tick(15);
+    const l = A.w.eval('S.st.lanc').find(x => x.desc === 'almoço com colega');
+    t('vincular: só conta e origem', l.contaId === 'c1' && l.origem === 'pluggy' && l.idExterno === 'b1' && l.valor === 21.14 && l.cat === 'Comida' && !('neutro' in l));
+    t('vincular: não cria lançamento do item', !A.w.eval('S.st.lanc').some(x => x.desc === 'Lanchonete Exemplo'));
+    t('vincular: importou o outro', A.w.eval('S.st.lanc').some(x => x.idExterno === 'b2'));
+    await atualiza(A);
+    t('segunda rodada: sem duplicado', !A.d.querySelector('[data-d]') && /0 possíveis duplicados/.test(A.$('#bc_res').textContent));
+    A.click('#bc_cancel');
+    const B5 = await abreCom(RESP([C('b1', 'Lanchonete Exemplo', -21.14)])); B5.w.eval(man('um', '21,14')); B5.w.eval(man('dois', '21,14')); await atualiza(B5);
+    t('ambíguo: sem oferta de vincular', /ambíguo/.test(linhas(B5)[0].textContent) && /possível duplicado/.test(linhas(B5)[0].textContent) && !B5.d.querySelector('[data-d]') && /Mais de um lançamento/.test(linhas(B5)[0].textContent));
+    t('ambíguo: botão desligado', B5.$('#bc_ok').disabled === true);
+    marca(B5, 0, true); B5.click('#bc_ok'); await tick(10);
+    t('duplicado: o dono pode importar mesmo assim', B5.w.eval('S.st.lanc.length') === 3);
+    const H = '<img src=x onerror=window.__xss=1>';
+    const C5 = await abreCom(RESP([C('b1', 'Loja', -21.14)])); C5.w.eval("S.lancar({tipo:'gasto',valor:'21,14',desc:" + JSON.stringify(H) + ",cat:'Comida',data:'" + D2 + "',forma:'Pix'})"); await atualiza(C5);
+    t('duplicado: descrição hostil literal', !fundo(C5).querySelector('img') && fundo(C5).textContent.includes(H) && C5.w.__xss === undefined);
+    const D5 = await abreCom(RESP([C('b1', 'Lanchonete', -21.14)])); D5.w.eval(man('um', '21,14')); await atualiza(D5);
+    const v2 = D5.d.querySelector('[data-d]'); v2.checked = true; v2.dispatchEvent(new D5.w.Event('change', { bubbles: true })); marca(D5, 0, true); await tick(5);
+    t('duplicado: marcar para importar tira do vínculo', !/para vincular/.test(D5.$('#bc_cont').textContent));
   }
   process.exit(fim());
 })().catch(e => { console.log('ERRO NO TESTE:', e); process.exit(2); });

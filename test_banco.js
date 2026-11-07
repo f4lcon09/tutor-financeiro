@@ -269,7 +269,7 @@ const L0 = (x) => ({ id: 41, data: '2026-11-02', desc: 'PADARIA  exemplo', cat: 
 /* transferências entre contas do dono */
 {
   const cts = [{ id: 'a', tipo: 'BANK', subtipo: null, nome: 'A', saldo: 1, item: null }, { id: 'b', tipo: 'BANK', subtipo: null, nome: 'B', saldo: 1, item: null }, { id: 'c', tipo: 'CREDIT', subtipo: null, nome: 'C', saldo: 1, item: null }];
-  const M = (id, conta, data, valor, tipo, desc) => ({ id, conta, data, desc: desc || 'Movimento ' + id, valor, tipo, status: 'POSTED' });
+  const M = (id, conta, data, valor, tipo, desc) => ({ id, conta, data, desc: desc || (valor < 0 ? 'Pix enviado' : 'Pix recebido'), valor, tipo, status: 'POSTED' });
   const pv = (ms, lanc, inv) => B.montarPrevia(B.validarResposta({ ok: true, dados: { de: '2026-10-01', ate: '2026-11-05', contas: cts, movs: ms } }).dados, lanc || [], [], inv || []);
   const dois = pv([M('s', 'a', '2026-11-02', -100, 'DEBIT'), M('e', 'b', '2026-11-02', 100, 'CREDIT')]);
   t('par: mesmo dia', dois.every(x => x.marca === 'entre' && x.marcado === false));
@@ -281,12 +281,12 @@ const L0 = (x) => ({ id: 41, data: '2026-11-02', desc: 'PADARIA  exemplo', cat: 
   t('quase: mesma direção', pv([M('s', 'a', '2026-11-02', -100, 'DEBIT'), M('e', 'b', '2026-11-02', -100, 'DEBIT')]).every(x => !x.marca));
   t('mesma conta nunca é par', pv([M('s', 'a', '2026-11-02', -100, 'DEBIT'), M('e', 'a', '2026-11-02', 100, 'CREDIT')]).every(x => !x.marca && x.marcado));
   const tres = pv([M('s', 'a', '2026-11-02', -100, 'DEBIT'), M('e1', 'b', '2026-11-02', 100, 'CREDIT'), M('e2', 'c', '2026-11-02', 100, 'CREDIT')]);
-  t('par: um para um', tres.filter(x => x.marca === 'entre').length === 2);
-  t('par: fica o mais próximo', pv([M('s', 'a', '2026-11-02', -100, 'DEBIT'), M('e1', 'b', '2026-11-03', 100, 'CREDIT'), M('e2', 'c', '2026-11-02', 100, 'CREDIT')]).find(x => x.idExterno === 'e2').marca === 'entre');
+  t('ambíguo: dois candidatos, nenhum par', tres.every(x => !x.marca && x.marcado));
+  t('ambíguo: candidato mais perto não decide', pv([M('s', 'a', '2026-11-02', -100, 'DEBIT'), M('e1', 'b', '2026-11-03', 100, 'CREDIT'), M('e2', 'c', '2026-11-02', 100, 'CREDIT')]).every(x => !x.marca));
   t('par: inverter o sinal desfaz', pv([M('s', 'a', '2026-11-02', -100, 'DEBIT'), M('e', 'b', '2026-11-02', 100, 'CREDIT')], [], ['b']).every(x => !x.marca));
   t('par: valor zero não entra', pv([M('s', 'a', '2026-11-02', 0, 'DEBIT'), M('e', 'b', '2026-11-02', 0, 'CREDIT')]).every(x => !x.marca));
   t('par: nada é escondido', dois.length === 2);
-  const res = pv([M('s', 'a', '2026-11-02', -100, 'DEBIT'), M('e', 'b', '2026-11-02', 100, 'CREDIT')], [{ id: 1, data: '2026-11-02', desc: 'Movimento e', valor: -100, idExterno: 'e', contaId: 'b', contaNome: 'B' }]);
+  const res = pv([M('s', 'a', '2026-11-02', -100, 'DEBIT'), M('e', 'b', '2026-11-02', 100, 'CREDIT')], [{ id: 1, data: '2026-11-02', desc: 'Pix recebido', valor: -100, idExterno: 'e', contaId: 'b', contaNome: 'B' }]);
   t('par: vale mesmo com um lado já importado', res.find(x => x.idExterno === 's').marca === 'entre');
 
   const r1 = d => pv([M('x', 'a', '2026-11-02', -50, 'DEBIT', d)])[0];
@@ -298,11 +298,11 @@ const L0 = (x) => ({ id: 41, data: '2026-11-02', desc: 'PADARIA  exemplo', cat: 
   ['Compra no cartão', 'Loja Fatura Certa', 'Pagamento de boleto', 'Pagamento Exemplo', 'Pagamento cartão débito mercado', 'Cartão de visita', 'Capa para cartão de crédito'].forEach(d => t('não é fatura: ' + d, f1(d).marca !== 'fatura' && f1(d).marcado === true));
   t('fatura: em conta de cartão não marca', f1('Pagamento de fatura', 'c').marca !== 'fatura' && f1('Pagamento de fatura', 'c').marcado === true);
   const pf = pv([M('s', 'a', '2026-11-02', -700, 'DEBIT', 'Pagamento de fatura'), M('e', 'c', '2026-11-02', 700, 'CREDIT', 'Pagamento recebido')]);
-  t('fatura e par: conta fica como fatura, cartão como entre contas', pf.find(x => x.idExterno === 's').marca === 'fatura' && pf.find(x => x.idExterno === 'e').marca === 'entre');
+  t('fatura: conta fica como fatura, sem par com o cartão', pf.find(x => x.idExterno === 's').marca === 'fatura' && !pf.find(x => x.idExterno === 'e').marca);
   t('fatura: tem a razão em uma linha', /duas vezes/.test(B.RAZOES.fatura) && !B.RAZOES.fatura.includes('\n'));
   const fonte = fs.readFileSync('banco.js', 'utf8');
   t('padrões numa constante só', (fonte.match(/var PADROES = /g) || []).length === 1 && (fonte.match(/\/\\b/g) || []).length > 5);
-  const VOC = new Set('pagamento de da do fatura pag to cartao credito debito pgto caixinha cofrinho resgate aplicacao rdb cdb automatica financeira em reserva poupanca guardar guardad oa emergencia transferencia transf para pra entre cofre contas deposito retirada na no'.split(' '));
+  const VOC = new Set('dinheiro reservado retirado pix recebido enviado recebida enviada ted doc com compra pagamento de da do fatura pag to cartao credito debito pgto caixinha cofrinho resgate aplicacao rdb cdb automatica financeira em reserva poupanca guardar guardad oa emergencia transferencia transf para pra entre cofre contas deposito retirada na no'.split(' '));
   t('padrões só com palavras comuns, sem nome de pessoa ou empresa', Object.values(B.PADROES).flat().every(r => (r.source.replace(/\\b/g, ' ').match(/[a-z]{2,}/g) || []).every(p => VOC.has(p))));
 }
 
@@ -381,7 +381,7 @@ const Real = require('./real.js');
   const cts = [{ id: 'a', tipo: 'BANK', subtipo: null, nome: 'A', saldo: 1, item: null }, { id: 'b', tipo: 'BANK', subtipo: null, nome: 'B', saldo: 1, item: null }];
   const M = (id, conta, data, valor, tipo, desc) => ({ id, conta, data, desc: desc || 'Movimento ' + id, valor, tipo, status: 'POSTED' });
   const dados = ms => B.validarResposta({ ok: true, dados: { de: '2026-10-01', ate: '2026-11-05', contas: cts, movs: ms } }).dados;
-  const PAR = [M('s', 'a', '2026-11-02', -9100, 'DEBIT', 'Envio'), M('e', 'b', '2026-11-02', 9100, 'CREDIT', 'Chegada')];
+  const PAR = [M('s', 'a', '2026-11-02', -9100, 'DEBIT', 'Pix enviado'), M('e', 'b', '2026-11-02', 9100, 'CREDIT', 'Pix recebido')];
   const RES = M('r', 'a', '2026-11-03', -500, 'DEBIT', 'Guardar na caixinha'), FAT = M('f', 'a', '2026-11-04', -700, 'DEBIT', 'Pagamento de fatura'), PLN = M('p', 'a', '2026-11-05', -30, 'DEBIT', 'Padaria');
   const p = B.montarPrevia(dados([...PAR, RES, FAT, PLN]), [], [], []);
   t('marca: par é neutro', p[0].neutro && p[1].neutro);
@@ -442,6 +442,61 @@ const Real = require('./real.js');
   const velho = Sync.atualizar(stV, velho0, 2000), n = Sync.montar(Sync.juntar(dono, Seg.limparItens(clone(velho)).itens));
   t('versão anterior: ao escrever, neutro se perde no empate de hora', n.lanc.find(l => l.id === 7).valor === 9100 && !n.lanc.find(l => l.id === 7).neutro);
   t('versão anterior: e o item volta a contar como gasto', (() => { const S = novo(); S.definirModo('real'); S.st.lanc = n.lanc; return S.gastosMes('2026-11').some(l => l.id === 7); })());
+}
+
+/* pluggy-4: reserva, pares e possíveis duplicados */
+{
+  const cts = [{ id: 'a', tipo: 'BANK', subtipo: null, nome: 'A', saldo: 1, item: null }, { id: 'b', tipo: 'BANK', subtipo: null, nome: 'B', saldo: 1, item: null }, { id: 'c', tipo: 'CREDIT', subtipo: null, nome: 'C', saldo: 1, item: null }];
+  const M = (id, conta, data, valor, tipo, desc) => ({ id, conta, data, desc, valor, tipo, status: 'POSTED' });
+  const pv = (ms, lanc) => B.montarPrevia(B.validarResposta({ ok: true, dados: { de: '2026-10-01', ate: '2026-11-05', contas: cts, movs: ms } }).dados, lanc || [], [], []);
+  const um = d => pv([M('x', 'a', '2026-11-02', -50, 'DEBIT', d)])[0];
+  ['Dinheiro reservado Cofrinho Viagem', 'DINHEIRO RESERVADO FÉRIAS', 'dinheiro reservado', 'Dinheiro Retirado Reserva Azul', 'DINHEIRO RETIRADO PORQUINHO', 'dinheiro retirado'].forEach(d => t('reserva por prefixo: ' + d, um(d).marca === 'entre' && um(d).neutro === true && um(d).marcado === false));
+  ['Compra de dinheiro reservado', 'Lanche dinheiro retirado', 'Dinheiro em espécie', 'Reservado para jantar'].forEach(d => t('não é prefixo: ' + d, !um(d).marca && um(d).marcado === true));
+
+  const Pix = (id, conta, valor, dia, desc) => M(id, conta, '2026-11-0' + (dia || 2), valor, valor < 0 ? 'DEBIT' : 'CREDIT', desc || (valor < 0 ? 'Pix enviado' : 'Pix recebido'));
+  t('par real: Pix enviado e recebido', pv([Pix('s', 'a', -100), Pix('e', 'b', 100)]).every(x => x.marca === 'entre'));
+  t('par real: transferência', pv([Pix('s', 'a', -100, 2, 'Transferência enviada'), Pix('e', 'b', 100, 3, 'Transferencia recebida')]).every(x => x.marca === 'entre'));
+  t('par real: TED e DOC', pv([Pix('s', 'a', -100, 2, 'TED enviada'), Pix('e', 'b', 100, 2, 'DOC recebido')]).every(x => x.marca === 'entre'));
+  t('par real: reserva e retirada', pv([Pix('s', 'a', -100, 2, 'Dinheiro reservado Viagem'), Pix('e', 'b', 100, 2, 'Pix recebido')]).every(x => x.marca === 'entre'));
+  [50, 100].forEach(v => {
+    const p = pv([Pix('s', 'a', -v, 2, 'Pagamento com Pix Empresa Exemplo'), Pix('e', 'b', v, 2, 'Pix recebido')]);
+    t('coincidência de ' + v + ': pagamento a terceiro não é par', p.every(x => !x.marca && x.marcado));
+    t('coincidência de ' + v + ': compra no débito não é par', pv([Pix('s', 'a', -v, 2, 'Compra no débito Loja Exemplo'), Pix('e', 'b', v, 2, 'Pix recebido')]).every(x => !x.marca));
+    t('coincidência de ' + v + ': compra no crédito não é par', pv([Pix('s', 'c', -v, 2, 'Compra no crédito Loja'), Pix('e', 'b', v, 2, 'Pix recebido')]).every(x => !x.marca));
+    t('coincidência de ' + v + ': descrição comum não é par', pv([Pix('s', 'a', -v, 2, 'Padaria'), Pix('e', 'b', v, 2, 'Salário')]).every(x => !x.marca));
+    t('coincidência de ' + v + ': dois candidatos', pv([Pix('s', 'a', -v), Pix('e1', 'b', v), Pix('e2', 'c', v)]).every(x => !x.marca));
+    t('coincidência de ' + v + ': duas saídas para uma entrada', pv([Pix('s1', 'a', -v), Pix('s2', 'c', -v), Pix('e', 'b', v)]).every(x => !x.marca));
+  });
+  t('pagamento com, mesmo citando Pix enviado, não é par', pv([Pix('s', 'a', -70, 2, 'Pagamento com Pix enviado Empresa'), Pix('e', 'b', 70)]).every(x => !x.marca));
+  t('cálculo do par: 5000 itens rápidos', (() => { const ms = Array.from({ length: 5000 }, (_, i) => Pix('p' + i, i % 2 ? 'a' : 'b', i % 2 ? -(i + 1) : i + 1)); const t0 = Date.now(); pv(ms); return Date.now() - t0 < 2000; })());
+
+  const LM = (id, data, valor, desc, x) => ({ id, data, desc, cat: 'Comida', valor, forma: 'Pix', essencial: false, lazer: false, ...(x || {}) });
+  const c1 = Pix('m1', 'a', -21.14, 2, 'Lanchonete do Exemplo'), c2 = Pix('m2', 'a', -60.21, 3, 'Farmácia Exemplo');
+  const p1 = pv([c1, c2], [LM(1, '2026-11-02', 21.14, 'almoço com colega')]);
+  t('duplicado: mesma data e valor, outra descrição', p1[0].estado === 'novo' && p1[0].possivel && p1[0].possivel.alvo === 1 && p1[0].possivel.desc === 'almoço com colega');
+  t('duplicado: vem desmarcado', p1[0].marcado === false);
+  t('duplicado: o outro segue normal', !p1[1].possivel && p1[1].marcado === true);
+  t('duplicado: nada automático', p1[0].vinculo === null && p1[0].alvo === null);
+  t('duplicado: outro valor não', !pv([c1], [LM(1, '2026-11-02', 21.15, 'x')])[0].possivel);
+  t('duplicado: outro dia não', !pv([c1], [LM(1, '2026-11-03', 21.14, 'x')])[0].possivel);
+  t('duplicado: entrada não bate com gasto', !pv([Pix('e', 'a', 21.14, 2, 'Reembolso')], [LM(1, '2026-11-02', 21.14, 'x')])[0].possivel);
+  t('duplicado: lançamento importado não entra', !pv([c1], [LM(1, '2026-11-02', 21.14, 'x', { origem: 'pluggy', idExterno: 'zz' })])[0].possivel);
+  t('duplicado: lançamento com conta não entra', !pv([c1], [LM(1, '2026-11-02', 21.14, 'x', { contaId: 'a', contaNome: 'A' })])[0].possivel);
+  t('duplicado: mesma descrição segue como já existe', (() => { const x = pv([c1], [LM(1, '2026-11-02', 21.14, 'lanchonete do exemplo')])[0]; return x.estado === 'existe' && !x.possivel && x.vinculo === 'sim'; })());
+  const am = pv([c1], [LM(1, '2026-11-02', 21.14, 'a'), LM(2, '2026-11-02', 21.14, 'b')]);
+  t('ambíguo: dois lançamentos', am[0].possivel && am[0].possivel.ambiguo === true && am[0].possivel.alvo === undefined && am[0].marcado === false);
+  const am2 = pv([c1, Pix('m9', 'b', -21.14, 2, 'Outra loja')], [LM(1, '2026-11-02', 21.14, 'a')]);
+  t('ambíguo: dois movimentos para um lançamento', am2.every(x => x.possivel && x.possivel.ambiguo === true));
+  const S = novo(); S.definirModo('real'); S.st.lanc.push(LM(1, '2026-11-02', 21.14, 'almoço com colega'), LM(2, '2026-11-09', 7, 'outro'));
+  const a0 = JSON.stringify(S.st.lanc[0]), o0 = JSON.stringify(S.st.lanc[1]), it = pv([c1], S.st.lanc)[0];
+  const r = S.vincularBanco([{ ...it, alvo: it.possivel.alvo, neutro: false }]), v = S.st.lanc[0];
+  t('vincular: liga por escolha', r.n === 1 && r.neutros === 0 && v.contaId === 'a' && v.origem === 'pluggy' && v.idExterno === 'm1');
+  const so = {}; Object.keys(v).filter(k => !['contaId', 'contaNome', 'origem', 'idExterno'].includes(k)).forEach(k => { so[k] = v[k]; });
+  t('vincular: resto idêntico byte a byte', JSON.stringify(so) === a0 && JSON.stringify(S.st.lanc[1]) === o0);
+  const s1 = JSON.stringify(S.st.lanc), ot = pv([c1], S.st.lanc)[0];
+  t('vincular: na segunda rodada, já feito', ot.estado === 'importado' && ot.vinculo === 'feito' && !ot.possivel && !ot.marcado);
+  t('vincular: repetir não muda', S.vincularBanco([{ ...it, alvo: 1, neutro: false }]).n === 0 && JSON.stringify(S.st.lanc) === s1);
+  t('prévia: não muda com duas passadas', JSON.stringify(pv([c1, c2], [LM(1, '2026-11-02', 21.14, 'a')])) === JSON.stringify(pv([c1, c2], [LM(1, '2026-11-02', 21.14, 'a')])));
 }
 
 /* conversa com a ponte: fetch simulado */
