@@ -96,22 +96,88 @@
   /* valor com sinal do app: gasto positivo, entrada negativa */
   var chave = function (data, valorComSinal, desc) { return data + '|' + Math.round(valorComSinal * 100) + '|' + normalizar(desc); };
 
-  /* prévia: nada é gravado aqui. estado = novo | existe (mesma data, valor e descrição) | importado (mesmo id). */
-  function montarPrevia(dados, lanc, idsLocais, inversoes) {
-    var porConta = new Map(dados.contas.map(function (c) { return [c.id, c]; }));
-    var ids = new Set(idsLocais || []), chaves = new Set();
-    (lanc || []).forEach(function (l) { if (l.idExterno) ids.add(l.idExterno); chaves.add(chave(l.data, l.valor, l.desc)); });
-    var vistos = new Set(), inv = new Set(inversoes || []);
-    return dados.movs.map(function (m) {
-      var c = porConta.get(m.conta), it = mapear(m, c, inv.has(c.id));
-      var dup = ids.has(m.id) || vistos.has(m.id), vazio = !(it.valor > 0);
-      vistos.add(m.id);
-      it.estado = dup ? 'importado' : vazio ? 'sem_valor' : chaves.has(chave(it.data, it.direcao === 'entrada' ? -it.valor : it.valor, it.desc)) ? 'existe' : 'novo';
-      it.marcado = it.estado === 'novo';
-      return it;
+  /* texto normalizado (sem acento, minúsculo). Lista única, sem nome de pessoa ou de empresa. A Confirmar com extratos reais. */
+  var PADROES = {
+    fatura: [/\bpagamento (de |da |do )?fatura\b/, /\bpag(t|to)? (de |da |do )?fatura\b/, /\bfatura (do |de )?cartao\b/, /\bpagamento (do |de )?cartao( de credito)?\b(?! debito)/, /\bpgto (do |de )?cartao\b/],
+    reserva: [/\b(caixinha|cofrinho)\b/, /\bresgate\b/, /\baplicacao (rdb|cdb|automatica|financeira|em (rdb|cdb|reserva|poupanca))\b/, /\bguardar\b/, /\bguardad[oa]\b/, /\breserva de emergencia\b/, /\b(transferencia|transf) (para|pra|da|de|entre) .*\b(poupanca|reserva|cofre)\b/, /\bentre contas\b/, /\b(deposito|retirada) (em|na|no|da|do) (cofre|reserva|poupanca)\b/]
+  };
+  var RAZOES = { fatura: 'As compras já entram pelo cartão. Importar isto contaria o mesmo gasto duas vezes.' };
+  var combina = function (lista, desc) { var d = normalizar(desc); return lista.some(function (r) { return r.test(d); }); };
+
+  /* nomes das contas: nome + tipo; se dois baterem, entra o subtipo; se ainda baterem, um número. O nome dado pelo dono vale sobre tudo. */
+  var SUBTIPOS = { CHECKING_ACCOUNT: 'corrente', SAVINGS_ACCOUNT: 'poupança', CREDIT_CARD: 'crédito' };
+  var subtipoTxt = function (s) { return s ? (SUBTIPOS[s] || String(s).replace(/_/g, ' ').toLowerCase()) : ''; };
+  function padraoConta(c) { return c.nome + (c.tipo === 'CREDIT' ? ' · cartão' : ' · conta'); }
+  function rotulos(contas, renomes) {
+    var ren = renomes || new Map(), out = new Map();
+    var ordem = contas.filter(function (c) { return !ren.get(c.id); }).slice().sort(function (a, b) { return a.id < b.id ? -1 : a.id > b.id ? 1 : 0; });
+    var grupo = function (lista, f) { var g = new Map(); lista.forEach(function (c) { var k = f(c); if (!g.has(k)) g.set(k, []); g.get(k).push(c); }); return g; };
+    grupo(ordem, padraoConta).forEach(function (cs, base) {
+      if (cs.length === 1) { out.set(cs[0].id, base); return; }
+      var comSub = function (c) { var s = subtipoTxt(c.subtipo); return s ? base + ' · ' + s : base; };
+      grupo(cs, comSub).forEach(function (ds, nome) {
+        if (ds.length === 1) { out.set(ds[0].id, nome); return; }
+        ds.forEach(function (c, i) { out.set(c.id, nome + ' ' + (i + 1)); });
+      });
     });
+    contas.forEach(function (c) { if (ren.get(c.id)) out.set(c.id, ren.get(c.id)); });
+    return out;
+  }
+  function limparNome(s) { return typeof s === 'string' ? s.trim().slice(0, 60) : ''; }
+
+  /* marca o que não é gasto nem ganho: pares entre contas do dono, reserva e pagamento de fatura. Nada some: só vem desmarcado. */
+  function marcarPares(lista) {
+    var dia = function (s) { var p = s.split('-'); return Date.UTC(+p[0], +p[1] - 1, +p[2]) / 86400000; };
+    var livres = lista.filter(function (x) { return x.estado !== 'sem_valor'; }).sort(function (a, b) { return a.data < b.data ? -1 : a.data > b.data ? 1 : a.idExterno < b.idExterno ? -1 : 1; });
+    var usado = new Set();
+    livres.forEach(function (a) {
+      if (a.direcao !== 'saida' || usado.has(a)) return;
+      var melhor = null, dist = 2;
+      livres.forEach(function (c) {
+        if (c.direcao !== 'entrada' || usado.has(c) || c.contaId === a.contaId || c.valor !== a.valor) return;
+        var d = Math.abs(dia(c.data) - dia(a.data));
+        if (d <= 1 && d < dist) { melhor = c; dist = d; }
+      });
+      if (melhor) { usado.add(a); usado.add(melhor); }
+    });
+    return usado;
   }
 
-  var api = { validarUrl: validarUrl, validarResposta: validarResposta, mensagem: mensagem, consultar: consultar, mapear: mapear, normalizar: normalizar, chave: chave, montarPrevia: montarPrevia, MAX_MOVS: MAX_MOVS, DIAS: DIAS };
+  /* prévia: nada é gravado aqui. estado = novo | existe (mesma data, valor e descrição) | importado (mesmo id).
+     vinculo = sim | ambiguo | feito | null, sobre o lançamento que já existe. */
+  function montarPrevia(dados, lanc, idsLocais, inversoes, renomes) {
+    var porConta = new Map(dados.contas.map(function (c) { return [c.id, c]; })), nomes = rotulos(dados.contas, renomes);
+    var ids = new Set(idsLocais || []), porExt = new Map(), porChave = new Map();
+    var poe = function (m, k, l) { if (!m.has(k)) m.set(k, []); m.get(k).push(l); };
+    (lanc || []).forEach(function (l) { if (l.idExterno) { ids.add(l.idExterno); poe(porExt, l.idExterno, l); } poe(porChave, chave(l.data, l.valor, l.desc), l); });
+    var vistos = new Set(), inv = new Set(inversoes || []), alvos = new Map();
+    var lista = dados.movs.map(function (m) {
+      var c = porConta.get(m.conta), it = mapear(m, c, inv.has(c.id)), repetido = vistos.has(m.id);
+      var dup = ids.has(m.id) || repetido, vazio = !(it.valor > 0), k = chave(it.data, it.direcao === 'entrada' ? -it.valor : it.valor, it.desc);
+      vistos.add(m.id);
+      it.contaNome = nomes.get(c.id);
+      it.estado = dup ? 'importado' : vazio ? 'sem_valor' : porChave.has(k) ? 'existe' : 'novo';
+      it.marcado = it.estado === 'novo'; it.vinculo = null; it.alvo = null; it.marca = null;
+      var acha = repetido ? [] : it.estado === 'importado' ? (porExt.get(m.id) || []) : it.estado === 'existe' ? porChave.get(k) : [];
+      if (acha.length > 1) it.vinculo = 'ambiguo';
+      else if (acha.length === 1) {
+        var l = acha[0];
+        if (l.contaId) it.vinculo = l.contaId === c.id ? 'feito' : null;
+        else if (!l.idExterno || l.idExterno === m.id) { it.vinculo = 'sim'; it.alvo = l.id; alvos.set(String(l.id), (alvos.get(String(l.id)) || 0) + 1); }
+      }
+      if (it.estado !== 'sem_valor') {
+        if (c.tipo !== 'CREDIT' && combina(PADROES.fatura, it.desc)) it.marca = 'fatura';
+        else if (combina(PADROES.reserva, it.desc)) it.marca = 'entre';
+      }
+      return it;
+    });
+    /* dois movimentos para o mesmo lançamento: não dá para saber qual é */
+    lista.forEach(function (it) { if (it.alvo != null && alvos.get(String(it.alvo)) > 1) { it.vinculo = 'ambiguo'; it.alvo = null; } });
+    marcarPares(lista).forEach(function (it) { if (!it.marca) it.marca = 'entre'; });
+    lista.forEach(function (it) { if (it.marca) it.marcado = false; });
+    return lista;
+  }
+
+  var api = { rotulos: rotulos, padraoConta: padraoConta, limparNome: limparNome, marcarPares: marcarPares, PADROES: PADROES, RAZOES: RAZOES, validarUrl: validarUrl, validarResposta: validarResposta, mensagem: mensagem, consultar: consultar, mapear: mapear, normalizar: normalizar, chave: chave, montarPrevia: montarPrevia, MAX_MOVS: MAX_MOVS, DIAS: DIAS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TFBanco = api;
 })(typeof window !== 'undefined' ? window : globalThis);

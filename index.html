@@ -244,6 +244,19 @@ tr.clk.sel td:first-child{box-shadow:inset 3px 0 0 var(--teal)}
 .bc-tx b{font-weight:600}
 .bc-val{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:2px;font-size:14px;font-variant-numeric:tabular-nums;white-space:nowrap}
 .bc-acoes{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.bc-lin{border-bottom:1px solid var(--ln)}
+.bc-lin .bc-it{border-bottom:0}
+.bc-vin{display:flex;align-items:center;gap:12px;min-height:44px;padding:0 2px 8px 10px;box-sizing:border-box;font-size:14px;color:var(--tx);cursor:pointer}
+.bc-razao{font-size:12.5px;color:var(--mu)}
+.bc-tx .tag{align-self:flex-start;white-space:normal}
+.bc-nomes{margin-bottom:12px;flex:none}
+.bc-nomes>summary{min-height:44px;display:flex;align-items:center;justify-content:space-between;font-size:14px;font-weight:600;cursor:pointer}
+.bc-nomes>summary::after{content:'';flex:none;width:8px;height:8px;margin-right:6px;border-right:2px solid var(--mu);border-bottom:2px solid var(--mu);transform:translateY(-2px) rotate(45deg)}
+.bc-nomes[open]>summary::after{transform:translateY(2px) rotate(-135deg)}
+.bc-nomes[open]{max-height:38vh;overflow-y:auto}
+.flt-conta{margin-bottom:12px}
+.flt-conta label{display:block;font-size:13px;color:var(--mu);margin-bottom:4px}
+table.lt .mu.small{overflow-wrap:anywhere}
 .bc-acoes .btn{min-height:44px}
 .pv-cab{height:150px;overflow:hidden;margin-bottom:2px}
 .pv-cap{font-size:13px;color:var(--mu)}

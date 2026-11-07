@@ -333,7 +333,7 @@ function lancarM(){
       <div class="toggle" style="margin-bottom:12px"><label><input type="checkbox" id="f_ess"> Essencial</label><label><input type="checkbox" id="f_laz" checked> Conta no lazer</label></div>
       <div class="dica" id="dica" style="margin-bottom:0"></div>`,'teal')}`,'teal')}
   <div class="salvarfixo acoes"><div id="f_msg" class="hint" role="status" style="flex:1 0 100%;margin:0"></div><button class="btn" id="f_ok">Salvar lançamento</button><button class="btn ghost" id="f_cancel" style="display:none">Cancelar</button></div>
-  ${pn('Lançamentos',`<div id="lz_resumo"></div><div id="lista"></div>
+  ${pn('Lançamentos',`<div id="lz_resumo"></div><div id="conta_filtro"></div><div id="lista"></div>
     ${det('lancar','busca','Buscar e exportar',`<input type="text" id="busca" placeholder="Buscar por nome, categoria ou forma de pagamento…" aria-label="Buscar lançamentos" style="margin-bottom:12px"><div class="row" style="flex-wrap:wrap"><span class="hint">Seus lançamentos ficam neste aparelho e no seu Google Drive.</span><button class="ibtn tonal" id="exp" type="button" aria-label="Exportar lançamentos em CSV" title="Exportar lançamentos em CSV">${I.baixar}</button></div>`,'pink')}`,'pink','',`<span><button class="x" id="mprev" aria-label="Mês anterior">${I.esq}</button> <span id="mnome" style="color:var(--tx)"></span> <button class="x" id="mnext" aria-label="Próximo mês">${I.dir}</button></span>`)}
   ${MODO!=='demo'?'':det('lancar','freq','Atalhos de lançamento',`<div class="chips" id="freq" style="--h:var(--teal)">${FREQ.map((f,i)=>`<button class="chip" data-i="${i}">${f.desc} · ${brl0(f.valor)}</button>`).join('')}</div>`,'teal')}
   ${det('lancar','guia','Ajuda: essencial ou lazer',`<div class="guia">
@@ -355,7 +355,7 @@ T.lancar = () => MOB() ? lancarM() : `
       <div class="toggle" style="margin-bottom:18px"><label><input type="checkbox" id="f_ess"> Essencial ${info('Gasto sem o qual sua rotina básica quebra: moradia, comida de casa, transporte para trabalho ou aula, saúde, faculdade, contas básicas. Não conta no teto de lazer.')}</label><label><input type="checkbox" id="f_laz" checked> Conta no lazer ${info('Marque se é escolha e dá para adiar: jogos, cinema, delivery, passeios. Entra no teto de lazer do mês.',true)}</label></div>
       <div class="dica" id="dica"></div>
       <div class="row acoes" style="justify-content:flex-start"><button class="btn" id="f_ok">Salvar lançamento</button><button class="btn ghost" id="f_cancel" style="display:none">Cancelar</button></div><div id="f_msg" class="hint"></div>`,'teal')}
-    ${pn('Lançamentos',`<input type="text" id="busca" placeholder="Buscar por nome, categoria ou forma de pagamento…" style="margin-bottom:12px"><div id="lz_resumo"></div><div id="lista"></div>
+    ${pn('Lançamentos',`<input type="text" id="busca" placeholder="Buscar por nome, categoria ou forma de pagamento…" style="margin-bottom:12px"><div id="lz_resumo"></div><div id="conta_filtro"></div><div id="lista"></div>
       <div class="row" style="margin-top:14px"><span class="hint">Seus lançamentos ficam neste aparelho e no seu Google Drive. Exporte o CSV para levar à planilha.</span><button class="ibtn tonal" id="exp" type="button" aria-label="Exportar lançamentos em CSV" title="Exportar lançamentos em CSV">${I.baixar}</button></div>`,'pink','',`<span><button class="x" id="mprev" aria-label="Mês anterior">${I.esq}</button> <span id="mnome" style="color:var(--tx)"></span> <button class="x" id="mnext" aria-label="Próximo mês">${I.dir}</button></span>`)}
   </div>
   <div class="grid g2" style="margin-top:14px">
@@ -421,15 +421,30 @@ function bindLancar(){
   $('#exp').onclick=()=>{ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['\ufeff'+S.exportarCSV()],{type:'text/csv'})); a.download='lancamentos_reais_'+mesAtual+'.csv'; a.click(); };
   drawLista();
 }
+/* filtro por conta: só aparece quando o mês tem lançamento com conta */
+let contaFiltro='';
+function contaFiltroPinta(doM){
+  const el=$('#conta_filtro'); if(!el) return;
+  const nomes=new Map(); let semConta=false; doM.forEach(l=>{ if(l.contaId){ if(!nomes.has(l.contaId)) nomes.set(l.contaId,l.contaNome); } else semConta=true; });
+  if(!nomes.size){ contaFiltro=''; if(el.innerHTML) el.innerHTML=''; return; }
+  if(contaFiltro&&contaFiltro!=='__sem'&&!nomes.has(contaFiltro)) contaFiltro='';
+  if(contaFiltro==='__sem'&&!semConta) contaFiltro='';
+  const op=[...nomes].sort((a,b)=>String(a[1]).localeCompare(String(b[1]),'pt-BR')).map(([id,n])=>`<option value="${esc(id)}"${id===contaFiltro?' selected':''}>${esc(n)}</option>`).join('');
+  el.innerHTML=`<div class="flt-conta"><label for="flt_conta">Filtrar por conta</label><select id="flt_conta"><option value="">Todas as contas</option>${op}${semConta?`<option value="__sem"${contaFiltro==='__sem'?' selected':''}>Sem conta</option>`:''}</select></div>`;
+  const voltou=document.activeElement&&document.activeElement.id==='flt_conta';
+  $('#flt_conta').onchange=e=>{ contaFiltro=e.target.value; drawLista(); const s=$('#flt_conta'); if(s) s.focus(); };
+  if(voltou) $('#flt_conta').focus();
+}
 function drawLista(){
   const doM=lanc.filter(l=>l.data.startsWith(mesVer)), g=doM.filter(l=>l.lazer&&l.valor>0).reduce((s,l)=>s+l.valor,0), pct=g/DEMO.tetoLazer, cls=pct<=.75?'ok':pct<=1?'at':'ru';
   $('#mnome').textContent=mesTitulo(mesVer);
   if(!DEMO.tetoLazer) $('#lz_resumo').innerHTML=''; else $('#lz_resumo').innerHTML=`<div class="row"><span class="mu small">Lazer: ${brl(g)} de ${brl0(DEMO.tetoLazer)}</span><span class="tag ${cls}">${ST[cls][0]} ${pct>1?'passou '+brl0(g-DEMO.tetoLazer):brl0(DEMO.tetoLazer-g)+' restantes'}</span></div><div class="bar" style="--h:${COR[cls]}"><span style="width:${Math.min(pct,1)*100}%"></span></div>`;
   const q=(($('#busca')||{}).value||'').toLowerCase().trim();
-  const rows=[...doM].filter(l=>!q||(l.desc+' '+l.cat+' '+(l.forma||'')).toLowerCase().includes(q)).sort((a,b)=>b.data.localeCompare(a.data));
-  $('#lista').innerHTML = rows.length ? `<table class="lt"><tr><th>Dia</th><th>O que</th><th class="n">Valor</th><th></th><th></th></tr>${rows.map(l=>`<tr style="${String(l.id)===String(editId)?'background:var(--p2)':''}"><td>${esc(l.data.slice(8))}</td><td>${esc(l.desc)}<div class="mu small">${esc(l.cat)}${l.lazer?' · lazer':''}${l.forma?' · '+esc(l.forma):''}</div></td><td class="n" style="color:${l.valor<0?'var(--ok)':'inherit'}">${l.valor<0?'+':''}${brl(Math.abs(l.valor))}</td><td class="b"><button class="x" data-ed="${l.id}" title="Corrigir" aria-label="Corrigir">${I.editar}</button></td><td class="b"><button class="x" data-id="${l.id}" title="Apagar" aria-label="Apagar">${I.apagar}</button></td></tr>`).join('')}</table>` : '<div class="mu">Nenhum lançamento neste mês.</div>'+(MOB()?'<button class="btn ghost" id="primeiro" style="margin-top:12px;width:100%">Lançar o primeiro gasto</button>':'');
+  contaFiltroPinta(doM);
+  const rows=[...doM].filter(l=>!q||(l.desc+' '+l.cat+' '+(l.forma||'')+' '+(l.contaNome||'')).toLowerCase().includes(q)).filter(l=>!contaFiltro||(contaFiltro==='__sem'?!l.contaId:l.contaId===contaFiltro)).sort((a,b)=>b.data.localeCompare(a.data));
+  $('#lista').innerHTML = rows.length ? `<table class="lt"><tr><th>Dia</th><th>O que</th><th class="n">Valor</th><th></th><th></th></tr>${rows.map(l=>`<tr style="${String(l.id)===String(editId)?'background:var(--p2)':''}"><td>${esc(l.data.slice(8))}</td><td>${esc(l.desc)}<div class="mu small">${esc(l.cat)}${l.lazer?' · lazer':''}${l.forma?' · '+esc(l.forma):''}${l.contaNome?' · '+esc(l.contaNome):''}</div></td><td class="n" style="color:${l.valor<0?'var(--ok)':'inherit'}">${l.valor<0?'+':''}${brl(Math.abs(l.valor))}</td><td class="b"><button class="x" data-ed="${l.id}" title="Corrigir" aria-label="Corrigir">${I.editar}</button></td><td class="b"><button class="x" data-id="${l.id}" title="Apagar" aria-label="Apagar">${I.apagar}</button></td></tr>`).join('')}</table>` : '<div class="mu">Nenhum lançamento neste mês.</div>'+(MOB()?'<button class="btn ghost" id="primeiro" style="margin-top:12px;width:100%">Lançar o primeiro gasto</button>':'');
   const pr1=$('#primeiro'); if(pr1) pr1.onclick=()=>{ const v=$('#f_valor'); if(v.scrollIntoView) v.scrollIntoView({block:'center'}); v.focus(); };
-  if(q) $('#lista').insertAdjacentHTML('beforeend',`<div class="hint">${rows.length} resultado(s) · total ${brl(rows.reduce((s,l)=>s+Math.abs(l.valor),0))}</div>`);
+  if(q||contaFiltro) $('#lista').insertAdjacentHTML('beforeend',`<div class="hint">${rows.length} resultado(s) · total ${brl(rows.reduce((s,l)=>s+Math.abs(l.valor),0))}</div>`);
   $$('#lista [data-ed]').forEach(b=>b.onclick=()=>startEditFn&&startEditFn(b.dataset.ed));
   $$('#lista [data-id]').forEach(b=>b.onclick=()=>{ lastDel=S.apagar(b.dataset.id); if(String(editId)===b.dataset.id) editId=null; drawLista();
     $('#f_msg').innerHTML='Lançamento apagado. <a href="#" id="undo" style="color:var(--teal)">Desfazer</a>'; $('#undo').onclick=e=>{ e.preventDefault(); if(lastDel){ S.desfazerApagar(lastDel); lastDel=null; drawLista(); $('#f_msg').textContent=IOK+' Desfeito.'; } }; });
@@ -1320,8 +1335,9 @@ const bancoSessao=()=>Drive.conectado()?null:Drive.jaConectou()?'A sessão do Go
 const bancoAviso=(cls,txt)=>{ const m=$('#bc_msg'); if(m) m.innerHTML=txt?alerta(cls,esc(txt)):''; };
 T.banco = () => `<div class="head"><div><h1>Conexão bancária (em teste)</h1><div class="sub">Só neste aparelho. Só atualiza quando você pedir.</div></div></div>
   ${pn('Ponte',`<div class="field"><label for="bc_url">Endereço da ponte</label><input id="bc_url" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(load('tf_banco_url',''))}"></div>
-    <div class="bc-acoes"><button class="btn" id="bc_atu" type="button">Atualizar do banco</button><button class="btn ghost" id="bc_rem" type="button">Remover conexão</button></div><div id="bc_msg" style="margin-top:12px"></div>`,'teal')}`;
-function bancoBind(){ $('#bc_atu').onclick=bancoAtualizar; $('#bc_rem').onclick=bancoRemover; const s=bancoSessao(); if(s) bancoAviso('at',s); }
+    <div class="bc-acoes"><button class="btn" id="bc_atu" type="button">Atualizar do banco</button><button class="btn ghost" id="bc_rem" type="button">Remover conexão</button></div><div id="bc_msg" style="margin-top:12px"></div>`,'teal')}
+  ${bancoContas().length?pn('Contas',`<div class="small mu" style="margin-bottom:12px">O novo nome vale para as próximas importações. Quem já foi importado mantém o nome daquele dia.</div><div id="bc_mais">${bancoNomesHtml(bancoContas(),'bc_mn')}</div>`,'teal','margin-top:14px'):''}`;
+function bancoBind(){ $('#bc_atu').onclick=bancoAtualizar; $('#bc_rem').onclick=bancoRemover; const s=bancoSessao(); if(s) bancoAviso('at',s); const m=$('#bc_mais'); if(m) m.addEventListener('change',e=>{ const l=bancoContas(), c=l[+e.target.dataset.n]; if(!c) return; c.renome=TFBanco.limparNome(e.target.value); save0('tf_banco_contas',l); }); }
 function bancoRemover(){
   const volta=$('#bc_rem'), fundo=document.createElement('div'); fundo.className='conf';
   fundo.innerHTML=`<div class="confc" role="alertdialog" aria-modal="true" aria-labelledby="conf_t" aria-describedby="conf_d"><h2 id="conf_t">Remover conexão?</h2><p id="conf_d">Apaga o endereço da ponte e as escolhas de sinal deste aparelho. Os lançamentos já importados continuam.</p><div class="confb"><button class="btn ghost" id="conf_nao" type="button">Cancelar</button><button class="btn" id="conf_sim" type="button">Remover</button></div></div>`;
@@ -1345,27 +1361,50 @@ async function bancoAtualizar(){
   if(!r.dados.movs.length){ bancoAviso('ok','Nenhum movimento encontrado nesse período.'); return; }
   bancoPrevia(r.dados);
 }
+const bancoContas=()=>{ const r=load('tf_banco_contas',[]); return Array.isArray(r)?r:[]; };
+const bancoRenomes=()=>new Map(bancoContas().filter(c=>c.renome).map(c=>[c.id,c.renome]));
+function bancoNomesHtml(contas,prefixo){ return contas.map((c,i)=>`<div class="field"><label for="${prefixo}${i}">Nome de ${esc(c.padrao)}</label><input id="${prefixo}${i}" type="text" maxlength="60" autocomplete="off" data-n="${i}" value="${esc(c.renome||'')}"></div>`).join(''); }
 function bancoPrevia(dados0){
-  let dados=dados0, lista=[]; const volta=$('#bc_atu'), inv=new Set(load('tf_banco_inv',[])), escolha=new Map(), fora=[...document.querySelectorAll('nav,.col')];
+  let dados=dados0, lista=[]; const volta=$('#bc_atu'), inv=new Set(load('tf_banco_inv',[])), escolha=new Map(), escolhaV=new Map(), renomes=bancoRenomes(), fora=[...document.querySelectorAll('nav,.col')];
+  const padroes=TFBanco.rotulos(dados.contas);
   const liga=it=>it.estado==='novo'||it.estado==='existe', marcado=it=>liga(it)&&(escolha.has(it.idExterno)?escolha.get(it.idExterno):it.marcado);
+  const vincula=it=>it.vinculo==='sim'&&!marcado(it)&&(escolhaV.has(it.idExterno)?escolhaV.get(it.idExterno):true);
   const sentido=it=>it.direcao==='entrada'?'entrada':'saída';
-  const etiqueta=it=>it.estado==='novo'?'':`<span class="tag ne">${it.estado==='sem_valor'?'sem valor':'já existe'}</span>`;
-  const linha=(it,i)=>`<label class="bc-it"><input type="checkbox" data-i="${i}"${marcado(it)?' checked':''}${liga(it)?'':' disabled'}><span class="bc-tx"><b>${esc(it.desc)}</b><span class="mu small">${esc(it.data.split('-').reverse().join('/'))} · ${esc(it.conta)}${it.pendente?' · pendente':''}</span></span><span class="bc-val"><b>${brl(it.valor)}</b><span class="small">${sentido(it)}</span>${etiqueta(it)}</span></label>`;
+  const etiqueta=it=>[it.estado==='novo'?'':`<span class="tag ne">${it.estado==='sem_valor'?'sem valor':'já existe'}</span>`,it.vinculo==='ambiguo'?'<span class="tag ne">ambíguo</span>':'',it.vinculo==='feito'?'<span class="tag ne">conta vinculada</span>':''].join('');
+  const marcaTxt=it=>it.marca==='fatura'?`<span class="tag ne">pagamento de fatura</span><span class="bc-razao">${esc(TFBanco.RAZOES.fatura)}</span>`:it.marca==='entre'?'<span class="tag ne">entre suas contas</span>':'';
+  const linha=(it,i)=>`<div class="bc-lin"><label class="bc-it"><input type="checkbox" data-i="${i}"${marcado(it)?' checked':''}${liga(it)?'':' disabled'}><span class="bc-tx"><b>${esc(it.desc)}</b><span class="mu small">${esc(it.data.split('-').reverse().join('/'))} · ${esc(it.contaNome)}${it.pendente?' · pendente':''}</span>${marcaTxt(it)}</span><span class="bc-val"><b>${brl(it.valor)}</b><span class="small">${sentido(it)}</span>${etiqueta(it)}</span></label>${it.vinculo==='sim'?`<label class="bc-vin"><input type="checkbox" data-v="${i}"${escolhaV.get(it.idExterno)===false?'':' checked'}><span>Vincular conta</span></label>`:''}</div>`;
   const fundo=document.createElement('div'); fundo.className='conf';
+  const contasNomes=dados.contas.map(c=>({id:c.id,padrao:padroes.get(c.id),renome:renomes.get(c.id)||''}));
   fundo.innerHTML=`<div class="confc bc-prev" role="dialog" aria-modal="true" aria-labelledby="bc_t" aria-describedby="bc_d"><h2 id="bc_t">Importar do banco</h2><p id="bc_d">Confira antes de salvar. Nada é gravado até você confirmar.</p>
-    <div id="bc_contas">${dados.contas.map((c,i)=>`<label class="bc-inv"><input type="checkbox" data-c="${i}"${inv.has(c.id)?' checked':''}><span>Inverter sinal de ${esc(c.nome)}</span></label>`).join('')}</div>
+    <div id="bc_contas"></div>
     <div class="bc-cont" id="bc_cont" role="status"></div><div class="bc-lista" id="bc_lista" role="group" aria-label="Movimentos encontrados"></div>
+    <details class="bc-nomes"><summary>Renomear contas</summary><div id="bc_nomes">${bancoNomesHtml(contasNomes,'bc_nm')}</div></details>
     <div class="confb"><button class="btn ghost" id="bc_cancel" type="button">Cancelar</button><button class="btn" id="bc_ok" type="button">Importar selecionados</button></div></div>`;
   const q=s=>fundo.querySelector(s);
-  const conta=()=>{ const n=lista.filter(marcado).length; q('#bc_cont').textContent=n+' de '+lista.length+' selecionados'; q('#bc_ok').disabled=!n; };
-  const pinta=()=>{ lista=TFBanco.montarPrevia(dados,S.st.lanc,load('tf_banco_ids',[]),[...inv]); q('#bc_lista').innerHTML=lista.map(linha).join(''); conta(); };
-  const fecha=()=>{ dados=null; lista=[]; escolha.clear(); fundo.remove(); fora.forEach(e=>e.removeAttribute('inert')); if(volta.isConnected) volta.focus(); };   // a resposta não fica guardada depois de fechar
-  q('#bc_lista').addEventListener('change',e=>{ const it=lista[+e.target.dataset.i]; if(it){ escolha.set(it.idExterno,e.target.checked); conta(); } });
+  const conta=()=>{ const n=lista.filter(marcado).length, v=lista.filter(vincula).length; q('#bc_cont').textContent=n+' de '+lista.length+' selecionados'+(v?' · '+v+' para vincular':''); q('#bc_ok').disabled=!n&&!v; };
+  const pinta=()=>{ const rot=TFBanco.rotulos(dados.contas,renomes); q('#bc_contas').innerHTML=dados.contas.map((c,i)=>`<label class="bc-inv"><input type="checkbox" data-c="${i}"${inv.has(c.id)?' checked':''}><span>Inverter sinal de ${esc(rot.get(c.id))}</span></label>`).join(''); lista=TFBanco.montarPrevia(dados,S.st.lanc,load('tf_banco_ids',[]),[...inv],renomes); q('#bc_lista').innerHTML=lista.map(linha).join(''); conta(); };
+  const fecha=()=>{ dados=null; lista=[]; escolha.clear(); escolhaV.clear(); fundo.remove(); fora.forEach(e=>e.removeAttribute('inert')); if(volta.isConnected) volta.focus(); };   // a resposta não fica guardada depois de fechar
+  const salva=()=>{ const sel=lista.filter(marcado), lig=lista.filter(vincula), rot=TFBanco.rotulos(dados.contas,renomes);
+    const r=sel.length?S.importarBanco(sel):{ok:true,n:0}; if(!r.ok){ bancoAviso('ru',r.erro); fecha(); return; }
+    const rv=lig.length?S.vincularBanco(lig):{ok:true,n:0}; if(!rv.ok){ bancoAviso('ru',rv.erro); fecha(); return; }
+    save0('tf_banco_ids',[...new Set(load('tf_banco_ids',[]).concat(sel.map(x=>x.idExterno),lig.map(x=>x.idExterno)))]); save0('tf_banco_inv',[...inv]);
+    const reg=new Map(bancoContas().map(c=>[c.id,c])); dados.contas.forEach(c=>{ reg.set(c.id,{id:c.id,padrao:padroes.get(c.id),renome:renomes.get(c.id)||''}); }); save0('tf_banco_contas',[...reg.values()]);
+    fecha(); const p=[]; if(r.n||!rv.n) p.push(r.n===1?'1 lançamento importado.':r.n+' lançamentos importados.'); if(rv.n) p.push(rv.n===1?'1 lançamento vinculado à conta.':rv.n+' lançamentos vinculados à conta.'); bancoAviso('ok',p.join(' ')); };
+  const resumo=()=>{ const v=lista.filter(vincula).length, n=lista.filter(marcado).length, f2=document.createElement('div'); f2.className='conf';
+    f2.innerHTML=`<div class="confc" role="alertdialog" aria-modal="true" aria-labelledby="conf_t" aria-describedby="conf_d"><h2 id="conf_t">Confirmar</h2><p id="conf_d">Vai atualizar ${v===1?'1 lançamento existente':v+' lançamentos existentes'} só com a conta. Nada mais muda.${n?' E vai importar '+(n===1?'1 lançamento novo.':n+' lançamentos novos.'):''}</p><div class="confb"><button class="btn ghost" id="bc_vt" type="button">Cancelar</button><button class="btn" id="bc_sim" type="button">Confirmar</button></div></div>`;
+    document.body.appendChild(f2); fundo.setAttribute('inert','');
+    const nao=f2.querySelector('#bc_vt'), sim=f2.querySelector('#bc_sim'), sai=()=>{ f2.remove(); fundo.removeAttribute('inert'); q('#bc_ok').focus(); };
+    nao.onclick=sai; sim.onclick=()=>{ f2.remove(); fundo.removeAttribute('inert'); salva(); };
+    f2.onclick=e=>{ if(e.target===f2) sai(); };
+    f2.onkeydown=e=>{ if(e.key==='Escape'){ e.stopPropagation(); sai(); } else if(e.key==='Tab'){ e.preventDefault(); (document.activeElement===nao?sim:nao).focus(); } };
+    nao.focus(); };
+  q('#bc_lista').addEventListener('change',e=>{ const d=e.target.dataset; if(d.v!==undefined){ const it=lista[+d.v]; if(it){ escolhaV.set(it.idExterno,e.target.checked); conta(); } return; } const it=lista[+d.i]; if(it){ escolha.set(it.idExterno,e.target.checked); conta(); } });
   q('#bc_contas').addEventListener('change',e=>{ const c=dados.contas[+e.target.dataset.c]; if(!c) return; if(e.target.checked) inv.add(c.id); else inv.delete(c.id); pinta(); });
+  q('#bc_nomes').addEventListener('change',e=>{ const c=dados.contas[+e.target.dataset.n]; if(!c) return; const n=TFBanco.limparNome(e.target.value); if(n) renomes.set(c.id,n); else renomes.delete(c.id); pinta(); });
   q('#bc_cancel').onclick=fecha;
-  q('#bc_ok').onclick=()=>{ if(!lista.some(marcado)) return; const sel=lista.filter(marcado), ids=[...new Set(load('tf_banco_ids',[]).concat(sel.map(x=>x.idExterno)))], r=S.importarBanco(sel); if(!r.ok){ bancoAviso('ru',r.erro); fecha(); return; } save0('tf_banco_ids',ids); save0('tf_banco_inv',[...inv]); fecha(); bancoAviso('ok',r.n===1?'1 lançamento importado.':r.n+' lançamentos importados.'); };
+  q('#bc_ok').onclick=()=>{ const n=lista.filter(marcado).length, v=lista.filter(vincula).length; if(!n&&!v) return; if(v) resumo(); else salva(); };
   fundo.onclick=e=>{ if(e.target===fundo) fecha(); };
-  fundo.onkeydown=e=>{ if(e.key==='Escape'){ e.stopPropagation(); fecha(); return; } if(e.key!=='Tab') return; const f=[...fundo.querySelectorAll('input:not([disabled]),button:not([disabled])')], a=f[0], z=f[f.length-1]; if(e.shiftKey&&document.activeElement===a){ e.preventDefault(); z.focus(); } else if(!e.shiftKey&&document.activeElement===z){ e.preventDefault(); a.focus(); } };
+  fundo.onkeydown=e=>{ if(e.key==='Escape'){ e.stopPropagation(); fecha(); return; } if(e.key!=='Tab') return; const f=[...fundo.querySelectorAll('input:not([disabled]),button:not([disabled]),summary')], a=f[0], z=f[f.length-1]; if(e.shiftKey&&document.activeElement===a){ e.preventDefault(); z.focus(); } else if(!e.shiftKey&&document.activeElement===z){ e.preventDefault(); a.focus(); } };
   document.body.appendChild(fundo); fora.forEach(e=>e.setAttribute('inert','')); pinta(); q('#bc_cancel').focus();
 }
 function fecharMais(){ const n=$('#nav'); if(n&&n.classList.contains('aberto')){ n.classList.remove('aberto'); const b=$('#maisbtn'); if(b) b.setAttribute('aria-expanded','false'); } }

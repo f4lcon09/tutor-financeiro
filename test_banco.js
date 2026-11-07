@@ -180,6 +180,169 @@ const leituraAntiga = itens => { const o = {}; Object.keys(itens).forEach(k => {
   t('versão nova: aplicar mantém os campos', (() => { const Z = novo(); Z.definirModo('real'); Z.aplicar(Sync.montar(ida)); return Z.st.lanc.every(l => l.idExterno); })());
 }
 
+/* nomes das contas */
+{
+  const rot = (cs, ren) => B.rotulos(cs, ren);
+  const C = { id: 'a', tipo: 'BANK', subtipo: 'CHECKING_ACCOUNT', nome: 'Banco Azul' }, K = { id: 'b', tipo: 'CREDIT', subtipo: 'CREDIT_CARD', nome: 'Banco Azul' };
+  t('nome: conta', rot([C]).get('a') === 'Banco Azul · conta');
+  t('nome: cartão', rot([K]).get('b') === 'Banco Azul · cartão');
+  t('nome: conta e cartão do mesmo banco não colidem', rot([C, K]).get('a') !== rot([C, K]).get('b'));
+  const P = { id: 'c', tipo: 'BANK', subtipo: 'SAVINGS_ACCOUNT', nome: 'Banco Azul' };
+  const r2 = rot([C, P]);
+  t('colisão: entra o subtipo', r2.get('a') === 'Banco Azul · conta · corrente' && r2.get('c') === 'Banco Azul · conta · poupança');
+  const D = { id: 'd', tipo: 'BANK', subtipo: 'CHECKING_ACCOUNT', nome: 'Banco Azul' }, r3 = rot([D, C]);
+  t('colisão: depois do subtipo, um número', r3.get('a') === 'Banco Azul · conta · corrente 1' && r3.get('d') === 'Banco Azul · conta · corrente 2');
+  t('colisão: a ordem da resposta não troca os nomes', rot([C, D]).get('a') === r3.get('a') && rot([C, D]).get('d') === r3.get('d'));
+  const S1 = { id: 'e', tipo: 'BANK', subtipo: null, nome: 'Banco Azul' }, S2 = { id: 'f', tipo: 'BANK', subtipo: null, nome: 'Banco Azul' }, r4 = rot([S1, S2]);
+  t('colisão: sem subtipo vai direto ao número', r4.get('e') === 'Banco Azul · conta 1' && r4.get('f') === 'Banco Azul · conta 2');
+  t('colisão: subtipo desconhecido fica legível', rot([{ ...C, subtipo: 'OUTRO_TIPO' }, { ...P, subtipo: null }]).get('a') === 'Banco Azul · conta · outro tipo');
+  const ren = new Map([['a', 'Minha conta']]);
+  t('renomear: vale sobre o padrão', rot([C, D], ren).get('a') === 'Minha conta' && rot([C, D], ren).get('d') === 'Banco Azul · conta');
+  t('renomear: sem nome volta ao padrão', rot([C], new Map()).get('a') === 'Banco Azul · conta');
+  t('nome limpo: corta espaços e tamanho', B.limparNome('  Conta X  ') === 'Conta X' && B.limparNome('x'.repeat(80)).length === 60 && B.limparNome(null) === '' && B.limparNome('   ') === '');
+  t('prévia traz o nome da conta', B.montarPrevia(DADOS(), [], [], [])[0].contaNome === 'Conta Teste · conta' && B.montarPrevia(DADOS(), [], [], [])[2].contaNome === 'Cartão Teste · cartão');
+  t('prévia usa o nome dado pelo dono', B.montarPrevia(DADOS(), [], [], [], new Map([['c2', 'Roxinho']]))[2].contaNome === 'Roxinho');
+}
+
+/* campos da conta no lançamento */
+{
+  const S = novo(); S.definirModo('real'); S.importarBanco(B.montarPrevia(DADOS(), [], [], [], new Map([['c2', 'Meu cartão']])));
+  const c = S.st.lanc.find(l => l.idExterno === 'm3');
+  t('conta: id e nome no lançamento', c.contaId === 'c2' && c.contaNome === 'Meu cartão' && c.origem === 'pluggy');
+  const ed = S.editar(c.id, { tipo: 'gasto', valor: '50,00', desc: 'Outra', cat: 'Comida', data: '2026-11-04', forma: 'Pix' }), c2 = S.st.lanc.find(l => l.id === c.id);
+  t('conta: editar mantém a conta', ed.ok && c2.contaId === 'c2' && c2.contaNome === 'Meu cartão');
+  const base = { id: 7, data: '2026-11-02', desc: 'a', cat: 'Outros', valor: 1, forma: 'Débito', essencial: false, lazer: false, contaId: 'c1', contaNome: 'Conta' };
+  const v = Seg.sanearEstado({ lanc: [base] }).estado.lanc[0];
+  t('limpeza mantém a conta', v.contaId === 'c1' && v.contaNome === 'Conta');
+  [['id com símbolo', { contaId: '<b>' }], ['id número', { contaId: 1 }], ['id perigoso', { contaId: 'constructor' }], ['nome vazio', { contaNome: ' ' }], ['nome número', { contaNome: 1 }], ['sem nome', { contaNome: undefined }]].forEach(([n, x]) => { const r = Seg.sanearEstado({ lanc: [{ ...base, ...x }] }).estado.lanc; t('limpeza: ' + n + ' não passa, o lançamento fica', r.length === 1 && !('contaId' in r[0]) && !('contaNome' in r[0])); });
+  t('limpeza corta nome enorme', Seg.sanearEstado({ lanc: [{ ...base, contaNome: 'x'.repeat(500) }] }).estado.lanc[0].contaNome.length <= Seg.LIM.nome);
+  t('limparItens mantém a conta', Seg.limparItens({ 'lanc:7': { u: 1, d: false, v: base } }).itens['lanc:7'].v.contaId === 'c1');
+}
+
+/* vincular o que já existe */
+const L0 = (x) => ({ id: 41, data: '2026-11-02', desc: 'PADARIA  exemplo', cat: 'Comida', valor: 12.5, forma: 'Pix', essencial: true, lazer: false, ...(x || {}) });
+{
+  const p = B.montarPrevia(DADOS(), [L0()], [], []);
+  t('vínculo: um lançamento igual é candidato', p[0].estado === 'existe' && p[0].vinculo === 'sim' && p[0].alvo === 41);
+  const am = B.montarPrevia(DADOS(), [L0(), L0({ id: 42 })], [], []);
+  t('vínculo: dois lançamentos iguais ficam ambíguos', am[0].vinculo === 'ambiguo' && am[0].alvo === null);
+  const dup = B.validarResposta(RESP({ movs: [MOVS[0], { ...MOVS[0], id: 'mX' }] })).dados, d2 = B.montarPrevia(dup, [L0()], [], []);
+  t('vínculo: dois movimentos para um lançamento ficam ambíguos', d2.every(x => x.vinculo === 'ambiguo' && x.alvo === null));
+  const porId = B.montarPrevia(DADOS(), [L0({ desc: 'outra coisa', idExterno: 'm1', origem: 'pluggy' })], [], []);
+  t('vínculo: por id externo', porId[0].estado === 'importado' && porId[0].vinculo === 'sim' && porId[0].alvo === 41);
+  t('vínculo: mesma conta já feita', B.montarPrevia(DADOS(), [L0({ contaId: 'c1', contaNome: 'x' })], [], [])[0].vinculo === 'feito');
+  t('vínculo: conta diferente não é trocada', B.montarPrevia(DADOS(), [L0({ contaId: 'c9', contaNome: 'x' })], [], [])[0].vinculo === null);
+  t('vínculo: lançamento ligado a outro movimento não é candidato', B.montarPrevia(DADOS(), [L0({ idExterno: 'outro', origem: 'pluggy' })], [], [])[0].vinculo === null);
+  t('vínculo: id só no conjunto local, sem lançamento, nada a ligar', B.montarPrevia(DADOS(), [], ['m1'], [])[0].vinculo === null);
+  t('vínculo: novo não é candidato', B.montarPrevia(DADOS(), [], [], [])[0].vinculo === null);
+  t('vínculo: não vem marcado para importar', p[0].marcado === false);
+
+  const S = novo(); S.definirModo('real'); S.st.lanc.push(L0(), L0({ id: 50, desc: 'Fora', valor: 9 })); const antes = JSON.stringify(S.st.lanc[0]), outro = JSON.stringify(S.st.lanc[1]);
+  let ouvidas = 0; S.aoMudar(() => ouvidas++);
+  const r = S.vincularBanco(B.montarPrevia(DADOS(), S.st.lanc, [], []).filter(x => x.vinculo === 'sim'));
+  const l = S.st.lanc[0];
+  t('vincular: liga um', r.ok && r.n === 1 && ouvidas === 1);
+  t('vincular: conta preenchida', l.contaId === 'c1' && l.contaNome === 'Conta Teste · conta');
+  t('vincular: origem e id entram quando faltam', l.origem === 'pluggy' && l.idExterno === 'm1');
+  ['id', 'data', 'desc', 'cat', 'valor', 'forma', 'essencial', 'lazer'].forEach(k => t('vincular: não muda ' + k, JSON.stringify(l[k]) === JSON.stringify(JSON.parse(antes)[k])));
+  const semNovos = {}; Object.keys(l).filter(k => !['contaId', 'contaNome', 'origem', 'idExterno'].includes(k)).forEach(k => { semNovos[k] = l[k]; });
+  t('vincular: o resto fica idêntico byte a byte', JSON.stringify(semNovos) === antes);
+  t('vincular: outro lançamento não muda', JSON.stringify(S.st.lanc[1]) === outro);
+  const s1 = JSON.stringify(S.st.lanc), r2 = S.vincularBanco([{ alvo: 41, contaId: 'zz', contaNome: 'Outra', idExterno: 'm1' }]);
+  t('vincular: quem já tem conta não muda', r2.n === 0 && JSON.stringify(S.st.lanc) === s1);
+  t('vincular: alvo inexistente não faz nada', S.vincularBanco([{ alvo: 999, contaId: 'c1', contaNome: 'x', idExterno: 'k' }]).n === 0);
+  const T1 = novo(); T1.definirModo('real'); T1.st.lanc.push(L0({ origem: 'pluggy', idExterno: 'm1' }));
+  T1.vincularBanco([{ alvo: 41, contaId: 'c1', contaNome: 'x', idExterno: 'outro' }]);
+  t('vincular: id externo existente não é trocado', T1.st.lanc[0].idExterno === 'm1');
+  const Dm = novo(); Dm.definirModo('demo'); t('vincular: modo de exemplo não grava', !Dm.vincularBanco([]).ok);
+
+  /* hora do item: é ela que faz a sincronização levar a mudança */
+  const Q = novo(); Q.definirModo('real'); Q.st.lanc.push(L0(), L0({ id: 50, desc: 'Fora', valor: 9 }));
+  const it0 = Sync.atualizar({ ...Q.paraSync(), real: undefined }, {}, 1000);
+  Q.vincularBanco(B.montarPrevia(DADOS(), Q.st.lanc, [], []).filter(x => x.vinculo === 'sim'));
+  const it1 = Sync.atualizar({ ...Q.paraSync(), real: undefined }, it0, 2000);
+  t('hora: o item ligado ganha hora nova', it1['lanc:41'].u === 2000 && it0['lanc:41'].u === 1000);
+  t('hora: os outros mantêm a hora', it1['lanc:50'].u === 1000);
+  t('hora: a mudança vence a versão anterior', Sync.montar(Sync.juntar(it0, it1)).lanc.find(x => x.id === 41).contaId === 'c1');
+}
+
+/* transferências entre contas do dono */
+{
+  const cts = [{ id: 'a', tipo: 'BANK', subtipo: null, nome: 'A', saldo: 1, item: null }, { id: 'b', tipo: 'BANK', subtipo: null, nome: 'B', saldo: 1, item: null }, { id: 'c', tipo: 'CREDIT', subtipo: null, nome: 'C', saldo: 1, item: null }];
+  const M = (id, conta, data, valor, tipo, desc) => ({ id, conta, data, desc: desc || 'Movimento ' + id, valor, tipo, status: 'POSTED' });
+  const pv = (ms, lanc, inv) => B.montarPrevia(B.validarResposta({ ok: true, dados: { de: '2026-10-01', ate: '2026-11-05', contas: cts, movs: ms } }).dados, lanc || [], [], inv || []);
+  const dois = pv([M('s', 'a', '2026-11-02', -100, 'DEBIT'), M('e', 'b', '2026-11-02', 100, 'CREDIT')]);
+  t('par: mesmo dia', dois.every(x => x.marca === 'entre' && x.marcado === false));
+  t('par: um dia de diferença', pv([M('s', 'a', '2026-11-02', -100, 'DEBIT'), M('e', 'b', '2026-11-03', 100, 'CREDIT')]).every(x => x.marca === 'entre'));
+  t('par: virada de mês', pv([M('s', 'a', '2026-10-31', -100, 'DEBIT'), M('e', 'b', '2026-11-01', 100, 'CREDIT')]).every(x => x.marca === 'entre'));
+  t('par: entrada antes da saída', pv([M('s', 'a', '2026-11-03', -100, 'DEBIT'), M('e', 'b', '2026-11-02', 100, 'CREDIT')]).every(x => x.marca === 'entre'));
+  t('quase: dois dias', pv([M('s', 'a', '2026-11-01', -100, 'DEBIT'), M('e', 'b', '2026-11-03', 100, 'CREDIT')]).every(x => !x.marca && x.marcado));
+  t('quase: um centavo de diferença', pv([M('s', 'a', '2026-11-02', -100, 'DEBIT'), M('e', 'b', '2026-11-02', 100.01, 'CREDIT')]).every(x => !x.marca));
+  t('quase: mesma direção', pv([M('s', 'a', '2026-11-02', -100, 'DEBIT'), M('e', 'b', '2026-11-02', -100, 'DEBIT')]).every(x => !x.marca));
+  t('mesma conta nunca é par', pv([M('s', 'a', '2026-11-02', -100, 'DEBIT'), M('e', 'a', '2026-11-02', 100, 'CREDIT')]).every(x => !x.marca && x.marcado));
+  const tres = pv([M('s', 'a', '2026-11-02', -100, 'DEBIT'), M('e1', 'b', '2026-11-02', 100, 'CREDIT'), M('e2', 'c', '2026-11-02', 100, 'CREDIT')]);
+  t('par: um para um', tres.filter(x => x.marca === 'entre').length === 2);
+  t('par: fica o mais próximo', pv([M('s', 'a', '2026-11-02', -100, 'DEBIT'), M('e1', 'b', '2026-11-03', 100, 'CREDIT'), M('e2', 'c', '2026-11-02', 100, 'CREDIT')]).find(x => x.idExterno === 'e2').marca === 'entre');
+  t('par: inverter o sinal desfaz', pv([M('s', 'a', '2026-11-02', -100, 'DEBIT'), M('e', 'b', '2026-11-02', 100, 'CREDIT')], [], ['b']).every(x => !x.marca));
+  t('par: valor zero não entra', pv([M('s', 'a', '2026-11-02', 0, 'DEBIT'), M('e', 'b', '2026-11-02', 0, 'CREDIT')]).every(x => !x.marca));
+  t('par: nada é escondido', dois.length === 2);
+  const res = pv([M('s', 'a', '2026-11-02', -100, 'DEBIT'), M('e', 'b', '2026-11-02', 100, 'CREDIT')], [{ id: 1, data: '2026-11-02', desc: 'Movimento e', valor: -100, idExterno: 'e', contaId: 'b', contaNome: 'B' }]);
+  t('par: vale mesmo com um lado já importado', res.find(x => x.idExterno === 's').marca === 'entre');
+
+  const r1 = d => pv([M('x', 'a', '2026-11-02', -50, 'DEBIT', d)])[0];
+  ['Resgate CDB', 'RESGATE RDB', 'Aplicação RDB', 'Aplicacao automatica', 'Dinheiro guardado', 'Guardar na caixinha', 'Caixinha', 'Cofrinho', 'Reserva de emergência', 'Transferência para poupança', 'Transf entre contas', 'Depósito na reserva', 'Retirada do cofre'].forEach(d => t('reserva: ' + d, r1(d).marca === 'entre' && r1(d).marcado === false));
+  ['Hotel Reserva', 'Reserva de mesa', 'Aplicação de vacina', 'Padaria Exemplo', 'Mercado Bom Preço', 'Transferência para amigo inventado', 'Cofre de loja', 'Salão Guarda-chuva'].forEach(d => t('não é reserva: ' + d, !r1(d).marca && r1(d).marcado === true));
+
+  const f1 = (d, c) => pv([M('x', c || 'a', '2026-11-02', -50, 'DEBIT', d)])[0];
+  ['Pagamento de fatura', 'PAGAMENTO FATURA', 'Pag fatura', 'Pagto da fatura', 'Pgto cartão', 'Fatura do cartão', 'Pagamento cartão de crédito', 'Pagamento do cartão'].forEach(d => t('fatura: ' + d, f1(d).marca === 'fatura' && f1(d).marcado === false));
+  ['Compra no cartão', 'Loja Fatura Certa', 'Pagamento de boleto', 'Pagamento Exemplo', 'Pagamento cartão débito mercado', 'Cartão de visita', 'Capa para cartão de crédito'].forEach(d => t('não é fatura: ' + d, f1(d).marca !== 'fatura' && f1(d).marcado === true));
+  t('fatura: em conta de cartão não marca', f1('Pagamento de fatura', 'c').marca !== 'fatura' && f1('Pagamento de fatura', 'c').marcado === true);
+  const pf = pv([M('s', 'a', '2026-11-02', -700, 'DEBIT', 'Pagamento de fatura'), M('e', 'c', '2026-11-02', 700, 'CREDIT', 'Pagamento recebido')]);
+  t('fatura e par: conta fica como fatura, cartão como entre contas', pf.find(x => x.idExterno === 's').marca === 'fatura' && pf.find(x => x.idExterno === 'e').marca === 'entre');
+  t('fatura: tem a razão em uma linha', /duas vezes/.test(B.RAZOES.fatura) && !B.RAZOES.fatura.includes('\n'));
+  const fonte = fs.readFileSync('banco.js', 'utf8');
+  t('padrões numa constante só', (fonte.match(/var PADROES = /g) || []).length === 1 && (fonte.match(/\/\\b/g) || []).length > 5);
+  const VOC = new Set('pagamento de da do fatura pag to cartao credito debito pgto caixinha cofrinho resgate aplicacao rdb cdb automatica financeira em reserva poupanca guardar guardad oa emergencia transferencia transf para pra entre cofre contas deposito retirada na no'.split(' '));
+  t('padrões só com palavras comuns, sem nome de pessoa ou empresa', Object.values(B.PADROES).flat().every(r => (r.source.replace(/\\b/g, ' ').match(/[a-z]{2,}/g) || []).every(p => VOC.has(p))));
+}
+
+/* rodar de novo não muda nada */
+{
+  const S = novo(); S.definirModo('real'); S.st.lanc.push(L0());
+  const p1 = B.montarPrevia(DADOS(), S.st.lanc, [], []), p2 = B.montarPrevia(DADOS(), S.st.lanc, [], []);
+  t('duas prévias iguais', JSON.stringify(p1) === JSON.stringify(p2));
+  S.vincularBanco(p1.filter(x => x.vinculo === 'sim')); S.importarBanco(p1.filter(x => x.marcado));
+  const antes = JSON.stringify(S.st.lanc), p3 = B.montarPrevia(DADOS(), S.st.lanc, [], []);
+  t('segunda rodada: nada a importar', p3.every(x => !x.marcado));
+  t('segunda rodada: nada a vincular', p3.every(x => x.vinculo !== 'sim'));
+  t('segunda rodada: tudo marcado como feito', p3.filter(x => x.vinculo === 'feito').length === 3);
+  S.importarBanco(p3.filter(x => x.marcado).concat(p1)); S.vincularBanco(p1);
+  t('segunda rodada: a loja não muda', JSON.stringify(S.st.lanc) === antes);
+}
+
+/* aparelho na versão anterior: cópia congelada da limpeza dela, com origem e id externo, sem conta */
+{
+  const sanTip = l => { const o = sanAntigo(l); if (l.origem === 'pluggy' && l.idExterno) { o.origem = l.origem; o.idExterno = l.idExterno; } return o; };
+  const leTip = itens => { const o = {}; Object.keys(itens).forEach(k => { const it = itens[k]; o[k] = !it.d && k.startsWith('lanc:') ? { u: it.u, d: false, v: sanTip(it.v) } : clone(it); }); return o; };
+  const S = novo(); S.definirModo('real'); S.importarBanco(B.montarPrevia(DADOS(), [], [], []));
+  const id = S.st.lanc[0].id, k = 'lanc:' + id, dono = Sync.atualizar({ ...S.paraSync(), real: undefined }, {}, 1000);
+  let velho = Sync.juntar({}, leTip(clone(dono))), stV = Sync.montar(velho);
+  t('versão anterior: recebe tudo', stV.lanc.length === 3);
+  t('versão anterior: mantém origem e tira a conta', stV.lanc.every(l => l.idExterno && !('contaId' in l)));
+  t('versão anterior: passa pela limpeza sem descartar', Seg.limparItens(clone(velho)).descartados === 0);
+  stV.lanc.push({ id: 556, data: '2026-11-05', desc: 'Do antigo', cat: 'Outros', valor: 5, forma: 'Pix', essencial: false, lazer: false });
+  velho = Sync.atualizar(stV, velho, 2000);
+  const junto = Sync.juntar(dono, Seg.limparItens(clone(velho)).itens), stN = Sync.montar(junto);
+  t('versão anterior: o dono lê tudo', stN.lanc.length === 4 && stN.lanc.find(l => l.id === id).valor === S.st.lanc[0].valor);
+  t('versão anterior: ao escrever, a conta se perde no empate de hora', stN.lanc.filter(l => l.contaId).length === 0);
+  const Z = novo(); Z.definirModo('real'); Z.st.lanc = stN.lanc.filter(l => l.idExterno);
+  const pv2 = B.montarPrevia(DADOS(), Z.st.lanc, [], []);
+  t('versão anterior: a conta perdida pode ser vinculada de novo', pv2.every(x => x.vinculo === 'sim') && Z.vincularBanco(pv2).n === 3 && Z.st.lanc.every(l => l.contaId));
+  t('versão anterior: nenhum duplicado', pv2.every(x => x.estado === 'importado'));
+  const apagou = Sync.atualizar({ ...stN, lanc: stN.lanc.filter(l => l.id !== id) }, junto, 3000);
+  t('versão anterior: lápide chega', Sync.juntar(velho, leTip(clone(apagou)))[k].d === true);
+}
+
 /* conversa com a ponte: fetch simulado */
 (async () => {
   const resp = (corpo, o) => ({ ok: !o || o.ok !== false, text: async () => corpo });

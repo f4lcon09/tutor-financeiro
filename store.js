@@ -7,7 +7,7 @@
   var FORMAS = ['Pix', 'Débito', 'Crédito', 'Dinheiro'];
   var pad = function (n) { return String(n).padStart(2, '0'); };
   var r2 = function (x) { return Math.round(x * 100) / 100; };
-  var comOrigem = function (l, n) { if (l.origem) { n.origem = l.origem; n.idExterno = l.idExterno; } return n; };   // editar não apaga de onde o lançamento veio
+  var comOrigem = function (l, n) { if (l.origem) { n.origem = l.origem; n.idExterno = l.idExterno; } if (l.contaId) { n.contaId = l.contaId; n.contaNome = l.contaNome; } return n; };   // editar não apaga de onde o lançamento veio
   var RITMO_MIN_DIAS = 7;   // antes disso a projeção do mês é ruído
 
   /* Ritmo do mês: gasto até hoje / dias passados * dias do mês, em centavos inteiros.
@@ -211,9 +211,26 @@
           do { id = novoId(); } while (usados[String(id)]);
           usados[String(id)] = 1;
           novos.push({ id: id, data: x.data, desc: String(x.desc || '').trim().slice(0, Seg.LIM.desc) || 'Outros', cat: 'Outros', valor: r2(x.direcao === 'entrada' ? -v : v), forma: x.forma, essencial: false, lazer: false, origem: 'pluggy', idExterno: x.idExterno });
+          if (x.contaId && x.contaNome) { novos[novos.length - 1].contaId = x.contaId; novos[novos.length - 1].contaNome = String(x.contaNome).slice(0, Seg.LIM.nome); }
         }
         if (novos.length) { st.lanc = st.lanc.concat(novos); mudou({ lanc: 1 }); }
         return { ok: true, n: novos.length };
+      },
+      /* liga um lançamento que já existe à conta do banco. Só acrescenta a conta e, se faltarem, origem e id externo. */
+      vincularBanco: function (lista) {
+        if (st.modo === 'demo') return { ok: false, erro: 'No modo de exemplo não dá para importar.' };
+        if (!Array.isArray(lista)) return { ok: false, erro: 'Nada selecionado.' };
+        var pedidos = new Map(), n = 0;
+        lista.forEach(function (x) { if (x && x.alvo != null && typeof x.contaId === 'string' && x.contaId && typeof x.contaNome === 'string' && x.contaNome) pedidos.set(String(x.alvo), x); });
+        var novo = st.lanc.map(function (l) {
+          var x = pedidos.get(String(l.id)); if (!x || l.contaId) return l;
+          var c = Object.assign({}, l); c.contaId = x.contaId; c.contaNome = x.contaNome.slice(0, Seg.LIM.nome);
+          if (!c.origem) c.origem = 'pluggy';
+          if (!c.idExterno && typeof x.idExterno === 'string') c.idExterno = x.idExterno;
+          n++; return c;
+        });
+        if (n) { st.lanc = novo; mudou({ lanc: 1 }); }
+        return { ok: true, n: n };
       },
       editar: function (id, o) {
         var v = validarLancamento(o); if (!v.ok) return { ok: false, erros: v.erros };

@@ -198,7 +198,7 @@ const foto = A => JSON.stringify(['tf_lanc3', 'tf_banco_ids', 'tf_banco_inv', 't
     t('igual a lançamento: aparece como já existe, desmarcado', !caixa(A, 0).checked && /já existe/.test(linhas(A)[0].textContent));
     t('igual a lançamento: o dono ainda pode marcar', !caixa(A, 0).disabled);
     t('igual a lançamento: o outro segue marcado', caixa(A, 1).checked);
-    A.click('#bc_ok'); await tick(10);
+    A.click('#bc_ok'); await tick(10); A.click('#bc_sim'); await tick(10);
     t('igual a lançamento: não duplica', A.w.eval('S.st.lanc.length') === 2);
   }
   /* sinal de cartão */
@@ -244,6 +244,131 @@ const foto = A => JSON.stringify(['tf_lanc3', 'tf_banco_ids', 'tf_banco_inv', 't
     await atualiza(A); A.click('#bc_ok'); await tick(10);
     t('privacidade: nada no console', !logs.some(l => /Padaria|script\.google|token-inventado/.test(l)));
     t('privacidade: sem erro de script', A.erros.length === 0);
+  }
+  /* pluggy-2: nomes de conta */
+  const foto2 = A => JSON.stringify(['tf_lanc3', 'tf_banco_ids', 'tf_banco_inv', 'tf_banco_contas'].map(k => A.w.localStorage.getItem(k)));
+  {
+    const A = await abreCom(RESP([M1, M3])); await atualiza(A);
+    t('nome: linha mostra o nome da conta', /Conta Teste · conta/.test(linhas(A)[0].textContent) && /Cartão Teste · cartão/.test(linhas(A)[1].textContent));
+    t('nome: inverter usa o nome novo', /Inverter sinal de Conta Teste · conta/.test(fundo(A).textContent) && /Inverter sinal de Cartão Teste · cartão/.test(fundo(A).textContent));
+    t('nome: renomear fica depois da lista', !!fundo(A).querySelector('.bc-nomes summary') && !!A.d.querySelector('label[for="bc_nm1"]'));
+    const f0 = foto2(A);
+    A.$('#bc_nm1').value = 'Roxinho'; A.$('#bc_nm1').dispatchEvent(new A.w.Event('change', { bubbles: true })); await tick(5);
+    t('nome: renomear atualiza a linha e o inverter', /Roxinho/.test(linhas(A)[1].textContent) && /Inverter sinal de Roxinho/.test(fundo(A).textContent));
+    t('nome: renomear não grava antes de confirmar', foto2(A) === f0);
+    A.click('#bc_cancel'); await tick(5);
+    t('nome: cancelar esquece', foto2(A) === f0);
+    await atualiza(A);
+    A.$('#bc_nm1').value = 'Roxinho'; A.$('#bc_nm1').dispatchEvent(new A.w.Event('change', { bubbles: true })); await tick(5);
+    A.click('#bc_ok'); await tick(10);
+    const l = A.w.eval('S.st.lanc');
+    t('campo: conta no lançamento', l.find(x => x.idExterno === 'm3').contaId === 'c2' && l.find(x => x.idExterno === 'm3').contaNome === 'Roxinho' && l.find(x => x.idExterno === 'm1').contaNome === 'Conta Teste · conta');
+    t('nome: fica neste aparelho', (A.ls('tf_banco_contas') || []).find(c => c.id === 'c2').renome === 'Roxinho');
+    t('nome: não vai para a sincronização como item', Object.keys(A.w.eval('capturar()')).every(k => /^(lanc|pago|teto|meta):|^taxa$|^real$|^numeros$/.test(k)) && !JSON.stringify(A.w.eval('S.paraSync()')).includes('renome'));
+    await A.ir('hoje'); await A.ir('banco');
+    t('Mais: lista as contas', !!A.$('#bc_mais') && A.$('#bc_mn1').value === 'Roxinho' && !!A.d.querySelector('label[for="bc_mn1"]'));
+    t('Mais: explica o que muda', /próximas importações/.test(A.texto()));
+    A.$('#bc_mn0').value = 'Principal'; A.$('#bc_mn0').dispatchEvent(new A.w.Event('change', { bubbles: true })); await tick(5);
+    t('Mais: renomear fica guardado', (A.ls('tf_banco_contas') || []).find(c => c.id === 'c1').renome === 'Principal');
+    t('Mais: renomear não muda lançamento', A.w.eval('S.st.lanc').find(x => x.idExterno === 'm1').contaNome === 'Conta Teste · conta');
+    await atualiza(A);
+    t('Mais: a prévia usa o nome novo', /Inverter sinal de Principal/.test(fundo(A).textContent) && A.$('#bc_nm0').value === 'Principal');
+    A.click('#bc_cancel');
+    A.$('#bc_mn1').value = ''; A.$('#bc_mn1').dispatchEvent(new A.w.Event('change', { bubbles: true })); await tick(5);
+    t('Mais: nome vazio volta ao padrão', (A.ls('tf_banco_contas') || []).find(c => c.id === 'c2').renome === '');
+    const H = '<img src=x onerror=window.__xss=1>';
+    A.$('#bc_mn0').value = H; A.$('#bc_mn0').dispatchEvent(new A.w.Event('change', { bubbles: true })); await A.ir('hoje'); await A.ir('banco');
+    t('Mais: nome hostil fica literal', !A.$('main img') && A.w.__xss === undefined);
+    const V = await abrir({ tf_modo: 'real', tf_real: REALFX(), tf_banco_on: true, ...LOGADO() }, larg); await V.ir('banco');
+    t('Mais: sem contas, sem o painel', !V.$('#bc_mais'));
+  }
+  /* pluggy-2: linha e filtro em Lançar */
+  {
+    const hojeISO = mes + '-02', fx = { tf_lanc3: [
+      { id: 1, data: hojeISO, desc: 'Sem conta nenhuma', cat: 'Mercado', valor: 10, forma: 'Pix', essencial: true, lazer: false },
+      { id: 2, data: hojeISO, desc: 'Da conta', cat: 'Outros', valor: 20, forma: 'Débito', essencial: false, lazer: false, origem: 'pluggy', idExterno: 'x1', contaId: 'c1', contaNome: 'Conta Teste · conta' },
+      { id: 3, data: hojeISO, desc: 'Do cartão', cat: 'Outros', valor: 30, forma: 'Crédito', essencial: false, lazer: false, origem: 'pluggy', idExterno: 'x2', contaId: 'c2', contaNome: 'Cartão Teste · cartão' }] };
+    const A = await abreCom(RESP([]), fx); await A.ir('lancar'); await tick(15);
+    const lin = n => [...A.d.querySelectorAll('#lista tr')].find(r => r.textContent.includes(n));
+    t('linha: categoria, forma e conta', /Outros · Crédito · Cartão Teste · cartão/.test(lin('Do cartão').textContent));
+    t('linha: sem conta fica como antes', !lin('Sem conta nenhuma').querySelector('.mu').textContent.includes('undefined') && /Mercado · Pix$/.test(lin('Sem conta nenhuma').querySelector('.mu').textContent.trim()));
+    const sel = A.$('#flt_conta');
+    t('filtro: aparece com rótulo', !!sel && A.d.querySelector('label[for="flt_conta"]').textContent === 'Filtrar por conta');
+    t('filtro: opções', [...sel.options].map(o => o.textContent).join('|') === 'Todas as contas|Cartão Teste · cartão|Conta Teste · conta|Sem conta');
+    const qtd = () => A.d.querySelectorAll('#lista tr').length - 1;
+    t('filtro: começa com tudo', qtd() === 3);
+    const esc = v => { const s = A.$('#flt_conta'); s.value = v; s.dispatchEvent(new A.w.Event('change', { bubbles: true })); };
+    esc('c2'); await tick(5);
+    t('filtro: uma conta', qtd() === 1 && !!lin('Do cartão'));
+    t('filtro: mantém a escolha e o foco', A.$('#flt_conta').value === 'c2' && A.d.activeElement === A.$('#flt_conta'));
+    t('filtro: mostra o total', /1 resultado\(s\)/.test(A.$('#lista').textContent));
+    esc('__sem'); await tick(5);
+    t('filtro: sem conta', qtd() === 1 && !!lin('Sem conta nenhuma'));
+    esc(''); await tick(5); t('filtro: volta a tudo', qtd() === 3);
+    A.set('#busca', 'cartão teste'); await tick(5);
+    t('busca: acha pelo nome da conta', qtd() === 1); A.set('#busca', ''); await tick(5);
+    const B2 = await abreCom(RESP([]), { tf_lanc3: [fx.tf_lanc3[0]] }); await B2.ir('lancar'); await tick(15);
+    t('filtro: sem conta nenhuma, não aparece', !B2.$('#flt_conta'));
+    const H = '<img src=x onerror=window.__xss=1>';
+    const C = await abreCom(RESP([]), { tf_lanc3: [{ ...fx.tf_lanc3[1], contaNome: H }] }); await C.ir('lancar'); await tick(15);
+    t('filtro: nome hostil literal', !C.$('#lista img') && !C.$('#conta_filtro img') && C.w.__xss === undefined);
+  }
+  /* pluggy-2: vincular */
+  {
+    const manual = `S.lancar({tipo:'gasto',valor:'12,50',desc:'padaria exemplo',cat:'Comida',data:'${M1.data}',forma:'Pix'})`;
+    const A = await abreCom(RESP([M1, M2])); A.w.eval(manual); await atualiza(A);
+    const v = A.d.querySelector('.bc-vin input'), f0 = foto2(A), l0 = JSON.stringify(A.w.eval('S.st.lanc[0]'));
+    t('vínculo: caixa ligada por padrão', !!v && v.checked && /Vincular conta/.test(A.d.querySelector('.bc-vin').textContent));
+    t('vínculo: contagem mostra', /1 de 2 selecionados · 1 para vincular/.test(fundo(A).textContent));
+    A.click('#bc_ok'); await tick(5);
+    t('resumo: texto simples', /Vai atualizar 1 lançamento existente só com a conta\. Nada mais muda\./.test(A.$('#conf_d').textContent));
+    t('resumo: cita o que é novo', /E vai importar 1 lançamento novo\./.test(A.$('#conf_d').textContent));
+    t('resumo: diálogo com foco em Cancelar', A.$('#bc_vt').closest('[role=alertdialog]') !== null && A.d.activeElement === A.$('#bc_vt') && A.$('#bc_vt').textContent === 'Cancelar');
+    t('resumo: nada gravado ainda', foto2(A) === f0);
+    A.click('#bc_vt'); await tick(5);
+    t('resumo: cancelar volta à prévia sem gravar', !!fundo(A) && !A.$('#bc_sim') && foto2(A) === f0 && JSON.stringify(A.w.eval('S.st.lanc[0]')) === l0 && A.d.activeElement === A.$('#bc_ok'));
+    A.click('#bc_ok'); await tick(5);
+    A.d.activeElement.dispatchEvent(new A.w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await tick(5);
+    t('resumo: Esc também não grava', !!fundo(A) && foto2(A) === f0);
+    const u0 = (() => { const m = A.w.eval('capturar()'); return Object.values(m).find(i => i.v && i.v.desc === 'padaria exemplo').u; })();
+    await tick(10);
+    A.click('#bc_ok'); await tick(5); A.click('#bc_sim'); await tick(15);
+    const l = A.w.eval('S.st.lanc').find(x => x.desc === 'padaria exemplo');
+    t('vínculo: liga só com a conta', l.contaId === 'c1' && l.contaNome === 'Conta Teste · conta' && l.idExterno === 'm1' && l.origem === 'pluggy' && l.valor === 12.5 && l.cat === 'Comida' && l.forma === 'Pix');
+    t('vínculo: não cria lançamento a mais', A.w.eval('S.st.lanc.length') === 2);
+    t('vínculo: mensagem', /1 lançamento importado\. 1 lançamento vinculado à conta\./.test(msg(A)));
+    t('vínculo: id guardado', A.ls('tf_banco_ids').includes('m1'));
+    const u1 = Object.values(A.w.eval('capturar()')).find(i => i.v && i.v.desc === 'padaria exemplo').u;
+    t('vínculo: hora do item muda', u1 > u0);
+    await atualiza(A);
+    t('segunda rodada: nada a vincular', !A.d.querySelector('.bc-vin') && /conta vinculada/.test(fundo(A).textContent) && A.$('#bc_ok').disabled === true);
+    A.click('#bc_cancel');
+    const B3 = await abreCom(RESP([M1])); B3.w.eval(manual); await atualiza(B3);
+    const c0 = B3.d.querySelector('.bc-vin input'); c0.checked = false; c0.dispatchEvent(new B3.w.Event('change', { bubbles: true })); await tick(5);
+    t('vínculo: desligar tira da conta', B3.$('#bc_ok').disabled === true && !/para vincular/.test(fundo(B3).textContent));
+    c0.checked = true; c0.dispatchEvent(new B3.w.Event('change', { bubbles: true }));
+    marca(B3, 0, true); await tick(5);
+    t('vínculo: marcar para importar tira do vínculo', !/para vincular/.test(fundo(B3).textContent));
+    B3.click('#bc_ok'); await tick(10);
+    t('vínculo: importar sem resumo quando não há vínculo', !B3.$('#bc_sim') && B3.w.eval('S.st.lanc.length') === 2);
+    const C3 = await abreCom(RESP([M1])); C3.w.eval(manual); C3.w.eval(manual); await atualiza(C3);
+    t('ambíguo: aparece e não vincula', /ambíguo/.test(fundo(C3).textContent) && !C3.d.querySelector('.bc-vin') && C3.$('#bc_ok').disabled === true);
+    const D3 = await abreCom(RESP([M1, M2])); D3.w.eval(manual); D3.w.eval(`S.lancar({tipo:'entrada',valor:'300',desc:'Pix recebido',cat:'Outros',data:'${M2.data}',forma:'Pix'})`); await atualiza(D3);
+    D3.click('#bc_ok'); await tick(5);
+    t('resumo: plural', /Vai atualizar 2 lançamentos existentes só com a conta\./.test(D3.$('#conf_d').textContent) && !/importar/.test(D3.$('#conf_d').textContent));
+    D3.click('#bc_sim'); await tick(10); t('resumo: mensagem só de vínculo', /2 lançamentos vinculados à conta\./.test(msg(D3)) && !/importado/.test(msg(D3)));
+  }
+  /* pluggy-2: marcas */
+  {
+    const S1 = { id: 's1', conta: 'c1', data: mes + '-02', desc: 'Envio', valor: -100, tipo: 'DEBIT', status: 'POSTED' }, S2 = { id: 's2', conta: 'c2', data: mes + '-02', desc: 'Chegada', valor: 100, tipo: 'CREDIT', status: 'POSTED' };
+    const F = { id: 'f1', conta: 'c1', data: mes + '-03', desc: 'Pagamento de fatura', valor: -500, tipo: 'DEBIT', status: 'POSTED' };
+    const A = await abreCom(RESP([S1, S2, F, M1])); await atualiza(A);
+    t('marca: entre suas contas, desmarcado', /entre suas contas/.test(linhas(A)[0].textContent) && /entre suas contas/.test(linhas(A)[1].textContent) && !caixa(A, 0).checked && !caixa(A, 1).checked);
+    t('marca: fatura com razão', /pagamento de fatura/.test(linhas(A)[2].textContent) && /duas vezes/.test(linhas(A)[2].textContent) && !caixa(A, 2).checked);
+    t('marca: o resto segue marcado', caixa(A, 3).checked && /1 de 4 selecionados/.test(fundo(A).textContent));
+    t('marca: nada escondido, dá para marcar', !caixa(A, 0).disabled && !caixa(A, 2).disabled);
+    marca(A, 2, true); A.click('#bc_ok'); await tick(10);
+    t('marca: o dono pode importar mesmo assim', A.w.eval('S.st.lanc.length') === 2 && A.w.eval('S.st.lanc').some(l => l.idExterno === 'f1'));
   }
   process.exit(fim());
 })().catch(e => { console.log('ERRO NO TESTE:', e); process.exit(2); });
