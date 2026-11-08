@@ -13,14 +13,28 @@ const linhas = (pares) => pares.map(([d, v]) => ({ data: d, valor: v }));
 const memSt = () => { const m = new Map(); return { getItem: k => m.has(k) ? m.get(k) : null, setItem: (k, v) => m.set(k, String(v)), _m: m }; };
 const quebrado = () => ({ getItem() { throw new Error('bloqueado'); }, setItem() { throw new Error('bloqueado'); } });
 const FIXO = { 4389: '14.90', 432: '15.00', 13522: '4.68' };
-const URLS3 = ['https://api.bcb.gov.br/dados/serie/bcdata.sgs.13522/dados/ultimos/10?formato=json', 'https://api.bcb.gov.br/dados/serie/bcdata.sgs.432/dados/ultimos/20?formato=json', 'https://api.bcb.gov.br/dados/serie/bcdata.sgs.4389/dados/ultimos/10?formato=json'];
-const okFetch = (log) => async (u, o) => { log && log.push([u, o]); const s = +u.match(/sgs\.(\d+)\//)[1]; return resp(s === 432 ? linhas([['05/11/2026', '15.00'], ['06/11/2026', '15.00'], ['10/12/2026', '14.75']]) : linhas([['01/10/2026', FIXO[s]], ['06/11/2026', FIXO[s]]])); };
+const URL432 = (ini, fim) => 'https://api.bcb.gov.br/dados/serie/bcdata.sgs.432/dados?formato=json&dataInicial=' + ini + '&dataFinal=' + fim;
+const URLS3 = ['https://api.bcb.gov.br/dados/serie/bcdata.sgs.13522/dados/ultimos/10?formato=json', URL432('08/10/2026', '07/11/2026'), 'https://api.bcb.gov.br/dados/serie/bcdata.sgs.4389/dados/ultimos/10?formato=json'];
+/* datas "DD/MM/AAAA" e linhas diárias em ordem crescente, como o SGS devolve */
+const br = d => String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear();
+const deBr = x => { const [d, m, a] = x.split('/').map(Number); return new Date(a, m - 1, d); };
+const diarias = (ini, fim, valor) => { const out = []; for (let d = deBr(ini); d <= deBr(fim); d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) out.push({ data: br(d), valor }); return out; };
+/* 432 como na API ao vivo: ultimos/N só datas futuras (calendário do Copom); período, só datas passadas, até a véspera de dataFinal */
+const FUTURAS432 = diarias('10/12/2026', '29/12/2026', '14.75');
+const resp432 = u => { const m = /dataInicial=(\d{2}\/\d{2}\/\d{4})&dataFinal=(\d{2}\/\d{2}\/\d{4})$/.exec(u); if (!m) return FUTURAS432; const f = deBr(m[2]); return diarias(m[1], br(new Date(f.getFullYear(), f.getMonth(), f.getDate() - 1)), '15.00'); };
+const okFetch = (log) => async (u, o) => { log && log.push([u, o]); const s = +u.match(/sgs\.(\d+)\//)[1]; return resp(s === 432 ? resp432(u) : linhas([['01/10/2026', FIXO[s]], ['06/11/2026', FIXO[s]]])); };
 
 (async () => {
   /* 1. endereço */
   t('url: série e quantidade', T.url(4389, 10) === 'https://api.bcb.gov.br/dados/serie/bcdata.sgs.4389/dados/ultimos/10?formato=json');
-  t('url: no máximo 20', /ultimos\/20\?/.test(T.url(432, 99)) && /ultimos\/1\?/.test(T.url(12, 0)));
+  t('url: no máximo 20', /ultimos\/20\?/.test(T.url(4389, 99)) && /ultimos\/1\?/.test(T.url(12, 0)));
   t('séries pedidas', Object.values(T.SERIES).sort((a, b) => a - b).join() === '432,4389,13522');
+  t('endereço 432: período de 30 dias até hoje, data local de agora', T.endereco(432, AGORA) === URL432('08/10/2026', '07/11/2026'));
+  t('endereço 432: virada de ano, 03/01', T.endereco(432, new Date('2027-01-03T10:00:00').getTime()) === URL432('04/12/2026', '03/01/2027'));
+  t('endereço 432: virada de mês com dia e mês de um dígito', T.endereco(432, new Date('2026-03-01T08:00:00').getTime()) === URL432('30/01/2026', '01/03/2026'));
+  t('endereço 432: perto da meia-noite vale a data local, não a UTC', T.endereco(432, new Date('2026-11-07T23:30:00').getTime()) === URL432('08/10/2026', '07/11/2026'));
+  t('endereço 432: barras literais, sem codificar, sem ultimos', !/%2F/i.test(T.endereco(432, AGORA)) && !/ultimos/.test(T.endereco(432, AGORA)) && (T.endereco(432, AGORA).match(/\//g) || []).length === 10);
+  t('endereço 4389 e 13522: continuam ultimos/10', T.endereco(4389, AGORA) === 'https://api.bcb.gov.br/dados/serie/bcdata.sgs.4389/dados/ultimos/10?formato=json' && T.endereco(13522, AGORA) === 'https://api.bcb.gov.br/dados/serie/bcdata.sgs.13522/dados/ultimos/10?formato=json');
 
   /* 2. leitura estrita */
   t('data: válida', T.data('06/11/2026') === '2026-11-06');
@@ -65,6 +79,29 @@ const okFetch = (log) => async (u, o) => { log && log.push([u, o]); const s = +u
   t('busca: nenhum cabeçalho próprio (sem preflight)', !('headers' in o1) && !/headers\s*:/.test(fs.readFileSync('taxas.js', 'utf8')));
   const b432 = await T.buscar(432, { fetch: okFetch(), agora: AGORA });
   t('busca 432: data até hoje', b432.ok && b432.dataRef === '2026-11-06' && b432.valor === 15);
+  const log432 = []; await T.buscar(432, { fetch: okFetch(log432), agora: AGORA });
+  t('busca 432: pede o período, com as mesmas regras (GET, sem cookie, sem referrer, sem cabeçalho, sem corpo)', log432.length === 1 && log432[0][0] === URL432('08/10/2026', '07/11/2026') && log432[0][1].method === 'GET' && log432[0][1].credentials === 'omit' && log432[0][1].referrerPolicy === 'no-referrer' && !('headers' in log432[0][1]) && !('body' in log432[0][1]) && !!log432[0][1].signal);
+  const periodo = await T.buscar(432, { fetch: async () => resp(diarias('08/10/2026', '07/11/2026', '15.00')), agora: AGORA });
+  t('busca 432: período com linhas passadas em ordem crescente, fica a de hoje', periodo.ok && periodo.dataRef === '2026-11-07' && periodo.valor === 15);
+  /* o defeito visto na API ao vivo: só datas futuras */
+  const soFuturas = await T.buscar(432, { fetch: async () => resp(FUTURAS432), agora: AGORA });
+  t('busca 432: resposta só com datas futuras dá erro vazio', soFuturas.ok === false && soFuturas.erro === 'vazio' && FUTURAS432.length === 20);
+  T._memoria.tentativa = 0;
+  const stFut = memSt(), fetchFut = async (u) => resp(+u.match(/sgs\.(\d+)\//)[1] === 432 ? FUTURAS432 : linhas([['06/11/2026', FIXO[+u.match(/sgs\.(\d+)\//)[1]]]]));
+  const rFut = await T.atualizar({ fetch: fetchFut, storage: stFut, sessao: memSt(), agora: AGORA });
+  const cFut = JSON.parse(stFut.getItem('tf_taxas'));
+  t('só datas futuras na 432: nenhuma entrada 432 no cache (as outras duas gravadas)', rFut.novas === 2 && !(432 in cFut) && !!cFut[4389] && !!cFut[13522]);
+  t('só datas futuras na 432: o cache continua precisando de busca', T.precisa(T.lerCache(stFut), AGORA) === true);
+  /* com o período, a 432 entra no cache e a próxima abertura em menos de 6 h não pede nada */
+  T._memoria.tentativa = 0;
+  const stPer = memSt(), pedPer = [];
+  const rPer = await T.atualizar({ fetch: okFetch(pedPer), storage: stPer, sessao: memSt(), agora: AGORA });
+  const cPer = JSON.parse(stPer.getItem('tf_taxas'));
+  t('período na 432: entra no cache com a data da linha passada', rPer.novas === 3 && cPer[432] && cPer[432].valor === 15 && cPer[432].dataRef === '2026-11-06' && cPer[432].fetchedAt === AGORA);
+  t('período na 432: as 3 séries ficam em dia (precisa falso)', T.precisa(T.lerCache(stPer), AGORA + 5 * 3600000) === false);
+  T._memoria.tentativa = 0; pedPer.length = 0;
+  const rPer2 = await T.atualizar({ fetch: okFetch(pedPer), storage: stPer, sessao: memSt(), agora: AGORA + 5 * 3600000 });
+  t('período na 432: abrir de novo em 5 h, sessão nova, nenhum pedido', !rPer2.buscou && rPer2.motivo === 'recente' && pedPer.length === 0);
   t('busca: só linhas ruins vira vazio', (await T.buscar(12, { fetch: async () => resp([{ data: 'x', valor: 'y' }]), agora: AGORA })).erro === 'vazio');
   t('busca: resposta que não é lista', (await T.buscar(12, { fetch: async () => resp({ erro: 1 }), agora: AGORA })).erro === 'formato');
   t('busca: JSON quebrado', (await T.buscar(12, { fetch: async () => ({ ok: true, json: async () => { throw new SyntaxError('x'); } }), agora: AGORA })).erro === 'formato');
@@ -86,7 +123,7 @@ const okFetch = (log) => async (u, o) => { log && log.push([u, o]); const s = +u
   const a1 = await T.atualizar({ fetch: okFetch(chamadas), storage: st, sessao: se, agora: AGORA });
   const c1 = JSON.parse(st.getItem('tf_taxas'));
   t('atualizar: sem cache busca as 3 séries, uma vez cada', a1.buscou && chamadas.length === 3 && new Set(chamadas.map(c => c[0])).size === 3);
-  t('atualizar: grava valor, data e hora da consulta', c1[4389].valor === 14.9 && c1[4389].dataRef === '2026-11-06' && c1[4389].fetchedAt === AGORA && c1[432].dataRef === '2026-11-06' && c1[13522].dataRef === '2026-11-06');
+  t('atualizar: grava valor, data e hora da consulta', c1[4389].valor === 14.9 && c1[4389].dataRef === '2026-11-06' && c1[4389].fetchedAt === AGORA && !!c1[432] && c1[432].dataRef === '2026-11-06' && c1[13522].dataRef === '2026-11-06');
   chamadas.length = 0; T._memoria.tentativa = 0;
   const a2 = await T.atualizar({ fetch: okFetch(chamadas), storage: st, sessao: memSt(), agora: AGORA + 5 * 3600000 });
   t('atualizar: cache de 5 h não busca', !a2.buscou && a2.motivo === 'recente' && chamadas.length === 0);
@@ -113,7 +150,7 @@ const okFetch = (log) => async (u, o) => { log && log.push([u, o]); const s = +u
   T._memoria.tentativa = 0;
   const sem432 = memSt(); sem432.setItem('tf_taxas', JSON.stringify({ 4389: fresca(14.9, '2026-11-06'), 13522: fresca(4.68, '2026-10-01') }));
   const ped432 = []; const r432 = await T.atualizar({ fetch: okFetch(ped432), storage: sem432, sessao: memSt(), agora: AGORA });
-  t('432 faltando no cache: dispara a busca, 3 pedidos', r432.buscou && ped432.length === 3 && JSON.parse(sem432.getItem('tf_taxas'))[432].dataRef === '2026-11-06');
+  t('432 faltando no cache: dispara a busca, 3 pedidos', r432.buscou && ped432.length === 3 && (JSON.parse(sem432.getItem('tf_taxas'))[432] || {}).dataRef === '2026-11-06');
   T._memoria.tentativa = 0;
   const antigoSem432 = memSt(); antigoSem432.setItem('tf_taxas', JSON.stringify({ 12: fresca(0.05, '2026-11-06'), 4389: fresca(14.9, '2026-11-06'), 4391: fresca(0.79, '2026-10-01'), 433: fresca(0.09, '2026-10-01'), 13522: fresca(4.68, '2026-10-01') }));
   await T.atualizar({ fetch: okFetch(), storage: antigoSem432, sessao: memSt(), agora: AGORA });
@@ -173,6 +210,7 @@ const okFetch = (log) => async (u, o) => { log && log.push([u, o]); const s = +u
   const inv = async A => { await A.ir('decidir'); A.click('#ctab_inv'); await tick(40); };
   const semRede = () => Promise.reject(new TypeError('Failed to fetch'));
   const ehBcb = u => /^https:\/\/api\.bcb\.gov\.br\//.test(String(u));
+  const urlsHoje = () => { const h = new Date(); return ['https://api.bcb.gov.br/dados/serie/bcdata.sgs.13522/dados/ultimos/10?formato=json', URL432(br(new Date(h.getFullYear(), h.getMonth(), h.getDate() - 30)), br(h)), 'https://api.bcb.gov.br/dados/serie/bcdata.sgs.4389/dados/ultimos/10?formato=json']; };
   /* registra todo pedido; o Banco Central responde com dados inventados; o resto falha como sem rede */
   const grava = (lista) => async (u, o) => { lista.push([String(u), o || {}]); if (!ehBcb(u)) throw new TypeError('sem rede no teste'); const s = +String(u).match(/sgs\.(\d+)\//)[1]; return resp(linhas([[ontem.split('-').reverse().join('/'), FIXO[s]]])); };
   const bcb = l => l.filter(([u]) => ehBcb(u));
@@ -229,8 +267,8 @@ const okFetch = (log) => async (u, o) => { log && log.push([u, o]); const s = +u
   t('opção ligada: antes de abrir Investimento, nenhum pedido', bcb(l1).length === 0);
   await inv(A1); await tick(60);
   const p1 = bcb(l1);
-  t('opção ligada: abrir Investimento faz uma busca, 3 pedidos, um por série, sem repetir', p1.length === 3 && new Set(p1.map(([u]) => u.match(/sgs\.(\d+)\//)[1])).size === 3 && p1.every(([u]) => /^https:\/\/api\.bcb\.gov\.br\/dados\/serie\/bcdata\.sgs\.\d+\/dados\/ultimos\/\d+\?formato=json$/.test(u)));
-  t('opção ligada: os 3 endereços são exatamente os esperados', JSON.stringify(p1.map(([u]) => u).sort()) === JSON.stringify(URLS3));
+  t('opção ligada: abrir Investimento faz uma busca, 3 pedidos, um por série, sem repetir', p1.length === 3 && new Set(p1.map(([u]) => u.match(/sgs\.(\d+)\//)[1])).size === 3 && p1.every(([u]) => /^https:\/\/api\.bcb\.gov\.br\/dados\/serie\/bcdata\.sgs\.\d+\/dados(\/ultimos\/\d+\?formato=json|\?formato=json&dataInicial=\d{2}\/\d{2}\/\d{4}&dataFinal=\d{2}\/\d{2}\/\d{4})$/.test(u)));
+  t('opção ligada: os 3 endereços são exatamente os esperados', JSON.stringify(p1.map(([u]) => u).sort()) === JSON.stringify(urlsHoje()));
   t('opção ligada: situação "Taxas do Banco Central de DD/MM"', A1.$('#i_status').textContent === 'Taxas do Banco Central de ' + dm(Date.now()) && A1.$('#i_online').checked === true);
   t('sem credencial: credentials omit e referrer desligado', p1.every(([, o]) => o.credentials === 'omit' && o.referrerPolicy === 'no-referrer'));
   t('sem credencial: nenhum cabeçalho, nenhum corpo', p1.every(([, o]) => !('headers' in o) && !('body' in o)));

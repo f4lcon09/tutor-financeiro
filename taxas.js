@@ -4,7 +4,9 @@
   'use strict';
   var HOST = 'https://api.bcb.gov.br';
   var SERIES = { cdiAno: 4389, selic: 432, ipca12: 13522 };
-  var QTD = { 4389: 10, 432: 20, 13522: 10 };   // 432 traz datas futuras (próxima reunião do Copom): pede mais linhas
+  var QTD = { 4389: 10, 13522: 10 };
+  /* 432 (meta Selic): ultimos/N só traz datas futuras (calendário do Copom) e para em 20, então pede um período: os últimos 30 dias até hoje */
+  var PERIODO = { 432: 30 };
   /* faixa aceita por série: o IPCA pode ser negativo (deflação); as taxas ficam entre 0 e 100 */
   var FAIXA = { 13522: [-50, 100] }, FAIXA_TAXA = [0, 100];
   function faixa(serie) { return FAIXA[serie] || FAIXA_TAXA; }
@@ -19,6 +21,14 @@
     n = Math.max(1, Math.min(20, Math.floor(+n) || 1));
     return HOST + '/dados/serie/bcdata.sgs.' + serie + '/dados/ultimos/' + n + '?formato=json';
   }
+  /* data local "DD/MM/AAAA" com zeros, barras literais (sem codificar) */
+  function dataSgs(d) { return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear(); }
+  function urlPeriodo(serie, dias, agora) {
+    var fim = new Date(agora), ini = new Date(fim.getFullYear(), fim.getMonth(), fim.getDate() - dias);
+    return HOST + '/dados/serie/bcdata.sgs.' + serie + '/dados?formato=json&dataInicial=' + dataSgs(ini) + '&dataFinal=' + dataSgs(fim);
+  }
+  /* o endereço de cada série: período para a 432, ultimos/N para as outras */
+  function endereco(serie, agora) { return PERIODO[serie] ? urlPeriodo(serie, PERIODO[serie], agora) : url(serie, QTD[serie] || 10); }
   /* "DD/MM/AAAA" -> "AAAA-MM-DD", só data de calendário válida */
   function data(s) {
     var m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(typeof s === 'string' ? s : '');
@@ -60,7 +70,7 @@
     var tempo = new Promise(function (res) { relogio = setTimeout(function () { if (ctl) { try { ctl.abort(); } catch (e) {} } res({ ok: false, erro: 'tempo' }); }, ms); });
     var pedido;
     try {
-      pedido = Promise.resolve(f(url(serie, QTD[serie] || 10), { method: 'GET', credentials: 'omit', referrerPolicy: 'no-referrer', signal: ctl ? ctl.signal : undefined }))
+      pedido = Promise.resolve(f(endereco(serie, agora), { method: 'GET', credentials: 'omit', referrerPolicy: 'no-referrer', signal: ctl ? ctl.signal : undefined }))
         .then(function (r) { if (!r || !r.ok) return { ok: false, erro: 'rede' }; return Promise.resolve(r.json()).then(function (j) { return j; }, function () { return undefined; }).then(function (j) {
           if (!Array.isArray(j)) return { ok: false, erro: 'formato' };
           var e = escolher(ler(j, serie), hojeISO(agora));
@@ -119,6 +129,6 @@
   function mesAno(iso) { return iso.slice(5, 7) + '/' + iso.slice(0, 4); }
   function dataBR(ms) { var d = new Date(ms); return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear(); }
 
-  var api = { HOST: HOST, SERIES: SERIES, url: url, data: data, ler: ler, escolher: escolher, buscar: buscar, lerCache: lerCache, gravarCache: gravarCache, precisa: precisa, atualizar: atualizar, mensalDeCdi: mensalDeCdi, diaMes: diaMes, mesAno: mesAno, dataBR: dataBR, VALIDADE: VALIDADE, INTERVALO: INTERVALO, TEMPO: TEMPO, CHAVE: CHAVE, _memoria: memoria };
+  var api = { HOST: HOST, SERIES: SERIES, url: url, endereco: endereco, data: data, ler: ler, escolher: escolher, buscar: buscar, lerCache: lerCache, gravarCache: gravarCache, precisa: precisa, atualizar: atualizar, mensalDeCdi: mensalDeCdi, diaMes: diaMes, mesAno: mesAno, dataBR: dataBR, VALIDADE: VALIDADE, INTERVALO: INTERVALO, TEMPO: TEMPO, CHAVE: CHAVE, _memoria: memoria };
   if (typeof module === 'object' && module.exports) module.exports = api; else root.TFTaxas = api;
 })(this);
