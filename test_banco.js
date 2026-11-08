@@ -556,7 +556,7 @@ const Real = require('./real.js');
   const src = ['banco.js', 'app.js', 'sync.js', 'store.js', 'seguranca.js', 'config.js', 'sw.js', 'index.html'].map(a => fs.readFileSync(a, 'utf8')).join('\n');
   const semCsp = src.replace(/<meta http-equiv="Content-Security-Policy"[^>]*>/, '');
   t('nenhum endereço de ponte no código', !/\/macros\/s\/|AKfyc|script\.googleusercontent/.test(semCsp.replace(/\\\.google\(usercontent\)\?\\\.com/g, '')));
-  t('CSP cita só os hosts, sem caminho', /connect-src 'self' https:\/\/www\.googleapis\.com https:\/\/script\.google\.com https:\/\/script\.googleusercontent\.com;/.test(src) && !/script\.google(usercontent)?\.com\/[^;\s]/.test(fs.readFileSync('index.html', 'utf8')));
+  t('CSP cita só os hosts, sem caminho', /connect-src 'self' https:\/\/www\.googleapis\.com https:\/\/script\.google\.com https:\/\/script\.googleusercontent\.com https:\/\/api\.bcb\.gov\.br;/.test(src) && !/script\.google(usercontent)?\.com\/[^;\s]/.test(fs.readFileSync('index.html', 'utf8')));
   t('nenhum serviço de banco no código', !/api\.pluggy|pluggy\.ai|clientSecret|client_secret/i.test(src));
   const b = fs.readFileSync('banco.js', 'utf8');
   t('banco.js só cita um host', new Set([...b.matchAll(/https?:\/\/([a-z0-9.-]+)/gi)].map(m => m[1])).size === 1 && /https:\/\/script\.google\.com/.test(b));

@@ -42,6 +42,8 @@ test_ui_casos.js
 !/test_ui_iphone.js
 !/grafico.js
 !/banco.js
+!/taxas.js
+!/test_taxas.js
 !/test_banco.js
 !/test_ui_banco.js
 !/test_grafico.js

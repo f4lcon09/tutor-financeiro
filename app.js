@@ -689,6 +689,13 @@ function drawFuturo(){
 
 /* --- Decidir --- */
 let calcSel='emp';
+/* taxas públicas do Banco Central: cache do aparelho ou, se o armazenamento falhar, o que chegou nesta página */
+let invModo='taxa', invPct=null, invInf=null, invMexeu=false, taxasMem={}, taxasEstado=null, onlineMem=null;
+const lsSeguro=()=>{ try{ return localStorage; }catch(e){ return null; } }, ssSeguro=()=>{ try{ return sessionStorage; }catch(e){ return null; } };
+/* opção deste aparelho: buscar as taxas online. Padrão desligado; fica só no localStorage, fora dos dados do Drive */
+const ONLINE='tf_taxas_online', taxasOnline=()=>{ if(onlineMem!=null) return onlineMem; try{ return localStorage.getItem(ONLINE)==='true'; }catch(e){ return false; } };
+function guardaOnline(v){ onlineMem=!!v; try{ if(v) localStorage.setItem(ONLINE,'true'); else localStorage.removeItem(ONLINE); }catch(e){} }
+const taxas=()=>{ if(MODO!=='real') return {}; let c={}; try{ const s=lsSeguro(); if(s) c=TFTaxas.lerCache(s); }catch(e){ c={}; } return {...taxasMem,...c}; };
 const rateField=(id,label,val,tipo='m')=>`<div class="field"><label>${label}</label><div class="rate"><input type="number" step="0.01" min="0" id="${id}" value="${val}"><select id="${id}_t"><option value="m" ${tipo==='m'?'selected':''}>ao mês</option><option value="a" ${tipo==='a'?'selected':''}>ao ano</option></select></div><div class="hint" id="${id}_h"></div></div>`;
 const numField=(id,label,val,step='1',hint='')=>`<div class="field"><label>${label}</label><input type="number" id="${id}" value="${val}" step="${step}" min="0">${hint?`<div class="hint">${hint}</div>`:''}</div>`;
 function readRate(id){ const p=parseFloat($('#'+id).value)||0, t=$('#'+id+'_t').value, m=Calc.mensal(p,t);
@@ -734,15 +741,24 @@ const CALCS = {
        <div class="bar" style="--h:${o.total==null?COR.ru:o.total===min?COR.ok:'var(--vio)'}"><span style="width:${o.total==null?100:o.total/max*100}%"></span></div>
        <div class="mu small">${o.total==null?'A parcela não cobre nem os juros do mês.':brl(o.total)+' no total · '+brl(o.total-s)+' de juros · '+o.det}</div></div>`).join('')}
      <div class="hint">Confira também se a parcela cabe no seu mês. O menor custo total nem sempre é a menor parcela.</div>`; }},
- inv:{ form:()=>pn('Projeção de investimento',`
-   ${numField('i_0','Quanto você tem para investir agora (R$)',1000,'100')}${numField('i_m','Quanto aporta por mês (R$)',200,'10')}
-   ${rateField('i_i','Rendimento esperado (bruto)',0.85)}${numField('i_n','Por quantos meses',36)}${numField('i_f','Inflação esperada (% ao ano)',4.5,'0.1')}
-   <div class="toggle"><label><input type="checkbox" id="i_ir" checked> Descontar IR da renda fixa (tabela regressiva)</label></div>`,'sky')+pn('O que pode acontecer','<div id="out"></div>','sky'),
-   run:()=>{ const i=readRate('i_i'), n=Math.max(1,Math.round(N('i_n'))), r=Calc.investimento(N('i_0'),N('i_m'),i,n,$('#i_ir').checked,N('i_f'));
+ inv:{ form:()=>{ const tx=taxas(), cdi=tx[4389], ipca=tx[13522], comCdi=!!cdi&&invModo==='cdi';
+   const modo=cdi?`<div class="field"><label for="i_modo">Rendimento informado como</label><select id="i_modo"><option value="taxa"${comCdi?'':' selected'}>taxa ao mês</option><option value="cdi"${comCdi?' selected':''}>% do CDI</option></select></div>`:'';
+   const taxa=comCdi?`<div class="field"><label for="i_pct">Rendimento esperado (% do CDI)</label><input type="number" id="i_pct" value="${esc(invPct==null?100:invPct)}" step="1" min="0"><div class="hint" id="i_pct_h"></div></div>`:rateField('i_i','Rendimento esperado (bruto)',0.85);
+   const inf=invInf!=null?invInf:ipca?ipca.valor:4.5, infH=invInf==null&&ipca?esc('IPCA de 12 meses até '+TFTaxas.mesAno(ipca.dataRef)+', do Banco Central. Troque se quiser.'):'';
+   const online=MODO==='real'?`<div class="toggle"><label><input type="checkbox" id="i_online"${taxasOnline()?' checked':''}> Buscar taxas online (Banco Central)</label></div><div class="hint">Só as taxas públicas são pedidas; nada seu é enviado.</div><div class="hint" id="i_status" role="status">${esc(textoStatus())}</div>`:'';
+   return pn('Projeção de investimento',`
+   ${online}${numField('i_0','Quanto você tem para investir agora (R$)',1000,'100')}${numField('i_m','Quanto aporta por mês (R$)',200,'10')}
+   ${modo}${taxa}${numField('i_n','Por quantos meses',36)}${numField('i_f','Inflação esperada (% ao ano)',esc(inf),'0.1',infH)}
+   <div class="toggle"><label><input type="checkbox" id="i_ir" checked> Descontar IR da renda fixa (tabela regressiva)</label></div>`,'sky')+pn('O que pode acontecer','<div id="out"></div>','sky'); },
+   run:()=>{ const tx=taxas(), cdi=tx[4389], ipca=tx[13522], comCdi=!!cdi&&!!$('#i_pct');   // o campo na tela decide: o select dispara input antes de redesenhar
+    let i; if(comCdi){ i=TFTaxas.mensalDeCdi(cdi.valor,N('i_pct'))||0; $('#i_pct_h').textContent='Cerca de '+pc(i)+' ao mês. Estimativa com o CDI de '+TFTaxas.diaMes(cdi.dataRef)+' ('+pc(cdi.valor/100)+' ao ano); a convenção ainda é a confirmar.'; } else i=readRate('i_i');
+    const n=Math.max(1,Math.round(N('i_n'))), r=Calc.investimento(N('i_0'),N('i_m'),i,n,$('#i_ir').checked,N('i_f'));
+    const usaIpca=!!ipca&&invInf==null&&N('i_f')===ipca.valor, usadas=[comCdi&&cdi&&[4389,cdi],usaIpca&&[13522,ipca]].filter(Boolean);
+    const fonte=usadas.length?`<div class="hint" id="i_fonte">${esc('Fonte: Banco Central do Brasil (SGS), '+(usadas.length>1?'séries ':'série ')+usadas.map(u=>u[0]).join(' e ')+', consulta em '+TFTaxas.dataBR(Math.max(...usadas.map(u=>u[1].fetchedAt))))}</div>`:'';
     $('#out').innerHTML=`<div class="res" style="--h:var(--sky)"><div class="mu small">Em ${n} meses você teria, depois do imposto</div><div class="big">${brl0(r.liquido)}</div><div class="mu">Você colocou ${brl0(r.aportado)}; o resto, ${brl0(r.liquido-r.aportado)}, é rendimento líquido.</div></div>
      <div class="kv"><span>Valor bruto</span><span>${brl0(r.bruto)}</span><span>Imposto (${pc(r.aliquota,1)} sobre o ganho)</span><span>${brl0(r.imposto)}</span><span>Em dinheiro de hoje (sem a inflação)</span><span>${brl0(r.real)}</span><span>Ganho de verdade, descontada a inflação</span><span style="color:${r.ganhoReal>=0?COR.ok:COR.ru}">${r.ganhoReal>=0?'+':''}${brl0(r.ganhoReal)}</span></div>
      ${det('decidir','graf-inv','Gráfico: evolução do saldo',`<div style="margin-top:14px">${lineChart(r.serie.map(x=>x.mes),[{name:'Com rendimento',values:r.serie.map(x=>x.saldo),c:'var(--sky)',area:true},{name:'Só o que você colocou',values:r.serie.map(x=>x.aportado),c:'var(--mu)',w:2}],[],200,440)}</div>
-     <div class="legend"><span><i style="background:var(--sky)"></i>Com rendimento</span><span><i style="background:var(--mu)"></i>Só o que você colocou</span></div>`,'sky')}`; }}
+     <div class="legend"><span><i style="background:var(--sky)"></i>Com rendimento</span><span><i style="background:var(--mu)"></i>Só o que você colocou</span></div>`,'sky')}${fonte}`; }}
 };
 function bindAbasCalc(){
   const bs=$$('#calcs button');
@@ -754,8 +770,39 @@ function bindAbasCalc(){
 }
 function drawCalc(){
   $('#calcbox').innerHTML=CALCS[calcSel].form();
-  $$('#calcbox input,#calcbox select').forEach(e=>e.addEventListener('input',CALCS[calcSel].run)); CALCS[calcSel].run();
+  $$('#calcbox input,#calcbox select').forEach(e=>e.addEventListener('input',CALCS[calcSel].run)); if(calcSel==='inv'){ ligaInv(); buscaTaxas(); } CALCS[calcSel].run();
 }
+/* Investimento: o valor digitado sempre vence o preenchido; trocar o modo mantém o resto do formulário */
+function ligaInv(){
+  invMexeu=false; $$('#calcbox input,#calcbox select').forEach(e=>{ if(e.id!=='i_online') e.addEventListener('input',()=>{ invMexeu=true; }); });
+  if($('#i_online')) $('#i_online').addEventListener('change',e=>{ guardaOnline(e.target.checked); taxasEstado=null; if(e.target.checked) buscaTaxas(); pintaStatus(); });
+  $('#i_f').addEventListener('input',e=>{ invInf=e.target.value; });
+  if($('#i_pct')) $('#i_pct').addEventListener('input',e=>{ invPct=e.target.value; });
+  if($('#i_modo')) $('#i_modo').addEventListener('change',e=>{ const ids=['i_0','i_m','i_n','i_f'], v=ids.map(k=>$('#'+k).value), ir=$('#i_ir').checked; invModo=e.target.value; drawCalc(); ids.forEach((k,j)=>{ $('#'+k).value=v[j]; }); $('#i_ir').checked=ir; CALCS.inv.run(); const m=$('#i_modo'); if(m) m.focus(); });
+}
+/* busca só quando Investimento aparece, só no modo real; nunca no exemplo, nas boas-vindas ou pelo service worker. Sem token, sem cabeçalho, sem cookie. */
+function buscaTaxas(){
+  if(MODO!=='real'||!taxasOnline()) return;
+  if(navigator.onLine===false){ taxasEstado='falhou'; pintaStatus(); return; }   // sem conexão: fica o cache, com a data
+  try{ taxasEstado='buscando'; pintaStatus();
+    TFTaxas.atualizar({ fetch:(u,o)=>fetch(u,o), storage:lsSeguro(), sessao:ssSeguro() }).then(r=>{
+      if(r&&r.novas) return taxasChegaram(r.cache);
+      taxasEstado=r&&r.buscou?'falhou':null; pintaStatus();
+    },()=>{ taxasEstado='falhou'; pintaStatus(); });
+  }catch(e){ taxasEstado='falhou'; pintaStatus(); }
+}
+function taxasChegaram(c){ taxasMem=c||{}; taxasEstado=null; if(atual==='decidir'&&calcSel==='inv'&&$('#calcbox')&&!invMexeu) drawCalc(); else pintaStatus(); }
+/* situação das taxas, pela data em que chegaram (a mais antiga das duas que a calculadora usa) */
+function textoStatus(){
+  const c=taxas(), us=[c[4389],c[13522]].filter(Boolean), on=taxasOnline();
+  if(taxasEstado==='buscando') return 'Buscando as taxas do Banco Central';
+  if(!us.length) return on?'Sem conexão: use suas taxas':'Desligado: use suas taxas';
+  const quando=Math.min(...us.map(x=>x.fetchedAt)), dm=TFTaxas.dataBR(quando).slice(0,5);
+  if(Date.now()-quando<=TFTaxas.VALIDADE) return 'Taxas do Banco Central de '+dm;
+  return (on?'Sem conexão: usando as de ':'Desligado: usando as de ')+dm;
+}
+function pintaStatus(){ const s=$('#i_status'); if(s) s.textContent=textoStatus(); }
+
 
 /* --- Patrimônio e saúde --- */
 T.saude = () => {
