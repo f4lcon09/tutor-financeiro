@@ -10,7 +10,7 @@
   var LIM = { bytes: 2 * 1024 * 1024, profundidade: 10, nos: 20000, texto: 2000, desc: 200, nome: 100, cat: 40, lanc: 20000, metas: 200, itens: 60000 };
   var NOMES = ['__proto__', 'constructor', 'prototype', 'toString', 'valueOf', 'hasOwnProperty'];
   var perigosa = function (k) { return NOMES.indexOf(k) >= 0; };
-  var CATS = ['Mercado', 'Transporte', 'Lazer', 'Comida', 'Estudos', 'Saúde', 'Jogos', 'Outros'], FORMAS = ['Pix', 'Débito', 'Crédito', 'Dinheiro'];
+  var CATS = ['Mercado', 'Compras', 'Transporte', 'Lazer', 'Comida', 'Estudos', 'Saúde', 'Jogos', 'Outros'], FORMAS = ['Pix', 'Débito', 'Crédito', 'Dinheiro'];
   var isObj = function (x) { return !!x && typeof x === 'object' && !Array.isArray(x); };
   var num = function (x) { return typeof x === 'number' && isFinite(x) && Math.abs(x) < 1e15; };
   var idOk = function (x) { return (typeof x === 'number' && Number.isSafeInteger(x)) || (typeof x === 'string' && RE_ID.test(x) && !perigosa(x)); };
@@ -23,6 +23,9 @@
     return dt.getUTCFullYear() === p[0] && dt.getUTCMonth() === p[1] - 1 && dt.getUTCDate() === p[2];
   }
   var mes = function (m) { return typeof m === 'string' && RE_MES.test(m); };
+  /* categoria que esta versão não conhece (de uma versão mais nova ou mais antiga): só letras, números, espaço e hífen, até LIM.cat */
+  var RE_CAT = /^[\p{L}\p{N}](?:[\p{L}\p{N} -]{0,38}[\p{L}\p{N}])?$/u;
+  var catOk = function (c) { return typeof c === 'string' && c.length <= LIM.cat && RE_CAT.test(c) && !perigosa(c); };
 
   /* Percorre o JSON inteiro sem recursão: profundidade, quantidade de nós, tamanho de texto e chaves perigosas. */
   function varrer(raiz) {
@@ -112,7 +115,7 @@
   /* ---------- um lançamento / uma meta que veio de fora ---------- */
   function sanLanc(l) {
     if (!isObj(l) || !idOk(l.id) || !data(l.data) || !num(l.valor) || typeof l.desc !== 'string' || typeof l.cat !== 'string') return null;
-    var o = { id: l.id, data: l.data, desc: corta(l.desc, LIM.desc), cat: CATS.indexOf(l.cat) >= 0 ? l.cat : 'Outros', valor: l.valor, forma: FORMAS.indexOf(l.forma) >= 0 ? l.forma : 'Pix', essencial: l.essencial === true, lazer: l.lazer === true };
+    var o = { id: l.id, data: l.data, desc: corta(l.desc, LIM.desc), cat: CATS.indexOf(l.cat) >= 0 || catOk(l.cat) ? l.cat : 'Outros', valor: l.valor, forma: FORMAS.indexOf(l.forma) >= 0 ? l.forma : 'Pix', essencial: l.essencial === true, lazer: l.lazer === true };
     if (l.origem === 'pluggy' && typeof l.idExterno === 'string' && RE_EXT.test(l.idExterno) && !perigosa(l.idExterno)) { o.origem = 'pluggy'; o.idExterno = l.idExterno; }   // opcionais: quem não conhece só ignora
     if (typeof l.contaId === 'string' && RE_EXT.test(l.contaId) && !perigosa(l.contaId) && typeof l.contaNome === 'string' && l.contaNome.trim()) { o.contaId = l.contaId; o.contaNome = corta(l.contaNome, LIM.nome); }
     if (l.neutro === true) o.neutro = true;
@@ -162,6 +165,6 @@
     return { itens: out, descartados: desc };
   }
 
-  var api = { esc: esc, validarImportacao: validarImportacao, sanearEstado: sanearEstado, limparItens: limparItens, varrer: varrer, LIM: LIM, perigosa: perigosa };
+  var api = { esc: esc, validarImportacao: validarImportacao, sanearEstado: sanearEstado, limparItens: limparItens, varrer: varrer, LIM: LIM, perigosa: perigosa, catOk: catOk, CATS: CATS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TFSeg = api;
 })(typeof window !== 'undefined' ? window : globalThis);

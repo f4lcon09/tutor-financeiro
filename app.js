@@ -37,7 +37,8 @@ const DEMO = {
   tetos: {Mercado:800,Transporte:150,Estudos:650,'Saúde':120,Outros:100}
 };
 const HUE = {teal:'var(--teal)',vio:'var(--vio)',pink:'var(--pink)',sky:'var(--sky)'};
-const CATS = ['Lazer','Jogos','Comida','Mercado','Transporte','Estudos','Saúde','Outros'];
+const CATS = ['Lazer','Jogos','Comida','Mercado','Compras','Transporte','Estudos','Saúde','Outros'];
+const catVer = c => CATS.includes(c) ? c : 'Outros';   // categoria fora da lista (de outra versão do app) aparece como Outros; o valor guardado não muda
 const MASK = 'R$ ••••';
 const SVG_OLHO='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>', SVG_OLHO_OFF='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.6 10.6 0 0112 5c6.5 0 10 7 10 7a17 17 0 01-3.2 4.2M6.6 6.6A17 17 0 002 12s3.5 7 10 7a10 10 0 004.2-.9"/><path d="M9.9 9.9a3 3 0 004.2 4.2"/></svg>';
 const ic0 = p => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+p+'</svg>';
@@ -445,8 +446,8 @@ function drawLista(){
   if(!DEMO.tetoLazer) $('#lz_resumo').innerHTML=''; else $('#lz_resumo').innerHTML=`<div class="row"><span class="mu small">Lazer: ${brl(g)} de ${brl0(DEMO.tetoLazer)}</span><span class="tag ${cls}">${ST[cls][0]} ${pct>1?'passou '+brl0(g-DEMO.tetoLazer):brl0(DEMO.tetoLazer-g)+' restantes'}</span></div><div class="bar" style="--h:${COR[cls]}"><span style="width:${Math.min(pct,1)*100}%"></span></div>`;
   const q=(($('#busca')||{}).value||'').toLowerCase().trim();
   contaFiltroPinta(doM);
-  const rows=[...doM].filter(l=>!q||(l.desc+' '+l.cat+' '+(l.forma||'')+' '+(l.contaNome||'')).toLowerCase().includes(q)).filter(l=>!contaFiltro||(contaFiltro==='__sem'?!l.contaId:l.contaId===contaFiltro)).sort((a,b)=>b.data.localeCompare(a.data));
-  $('#lista').innerHTML = rows.length ? `<table class="lt"><tr><th>Dia</th><th>O que</th><th class="n">Valor</th><th></th><th></th></tr>${rows.map(l=>`<tr style="${String(l.id)===String(editId)?'background:var(--p2)':''}"><td>${esc(l.data.slice(8))}</td><td>${esc(l.desc)}<div class="mu small">${esc(l.cat)}${l.lazer?' · lazer':''}${l.forma?' · '+esc(l.forma):''}${l.contaNome?' · '+esc(l.contaNome):''}</div>${l.neutro?NEUTRO_TAG:''}</td><td class="n" style="color:${l.valor<0?'var(--ok)':'inherit'}">${l.valor<0?'+':''}${brl(Math.abs(l.valor))}</td><td class="b"><button class="x" data-ed="${l.id}" title="Corrigir" aria-label="Corrigir">${I.editar}</button></td><td class="b"><button class="x" data-id="${l.id}" title="Apagar" aria-label="Apagar">${I.apagar}</button></td></tr>`).join('')}</table>` : '<div class="mu">Nenhum lançamento neste mês.</div>'+(MOB()?'<button class="btn ghost" id="primeiro" style="margin-top:12px;width:100%">Lançar o primeiro gasto</button>':'');
+  const rows=[...doM].filter(l=>!q||(l.desc+' '+catVer(l.cat)+' '+(l.forma||'')+' '+(l.contaNome||'')).toLowerCase().includes(q)).filter(l=>!contaFiltro||(contaFiltro==='__sem'?!l.contaId:l.contaId===contaFiltro)).sort((a,b)=>b.data.localeCompare(a.data));
+  $('#lista').innerHTML = rows.length ? `<table class="lt"><tr><th>Dia</th><th>O que</th><th class="n">Valor</th><th></th><th></th></tr>${rows.map(l=>`<tr style="${String(l.id)===String(editId)?'background:var(--p2)':''}"><td>${esc(l.data.slice(8))}</td><td>${esc(l.desc)}<div class="mu small">${esc(catVer(l.cat))}${l.lazer?' · lazer':''}${l.forma?' · '+esc(l.forma):''}${l.contaNome?' · '+esc(l.contaNome):''}</div>${l.neutro?NEUTRO_TAG:''}</td><td class="n" style="color:${l.valor<0?'var(--ok)':'inherit'}">${l.valor<0?'+':''}${brl(Math.abs(l.valor))}</td><td class="b"><button class="x" data-ed="${l.id}" title="Corrigir" aria-label="Corrigir">${I.editar}</button></td><td class="b"><button class="x" data-id="${l.id}" title="Apagar" aria-label="Apagar">${I.apagar}</button></td></tr>`).join('')}</table>` : '<div class="mu">Nenhum lançamento neste mês.</div>'+(MOB()?'<button class="btn ghost" id="primeiro" style="margin-top:12px;width:100%">Lançar o primeiro gasto</button>':'');
   const pr1=$('#primeiro'); if(pr1) pr1.onclick=()=>{ const v=$('#f_valor'); if(v.scrollIntoView) v.scrollIntoView({block:'center'}); v.focus(); };
   if(q||contaFiltro) $('#lista').insertAdjacentHTML('beforeend',`<div class="hint">${rows.length} resultado(s) · total ${brl(rows.reduce((s,l)=>s+Math.abs(l.valor),0))}</div>`);
   $$('#lista [data-ed]').forEach(b=>b.onclick=()=>startEditFn&&startEditFn(b.dataset.ed));
@@ -542,8 +543,10 @@ function bindAgenda(){ $$('#main input[type=checkbox]').forEach(c=>c.onchange=()
 
 /* --- Orçamento --- */
 T.orcamento = () => {
-  const porCat={}; gastosMes().filter(l=>!l.lazer).forEach(l=>porCat[l.cat]=(porCat[l.cat]||0)+l.valor);
-  const rows=[{nome:'Lazer',teto:DEMO.tetoLazer,gasto:lazerGasto(),fixo:true},...Object.keys(tetos).map(k=>({nome:k,teto:tetos[k],gasto:porCat[k]||0}))];
+  const porCat={}; gastosMes().filter(l=>!l.lazer).forEach(l=>{ const k=catVer(l.cat); porCat[k]=(porCat[k]||0)+l.valor; });
+  /* categoria com gasto no mês e sem teto: entra como linha "sem teto" (sem barra e sem situação) e no gasto do mês; o planejado não muda */
+  const semTeto=Object.keys(porCat).filter(k=>!(k in tetos)&&porCat[k]>0).sort((a,b)=>CATS.indexOf(a)-CATS.indexOf(b)).map(k=>({nome:k==='Lazer'?'Lazer, sem marca de lazer':k,cat:k,teto:0,gasto:porCat[k],semTeto:true}));   // categoria Lazer sem a marca de lazer: rótulo e chave próprios, para não se confundir com a linha fixa de Lazer
+  const rows=[{nome:'Lazer',teto:DEMO.tetoLazer,gasto:lazerGasto(),fixo:true},...Object.keys(tetos).map(k=>({nome:k,teto:tetos[k],gasto:porCat[k]||0})),...semTeto];
   const tT=rows.reduce((s,r)=>s+r.teto,0), tG=rows.reduce((s,r)=>s+r.gasto,0), vazio=!doMes().length, rt=TFStore.ritmoMes(tG,diaHoje,diasMes);
   if(MOB()){
     const sit=r=>{ const p=r.teto?r.gasto/r.teto:0; return p<=.75?'ok':p<=1?'at':'ru'; };
@@ -552,8 +555,8 @@ T.orcamento = () => {
     rows.filter(r=>r.teto&&r.gasto/r.teto>.75&&r.gasto<=r.teto).forEach(r=>al.push([1, alerta('at', esc(r.nome)+' já usou '+pc(r.gasto/r.teto,0)+' do teto.')]));
     const vz = vazio ? pn('Nenhum lançamento este mês ainda','<div class="small mu">Os tetos já estão valendo. Quando você lançar um gasto, o uso de cada categoria aparece aqui.</div><button class="btn" data-ir="lancar" style="margin-top:12px;width:100%">Lançar gasto</button>','pink','margin-bottom:14px') : '';
     const linhaRitmo = vazio ? 'Ritmo do mês: sem lançamentos' : rt.poucos ? 'Ritmo do mês: poucos dados ainda, a projeção aparece a partir do dia '+TFStore.RITMO_MIN_DIAS : 'Ritmo do mês: '+aprox(rt.projetado)+' até o dia '+diasMes;
-    const lista = rows.map(r=>{ const k=sit(r), p=r.teto?r.gasto/r.teto:0; return `<div class="orcl${orcSel===r.nome?' sel':''}" data-cat="${esc(r.nome)}" role="button" tabindex="0" aria-label="${esc(r.nome)}: ${brl0(r.gasto)} de ${brl0(r.teto)}. Toque para ver os lançamentos."><div class="orcl1"><b>${esc(r.nome)}</b><span>${brl0(r.gasto)} de ${brl0(r.teto)}</span></div><div class="orcl2"><div class="bar" style="--h:${COR[k]}"><span style="width:${Math.min(p,1)*100}%"></span></div>${vazio?'':`<span class="tag ${k}">${ST[k][0]} ${k==='ok'?'No ritmo':k==='at'?'Perto':'Passou'}</span>`}</div></div>`; }).join('');
-    const tetos=rows.filter(r=>!r.fixo).map(r=>`<div class="field"><label for="tt_${esc(r.nome)}">Teto de ${esc(r.nome)} (R$)</label><input type="number" id="tt_${esc(r.nome)}" data-k="${esc(r.nome)}" value="${r.teto}" min="0" step="10"></div>`).join('');
+    const lista = rows.map(r=>{ if(r.semTeto) return `<div class="orcl orcl-st${orcSel===r.nome?' sel':''}" data-cat="${esc(r.nome)}" role="button" tabindex="0" aria-label="${esc(r.nome)}: ${brl0(r.gasto)}, sem teto. Toque para ver os lançamentos."><div class="orcl1"><b>${esc(r.nome)}</b><span>${brl0(r.gasto)} · sem teto</span></div></div>`; const k=sit(r), p=r.teto?r.gasto/r.teto:0; return `<div class="orcl${orcSel===r.nome?' sel':''}" data-cat="${esc(r.nome)}" role="button" tabindex="0" aria-label="${esc(r.nome)}: ${brl0(r.gasto)} de ${brl0(r.teto)}. Toque para ver os lançamentos."><div class="orcl1"><b>${esc(r.nome)}</b><span>${brl0(r.gasto)} de ${brl0(r.teto)}</span></div><div class="orcl2"><div class="bar" style="--h:${COR[k]}"><span style="width:${Math.min(p,1)*100}%"></span></div>${vazio?'':`<span class="tag ${k}">${ST[k][0]} ${k==='ok'?'No ritmo':k==='at'?'Perto':'Passou'}</span>`}</div></div>`; }).join('');
+    const tetos=rows.filter(r=>!r.fixo&&!r.semTeto).map(r=>`<div class="field"><label for="tt_${esc(r.nome)}">Teto de ${esc(r.nome)} (R$)</label><input type="number" id="tt_${esc(r.nome)}" data-k="${esc(r.nome)}" value="${r.teto}" min="0" step="10"></div>`).join('');
     return `<div class="head"><div><h1>Orçamento</h1><div class="sub">Quanto posso gastar e como estou indo.</div></div></div>
     ${vz}
     ${alertas(al)}
@@ -570,7 +573,7 @@ T.orcamento = () => {
     ${pn('Ainda posso gastar',`<div class="big">${brl0(Math.max(tT-tG,0))}</div><div class="bar" style="--h:var(--pink)"><span style="width:${Math.min(tG/tT,1)*100}%"></span></div>`,'pink')}
     ${pn('Ritmo do mês'+info('Projeção simples: o gasto até hoje dividido pelos dias passados, vezes os dias do mês. Só aparece depois de '+TFStore.RITMO_MIN_DIAS+' dias do mês.'),vazio?`<div class="big">—</div><div class="mu small">sem lançamentos este mês</div>`:rt.poucos?`<div class="big" style="font-size:22px">poucos dados</div><div class="mu small">a projeção aparece a partir do dia ${TFStore.RITMO_MIN_DIAS} do mês</div>`:`<div class="big">${brl0(rt.projetado)}</div><div class="mu small">projeção de gasto até dia ${diasMes}</div>`,'pink')}
   </div>
-  ${pn('Por categoria'+info('Cada linha compara o que você gastou com o teto do mês. Verde: até 75% do teto. Amarelo: perto do teto. Vermelho: passou. O teto de lazer vem dos seus números; nas outras você ajusta o teto.'),`<table class="rt"><tr><th>Categoria</th><th style="width:34%">Uso</th><th class="n">Gasto</th><th class="n">Teto</th><th>Situação</th></tr>${rows.map(r=>{const p=r.teto?r.gasto/r.teto:0, k=p<=.75?'ok':p<=1?'at':'ru';
+  ${pn('Por categoria'+info('Cada linha compara o que você gastou com o teto do mês. Verde: até 75% do teto. Amarelo: perto do teto. Vermelho: passou. O teto de lazer vem dos seus números; nas outras você ajusta o teto.'),`<table class="rt"><tr><th>Categoria</th><th style="width:34%">Uso</th><th class="n">Gasto</th><th class="n">Teto</th><th>Situação</th></tr>${rows.map(r=>{ if(r.semTeto) return `<tr class="clk${orcSel===r.nome?' sel':''}" data-cat="${esc(r.nome)}"><td class="tt"><b>${esc(r.nome)}</b>${orcSel===r.nome?' <span class="tag ne">aberto '+IDESCE+'</span>':''}</td><td class="uso"></td><td class="n" data-l="Gasto">${brl0(r.gasto)}</td><td class="n" data-l="Teto"><span class="mu">sem teto</span></td><td data-l="Situação"><span class="mu">—</span></td></tr>`; const p=r.teto?r.gasto/r.teto:0, k=p<=.75?'ok':p<=1?'at':'ru';
     return `<tr class="clk${orcSel===r.nome?' sel':''}" data-cat="${esc(r.nome)}"><td class="tt"><b>${esc(r.nome)}</b>${r.fixo?info('Inclui lazer, jogos e comida fora de casa.'):''}${orcSel===r.nome?' <span class="tag ne">aberto '+IDESCE+'</span>':''}</td><td class="uso"><div class="bar" style="--h:${COR[k]};margin:0"><span style="width:${Math.min(p,1)*100}%"></span></div></td><td class="n" data-l="Gasto">${brl0(r.gasto)}</td><td class="n" data-l="Teto">${r.fixo?brl0(r.teto):`<input type="number" data-k="${esc(r.nome)}" value="${esc(r.teto)}" min="0" step="10" style="width:90px;text-align:right;padding:5px 8px">`}</td><td data-l="Situação">${vazio?'<span class="mu">—</span>':`<span class="tag ${k}">${ST[k][0]} ${k==='ok'?'No ritmo':k==='at'?'Perto do teto':'Passou'}</span>`}</td></tr>`}).join('')}</table><div class="hint">O teto de lazer vem da planilha; os das outras categorias você ajusta aqui. Clique numa linha para ver os lançamentos dela.</div>`,'pink')}
   ${orcSel?detalheOrc(rows):''}
   <div class="grid g2" style="margin-top:14px">${pn('Distribuição do gasto',shareHtml(rows,tG),'pink')}${pn('Onde dá para economizar',vazio?'<div class="mu">Sem lançamentos ainda: nada para comparar.</div>':economiaHtml(rows,tG),'pink')}</div>`;
@@ -870,7 +873,7 @@ T.saude = () => {
 /* ===== Auxiliares de tela ===== */
 const FREQ=[{desc:'Lanche',cat:'Comida',valor:28.5,forma:'Pix',lazer:true},{desc:'Café',cat:'Comida',valor:12,forma:'Pix',lazer:true},{desc:'Ônibus e app',cat:'Transporte',valor:8,forma:'Pix',lazer:false},{desc:'Cinema',cat:'Lazer',valor:46,forma:'Pix',lazer:true},{desc:'Compra do mês',cat:'Mercado',valor:300,forma:'Débito',lazer:false}];
 const PAL=['var(--sky)','var(--vio)','var(--teal)','var(--pink)','var(--at)','var(--ok)'];
-function catTotals(){ const o={}; gastosMes().forEach(l=>o[l.cat]=(o[l.cat]||0)+l.valor); return Object.entries(o).sort((a,b)=>b[1]-a[1]); }
+function catTotals(){ const o={}; gastosMes().forEach(l=>{ const k=catVer(l.cat); o[k]=(o[k]||0)+l.valor; }); return Object.entries(o).sort((a,b)=>b[1]-a[1]); }
 function catBars(){ const t=catTotals(), tot=t.reduce((s,x)=>s+x[1],0)||1;
   return t.length ? t.map(([c,v])=>`<div style="margin-bottom:12px"><div class="row small"><span>${esc(c)}</span><span style="font-family:var(--fn)">${brl0(v)} · ${pc(v/tot,0)}</span></div><div class="bar" style="--h:var(--pink);margin:5px 0 0"><span style="width:${v/tot*100}%"></span></div></div>`).join('') : '<div class="mu">Sem gastos neste mês.</div>'; }
 const mesNome=k=>{ const d=new Date(hoje.getFullYear(),hoje.getMonth()+k,1); return d.toLocaleDateString('pt-BR',{month:'short'}).replace('.','')+'/'+String(d.getFullYear()).slice(2); };
@@ -888,7 +891,7 @@ function shareHtml(rows,tG){
     <div class="legend" style="margin:0">${act.map((r,i)=>`<span><i style="background:${PAL[i%6]}"></i>${esc(r.nome.split(' (')[0])} ${pc(r.gasto/tG,0)}</span>`).join('')}</div>`;
 }
 function economiaHtml(rows,tG){
-  const ord=[...rows].sort((a,b)=>b.gasto-a.gasto), top=ord[0], itens=[];
+  const ord=rows.filter(r=>!r.semTeto).sort((a,b)=>b.gasto-a.gasto), top=ord[0], itens=[];   // sem teto não entra na sugestão de corte
   if(top&&top.gasto>0) itens.push(['ne','i','<b>Maior fatia: '+esc(top.nome.split(' (')[0])+'</b> ('+pc(top.gasto/tG,0)+' do gasto). Cortar 10% dela libera '+brl0(top.gasto*0.1)+' por mês.']);
   rows.filter(r=>r.teto&&r.gasto/r.teto>.75).forEach(r=>itens.push([r.gasto>r.teto?'ru':'at',r.gasto>r.teto?IX:AV,'<b>'+esc(r.nome.split(' (')[0])+'</b> já usou '+pc(r.gasto/r.teto,0)+' do teto.']));
   if(!itens.some(x=>x[0]!=='ne')) itens.push(['ok',IOK,'<b>Nenhuma categoria perto do teto.</b> Bom ritmo.']);
@@ -930,7 +933,7 @@ function diaDetalhe(i){
   diaSel=i;
   const gs=doMes().filter(l=>l.valor>0&&+l.data.slice(8)===i), bs=DEMO.agenda.filter(a=>a.dia===i), el=$('#diadet'); if(!el) return;
   const nome=new Date(hoje.getFullYear(),hoje.getMonth(),i).toLocaleDateString('pt-BR',{day:'numeric',month:'long'});
-  const linhas=[...gs.map(l=>`<div class="row small"><span>${esc(l.desc)} <span class="mu">· ${esc(l.cat)}</span>${l.neutro?' '+NEUTRO_TAG:''}</span><span style="font-family:var(--fn)">${brl(l.valor)}</span></div>`),
+  const linhas=[...gs.map(l=>`<div class="row small"><span>${esc(l.desc)} <span class="mu">· ${esc(catVer(l.cat))}</span>${l.neutro?' '+NEUTRO_TAG:''}</span><span style="font-family:var(--fn)">${brl(l.valor)}</span></div>`),
     ...bs.map(a=>`<div class="row small"><span>${esc(a.nome)} <span class="tag ${isPago(a)?'ok':'ne'}">${isPago(a)?IOK+' pago':'vence'}</span></span><span style="font-family:var(--fn)">${brl(a.valor)}</span></div>`)];
   el.innerHTML=`<div class="dica" style="margin:0"><div class="row" style="margin-bottom:8px"><b>${nome}</b><button class="btn ghost" id="dd_l" style="padding:6px 12px;font-size:12.5px">Lançar neste dia</button></div>${linhas.length?linhas.join(''):'<span class="mu small">Nada lançado nem vencendo neste dia.</span>'}</div>`;
   $('#dd_l').onclick=()=>{ prefillData=mesAtual+'-'+pad2(i); ir('lancar'); };
@@ -944,8 +947,9 @@ function bindHoje(){
   hjLiga();
 }
 function detalheOrc(rows){
-  const lz=orcSel==='Lazer', es=gastosMes().filter(l=>lz?l.lazer:(!l.lazer&&l.cat===orcSel)).sort((a,b)=>b.data.localeCompare(a.data));
-  return pn('Lançamentos: '+esc(orcSel.split(' (')[0]),es.length?`<table><tr><th>Dia</th><th>O que</th><th class="n">Valor</th><th></th></tr>${es.map(l=>`<tr><td>${esc(l.data.slice(8))}</td><td>${esc(l.desc)}<div class="mu small">${esc(l.cat)}${l.forma?' · '+esc(l.forma):''}</div></td><td class="n">${brl(l.valor)}</td><td><button class="x" data-fix="${esc(l.id)}" title="Corrigir" aria-label="Corrigir">${I.editar}</button></td></tr>`).join('')}</table><div class="hint">Total: ${brl(es.reduce((s,l)=>s+l.valor,0))}. Toque no lápis para corrigir o lançamento.</div>`:'<div class="mu">Nenhum lançamento nesta categoria no mês.</div>','pink','margin-top:14px');
+  const r=rows.find(x=>x.nome===orcSel), lz=r?!!r.fixo:orcSel==='Lazer', cat=r&&r.cat||orcSel;   // linha fixa de Lazer: pela marca de lazer; as outras: pela categoria da linha
+  const es=gastosMes().filter(l=>lz?l.lazer:(!l.lazer&&catVer(l.cat)===cat)).sort((a,b)=>b.data.localeCompare(a.data));
+  return pn('Lançamentos: '+esc(orcSel.split(' (')[0]),es.length?`<table><tr><th>Dia</th><th>O que</th><th class="n">Valor</th><th></th></tr>${es.map(l=>`<tr><td>${esc(l.data.slice(8))}</td><td>${esc(l.desc)}<div class="mu small">${esc(catVer(l.cat))}${l.forma?' · '+esc(l.forma):''}</div></td><td class="n">${brl(l.valor)}</td><td><button class="x" data-fix="${esc(l.id)}" title="Corrigir" aria-label="Corrigir">${I.editar}</button></td></tr>`).join('')}</table><div class="hint">Total: ${brl(es.reduce((s,l)=>s+l.valor,0))}. Toque no lápis para corrigir o lançamento.</div>`:'<div class="mu">Nenhum lançamento nesta categoria no mês.</div>','pink','margin-top:14px');
 }
 /* --- Gráfico de previsão: uma tela só para Base e E se... (cálculo em grafico.js) --- */
 let pvModo='base', pvSel=null, pvTabela=false, pvTinha=false, pvUlt=null, pvPress=false, pvFontes=true;

@@ -3,7 +3,9 @@
 (function (root) {
   var Seg = (typeof require === 'function' && typeof module !== 'undefined') ? require('./seguranca.js') : root.TFSeg;
   var CHAVES = { lanc: 'tf_lanc3', pagos: 'tf_pagos', tetos: 'tf_tetos', metas: 'tf_metas', taxa: 'tf_taxameta', numeros: 'tf_numeros', real: 'tf_real', modo: 'tf_modo' };
-  var CATEGORIAS = ['Mercado', 'Transporte', 'Lazer', 'Comida', 'Estudos', 'Saúde', 'Jogos', 'Outros'];
+  var CATEGORIAS = ['Mercado', 'Compras', 'Transporte', 'Lazer', 'Comida', 'Estudos', 'Saúde', 'Jogos', 'Outros'];
+  /* categoria fora da lista (gravada por outra versão do app): só a exibição vira Outros, o valor guardado fica como veio */
+  var catExibida = function (c) { return CATEGORIAS.indexOf(c) >= 0 ? c : 'Outros'; };
   var FORMAS = ['Pix', 'Débito', 'Crédito', 'Dinheiro'];
   var pad = function (n) { return String(n).padStart(2, '0'); };
   var r2 = function (x) { return Math.round(x * 100) / 100; };
@@ -47,11 +49,11 @@
   }
 
   /* Valida um lançamento digitado. Retorna {ok, erros, valor} com os textos de erro por campo. */
-  function validarLancamento(o) {
+  function validarLancamento(o, catGuardada) {   // catGuardada: ao corrigir, a categoria que já estava gravada continua valendo, mesmo fora da lista
     var erros = {}, v = lerNumero(o.valor);
     if (!(v > 0)) erros.valor = 'Informe um valor maior que zero.';
     if (!dataValida(o.data)) erros.data = 'Informe uma data válida.';
-    if (CATEGORIAS.indexOf(o.cat) < 0) erros.cat = 'Escolha uma categoria.';
+    if (CATEGORIAS.indexOf(o.cat) < 0 && !(catGuardada != null && o.cat === catGuardada && Seg.catOk(o.cat))) erros.cat = 'Escolha uma categoria.';
     return { ok: Object.keys(erros).length === 0, erros: erros, valor: v };
   }
 
@@ -242,7 +244,8 @@
         return { ok: true, n: n, neutros: nn };
       },
       editar: function (id, o) {
-        var v = validarLancamento(o); if (!v.ok) return { ok: false, erros: v.erros };
+        var atual = st.lanc.filter(function (l) { return String(l.id) === String(id); })[0];
+        var v = validarLancamento(o, atual ? atual.cat : null); if (!v.ok) return { ok: false, erros: v.erros };
         var achou = false, tipo = o.tipo === 'entrada' ? 'entrada' : 'gasto';
         st.lanc = st.lanc.map(function (l) { if (String(l.id) !== String(id)) return l; achou = true; return comNeutro(comOrigem(l, { id: l.id, data: o.data, desc: String(o.desc || '').trim().slice(0, Seg.LIM.desc) || o.cat, cat: o.cat, valor: r2(tipo === 'entrada' ? -v.valor : v.valor), forma: o.forma || 'Pix', essencial: tipo === 'gasto' && !!o.essencial, lazer: tipo === 'gasto' && !!o.lazer }), o.neutro === undefined ? l.neutro === true : o.neutro === true); });
         if (!achou) return { ok: false, erros: { geral: 'Lançamento não encontrado.' } };
@@ -256,7 +259,7 @@
       doMes: function (mes) { mes = mes || S.mesAtual(); return st.lanc.filter(function (l) { return l.data.indexOf(mes) === 0; }); },
       gastosMes: function (mes) { return S.doMes(mes).filter(function (l) { return l.valor > 0 && !l.neutro; }); },   // neutro: dinheiro que só mudou de lugar
       lazerGasto: function (mes) { return r2(S.gastosMes(mes).filter(function (l) { return l.lazer; }).reduce(function (s, l) { return s + l.valor; }, 0)); },
-      porCategoria: function (mes) { var o = {}; S.gastosMes(mes).filter(function (l) { return !l.lazer; }).forEach(function (l) { o[l.cat] = r2((o[l.cat] || 0) + l.valor); }); return o; },
+      porCategoria: function (mes) { var o = {}; S.gastosMes(mes).filter(function (l) { return !l.lazer; }).forEach(function (l) { var k = catExibida(l.cat); o[k] = r2((o[k] || 0) + l.valor); }); return o; },
       porDia: function (mes) { var o = {}; S.gastosMes(mes).forEach(function (l) { var d = +l.data.slice(8); o[d] = r2((o[d] || 0) + l.valor); }); return o; },
       buscar: function (mes, q) {
         q = (q || '').toLowerCase().trim();
@@ -375,6 +378,6 @@
     return S;
   }
 
-  var api = { criarStore: criarStore, lerNumero: lerNumero, dataValida: dataValida, sugerir: sugerir, validarLancamento: validarLancamento, interpretarTexto: interpretarTexto, validarInicio: validarInicio, montarInicio: montarInicio, porDia: porDia, armazenamentoDoModo: armazenamentoDoModo, plataforma: plataforma, ritmoMes: ritmoMes, RITMO_MIN_DIAS: RITMO_MIN_DIAS, CATEGORIAS: CATEGORIAS, FORMAS: FORMAS };
+  var api = { criarStore: criarStore, lerNumero: lerNumero, dataValida: dataValida, sugerir: sugerir, validarLancamento: validarLancamento, interpretarTexto: interpretarTexto, validarInicio: validarInicio, montarInicio: montarInicio, porDia: porDia, armazenamentoDoModo: armazenamentoDoModo, plataforma: plataforma, ritmoMes: ritmoMes, RITMO_MIN_DIAS: RITMO_MIN_DIAS, CATEGORIAS: CATEGORIAS, catExibida: catExibida, FORMAS: FORMAS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TFStore = api;
 })(typeof window !== 'undefined' ? window : this);
