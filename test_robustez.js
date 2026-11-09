@@ -64,5 +64,31 @@ const { t, fim } = contador('Robustez');
     t('recarregar: depois de recarregar não há lançamento, e o aviso tinha dito isso', B.w.eval('S.st.lanc.length') === 0 && msg(A).includes('some se a página for recarregada'));
   }
 
+  /* 4. prazo enorme nas calculadoras: responde rápido, sem NaN, e conta no máximo 600 meses (teto A Confirmar) */
+  {
+    const A = await abrir({ tf_modo: 'real', tf_real: REALFX() }, { largura: 390, fetch: semRede });
+    await A.ir('decidir');
+    const saida = () => A.$('#out').textContent.replace(/s+/g, ' ').trim();
+    const CAMPOS = [['emp', 'e_n', 'Empréstimo'], ['con', 'c_n', 'Consórcio'], ['fat', 'f_n', 'Fatura'], ['inv', 'i_n', 'Investimento']];
+    for (const [aba, campo, nome] of CAMPOS) {
+      A.click('#ctab_' + aba); await tick(30);
+      A.set('#' + campo, '12'); await tick(10); const doze = saida();
+      for (const val of ['99999999', '1e999', '600', '601']) {
+        const t0 = Date.now(); A.set('#' + campo, val); await tick(10); const ms = Date.now() - t0, o = saida();
+        t(nome + ' ' + val + ': responde em menos de 2 s, sem NaN nem Infinity', ms < 2000 && o.length > 0 && !/NaN|Infinity/.test(o), ms + ' ms');
+        const ref = val === '1e999' ? '1' : '600';   // o campo numérico esvazia 1e999 (fora da faixa), que vale 1 mês
+        if (val !== '600') { A.set('#' + campo, ref); await tick(10); t(nome + ' ' + val + ': mesmo resultado de ' + ref + (ref === '1' ? ' mês' : ' meses'), saida() === o); }
+      }
+      for (const val of ['0', '-5', 'abc']) { A.set('#' + campo, val); await tick(10); A.$('#' + campo).value; const o = saida(); A.set('#' + campo, '1'); await tick(10); t(nome + ' ' + JSON.stringify(val) + ': vale 1 mês, como antes', saida() === o && !/NaN/.test(o)); }
+      A.set('#' + campo, '12'); await tick(10);
+      t(nome + ': 12 meses continua igual', saida() === doze);
+    }
+    A.click('#ctab_inv'); await tick(30); A.set('#i_n', '99999999'); await tick(10);
+    t('Investimento: o destaque diz "Em 600 meses"', A.$('#out .res').textContent.includes('Em 600 meses'));
+    A.click('#ctab_fat'); await tick(30); A.set('#f_n', '99999999'); await tick(10);
+    t('Fatura: o parcelamento diz 600x', saida().includes('em 600x'));
+    t('calculadoras: sem erros de script', A.erros.length === 0, A.erros.join(' | '));
+  }
+
   process.exit(fim());
 })().catch(e => { console.error('FALHA geral', e); process.exit(1); });

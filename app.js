@@ -702,6 +702,8 @@ const numField=(id,label,val,step='1',hint='')=>`<div class="field"><label>${lab
 function readRate(id){ const p=parseFloat($('#'+id).value)||0, t=$('#'+id+'_t').value, m=Calc.mensal(p,t);
   $('#'+id+'_h').textContent = t==='m' ? '= '+pc(Calc.anual(m))+' ao ano' : '= '+pc(m)+' ao mês'; return m; }
 const N = id => parseFloat($('#'+id).value)||0;
+/* prazo em meses: inteiro de 1 a MESES_MAX. Sem teto, um valor grande (99999999) travava a aba no laço do cálculo. 1e999 o próprio campo esvazia (vale 1 mês). Teto: valor inicial, A Confirmar */
+const MESES_MAX = 600, meses = id => Math.min(MESES_MAX, Math.max(1, Math.round(N(id)) || 1));
 T.decidir = () => `
   <div class="head"><div><h1>Decidir com calma</h1><div class="sub">Calculadoras que mostram o custo real antes de você fechar algo.</div></div></div>
   <div class="seg" id="calcs" role="tablist" aria-label="Calculadoras">${[['emp','Empréstimo'],['con','Consórcio'],['fat','Fatura do cartão'],['inv','Investimento']].map(([k,n])=>`<button role="tab" id="ctab_${k}" data-k="${k}" aria-selected="${k===calcSel}" aria-controls="calcbox" tabindex="${k===calcSel?0:-1}">${n}</button>`).join('')}</div>
@@ -713,7 +715,7 @@ const CALCS = {
    ${numField('e_v','Quanto você quer pegar (R$)',5000,'100')}${rateField('e_i','Juros',2.5)}${numField('e_n','Em quantos meses',24)}
    ${numField('e_t','Tarifas e IOF cobrados na liberação (R$)',0,'10','Entram no custo efetivo total (CET).')}
    <div class="field"><label>Sistema de parcelas</label><select id="e_s"><option value="price">Parcela fixa (Price)</option><option value="sac">Parcela que cai (SAC)</option></select></div>`,'teal')+pn('Resultado','<div id="out"></div>','teal'),
-   run:()=>{ const i=readRate('e_i'), v=N('e_v'), n=Math.max(1,Math.round(N('e_n'))), r=Calc.emprestimo(v,i,n,$('#e_s').value,N('e_t'));
+   run:()=>{ const i=readRate('e_i'), v=N('e_v'), n=meses('e_n'), r=Calc.emprestimo(v,i,n,$('#e_s').value,N('e_t'));
     $('#out').innerHTML=`<div class="res"><div class="mu small">Você devolve no total</div><div class="big">${brl(r.total)}</div><div class="mu">${brl(r.juros)} só de juros, ${pc(r.juros/v,1)} sobre o valor pego</div></div>
      <div class="kv"><span>Parcela${$('#e_s').value==='sac'?' (primeira)':''}</span><span>${brl(r.primeira)}</span>${$('#e_s').value==='sac'?`<span>Parcela (última)</span><span>${brl(r.ultima)}</span>`:''}<span>Custo efetivo (CET)</span><span>${pc(r.cetMensal)} a.m. · ${pc(r.cetAnual)} a.a.</span></div>
      ${det('decidir','graf-emp','Gráfico: quanto falta pagar',`<div style="margin-top:14px">${lineChart(r.parcelas.map(p=>p.n),[{name:'Falta pagar',values:r.parcelas.map(p=>p.saldo),c:'var(--teal)',area:true}],[],200,440)}</div><div class="hint">Quanto ainda falta pagar, mês a mês.</div>`,'teal')}
@@ -722,7 +724,7 @@ const CALCS = {
    ${numField('c_c','Valor da carta de crédito (R$)',60000,'1000')}${numField('c_n','Prazo (meses)',60)}
    ${numField('c_a','Taxa de administração total (%)',15,'0.5','Está no contrato; costuma ser de 10% a 25% no total.')}${numField('c_f','Fundo de reserva total (%)',2,'0.5')}${numField('c_s','Seguro por mês (% da carta)',0.04,'0.01')}
    ${rateField('c_i','Se você poupasse a parcela, rendimento de',0.8)}`,'teal')+pn('Resultado','<div id="out"></div>','teal'),
-   run:()=>{ const c=N('c_c'), n=Math.max(1,Math.round(N('c_n'))), im=readRate('c_i'), r=Calc.consorcio(c,n,N('c_a'),N('c_f'),N('c_s'),1);
+   run:()=>{ const c=N('c_c'), n=meses('c_n'), im=readRate('c_i'), r=Calc.consorcio(c,n,N('c_a'),N('c_f'),N('c_s'),1);
     const mp=Calc.mesesParaMeta(c,0,r.parcela,im);
     $('#out').innerHTML=`<div class="res"><div class="mu small">Parcela mensal</div><div class="big">${brl(r.parcela)}</div><div class="mu">Você paga ${brl(r.custo)} a mais que a carta (${pc(r.custo/c,1)}), sem juros mensais.</div></div>
      <div class="kv"><span>Total pago</span><span>${brl(r.total)}</span><span>Taxa equivalente se contemplado já no 1º mês</span><span>${r.cetMensal==null?'—':pc(r.cetMensal)+' a.m. · '+pc(r.cetAnual)+' a.a.'}</span><span>Poupando a mesma parcela, você chega à carta em</span><span>${mp==null?'—':mp+' meses'}</span></div>
@@ -731,7 +733,7 @@ const CALCS = {
  fat:{ form:()=>pn('Remanejar a fatura do cartão',`
    ${numField('f_s','Valor da fatura em aberto (R$)',3100,'50')}${numField('f_p','Quanto você consegue pagar por mês (R$)',450,'10')}
    ${rateField('f_r','Juros do rotativo',14)}${rateField('f_i','Juros de parcelar a fatura',6)}${numField('f_n','Parcelas (parcelamento e empréstimo)',12)}${rateField('f_e','Juros de um empréstimo pessoal',3.2)}`,'vio')+pn('Qual custa menos','<div id="out"></div>','vio'),
-   run:()=>{ const s=N('f_s'), p=N('f_p'), n=Math.max(1,Math.round(N('f_n'))), rr=readRate('f_r'), ri=readRate('f_i'), re=readRate('f_e');
+   run:()=>{ const s=N('f_s'), p=N('f_p'), n=meses('f_n'), rr=readRate('f_r'), ri=readRate('f_i'), re=readRate('f_e');
     const a=Calc.rotativo(s,rr,p), pmtI=Calc.parcelaFixa(s,ri,n), pmtE=Calc.parcelaFixa(s,re,n);
     const op=[{k:'Ficar no rotativo, pagando '+brl0(p)+'/mês',total:a.quita?a.total:null,det:a.quita?a.meses+' meses':'nunca quita'},
               {k:'Parcelar a fatura em '+n+'x de '+brl0(pmtI),total:pmtI*n,det:n+' meses'},
@@ -753,7 +755,7 @@ const CALCS = {
    <div class="toggle"><label><input type="checkbox" id="i_ir" checked> Descontar IR da renda fixa (tabela regressiva)</label></div>`,'sky')+pn('O que pode acontecer','<div id="out"></div>','sky'); },
    run:()=>{ const tx=taxas(), cdi=tx[4389], ipca=tx[13522], comCdi=!!cdi&&!!$('#i_pct');   // o campo na tela decide: o select dispara input antes de redesenhar
     let i; if(comCdi){ i=TFTaxas.mensalDeCdi(cdi.valor,N('i_pct'))||0; $('#i_pct_h').textContent='Cerca de '+pc(i)+' ao mês. Estimativa com o CDI de '+TFTaxas.diaMes(cdi.dataRef)+' ('+pc(cdi.valor/100)+' ao ano); a convenção ainda é a confirmar.'; } else i=readRate('i_i');
-    const n=Math.max(1,Math.round(N('i_n'))), comIr=$('#i_ir').checked, r=Calc.investimento(N('i_0'),N('i_m'),i,n,comIr,N('i_f'));
+    const n=meses('i_n'), comIr=$('#i_ir').checked, r=Calc.investimento(N('i_0'),N('i_m'),i,n,comIr,N('i_f'));
     const usaIpca=!!ipca&&invInf==null&&N('i_f')===ipca.valor, usadas=[comCdi&&cdi&&[4389,cdi],usaIpca&&[13522,ipca]].filter(Boolean);
     const fonte=usadas.length?`<div class="hint" id="i_fonte">${esc('Fonte: Banco Central do Brasil (SGS), '+(usadas.length>1?'séries ':'série ')+usadas.map(u=>u[0]).join(' e ')+', consulta em '+TFTaxas.dataBR(Math.max(...usadas.map(u=>u[1].fetchedAt))))}</div>`:'';
     $('#out').innerHTML=`<div class="res" style="--h:var(--sky)"><div class="mu small">Em ${n} meses você teria, depois do imposto</div><div class="big">${brl0(r.liquido)}</div><div class="mu">Você colocou ${brl0(r.aportado)}; o resto, ${brl0(r.liquido-r.aportado)}, é rendimento líquido.</div></div>
