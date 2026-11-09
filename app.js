@@ -1277,7 +1277,7 @@ function bindInstalar(){
 }
 T.instalar = () => `<div class="head"><div><h1>Instalar no celular</h1></div></div>${blocoInstalar(false)}<button class="btn ghost" data-ir="hoje">Voltar</button>`;
 function numerosSimples(){
-  const v=S.st.real._inicio, campo=(id,rot,val)=>`<div class="field"><label for="n_${id}">${rot}</label><input id="n_${id}" type="number" inputmode="decimal" step="0.01" value="${val}"></div>`;
+  const v=S.st.real._inicio, campo=(id,rot,val)=>`<div class="field"><label for="n_${id}">${rot}</label><input id="n_${id}" type="number" inputmode="decimal" step="0.01" value="${esc(val)}"></div>`;
   return `<div class="head"><div><h1>Meus números</h1><div class="sub">Corrija quando quiser. Valores aproximados servem.</div></div></div>
   ${pn('Os três números',campo('renda','Renda por mês (R$)',v.renda)+campo('fixos','Gastos fixos por mês (R$)',v.fixos)+campo('saldo','Saldo de hoje (R$)',v.saldo)+`<div class="row" style="justify-content:flex-start;gap:14px"><button class="btn" id="n_ok">Salvar números</button><span id="n_msg" class="small" role="status"></span></div>`,'teal')}`;
 }

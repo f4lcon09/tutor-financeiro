@@ -90,5 +90,17 @@ const { t, fim } = contador('Robustez');
     t('calculadoras: sem erros de script', A.erros.length === 0, A.erros.join(' | '));
   }
 
+  /* 5. Meus números: _inicio vindo de um arquivo importado entra no value com esc(). Payload inventado. */
+  {
+    const P = '1"><i id="injetado">x</i><input value="';
+    const r = REALFX(); r._inicio = { renda: P, fixos: 5, saldo: '<b id="negrito">2</b>' };
+    const A = await abrir({ tf_modo: 'real', tf_real: r }, { largura: 390, fetch: semRede });
+    await A.ir('numeros'); await tick(20);
+    t('Meus números: o texto não vira elemento', !A.$('#injetado') && !A.$('#negrito') && A.$$('#n_renda').length === 1);
+    t('Meus números: o campo fica com o texto como valor (o campo numérico o esvazia)', A.$('#n_renda').getAttribute('value') === P && A.$('#n_saldo').getAttribute('value') === '<b id="negrito">2</b>');
+    t('Meus números: número comum continua no campo', A.$('#n_fixos').value === '5');
+    t('Meus números: sem erros de script', A.erros.length === 0, A.erros.join(' | '));
+  }
+
   process.exit(fim());
 })().catch(e => { console.error('FALHA geral', e); process.exit(1); });
