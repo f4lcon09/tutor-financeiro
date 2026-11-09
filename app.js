@@ -1389,10 +1389,10 @@ const bancoAviso=(cls,txt)=>{ const m=$('#bc_msg'); if(m) m.innerHTML=txt?alerta
 T.banco = () => `<div class="head"><div><h1>Conexão bancária (em teste)</h1><div class="sub">Só neste aparelho. Só atualiza quando você pedir.</div></div></div>
   ${pn('Ponte',`<div class="field"><label for="bc_url">Endereço da ponte</label><input id="bc_url" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(load('tf_banco_url',''))}"></div>
     <div class="bc-acoes"><button class="btn" id="bc_atu" type="button">Atualizar do banco</button><button class="btn ghost" id="bc_rem" type="button">Remover conexão</button></div><div id="bc_msg" style="margin-top:12px"></div>`,'teal')}
-  ${pn('Diagnóstico (só para o dono)',`<div class="small mu">Pede os dados à ponte de novo. A estrutura mostra só contagens e nomes de campos: nenhum valor, nome, descrição ou identificador. Conferir saldos mostra valores só nesta tela. Nada é guardado.</div>
-    <div class="bc-acoes"><button class="btn ghost" id="bc_diag" type="button">Ver estrutura da resposta</button><button class="btn ghost" id="bc_conf" type="button">Conferir saldos</button></div><div id="bc_diag_out" style="margin-top:12px"></div>`,'teal','margin-top:14px')}
+  ${pn('Diagnóstico (só para o dono)',`<div class="small mu">Pede os dados à ponte de novo. A estrutura mostra só contagens, idades e nomes de campos: nenhum valor, data, nome, descrição ou identificador. Conferir saldos e Categorias do banco mostram dados só nesta tela. Nada é guardado.</div>
+    <div class="bc-acoes"><button class="btn ghost" id="bc_diag" type="button">Ver estrutura da resposta</button><button class="btn ghost" id="bc_conf" type="button">Conferir saldos</button><button class="btn ghost" id="bc_cat" type="button">Categorias do banco</button></div><div id="bc_diag_out" style="margin-top:12px"></div>`,'teal','margin-top:14px')}
   ${bancoContas().length?pn('Contas',`<div class="small mu" style="margin-bottom:12px">O novo nome vale para as próximas importações. Quem já foi importado mantém o nome daquele dia.</div><div id="bc_mais">${bancoNomesHtml(bancoContas(),'bc_mn')}</div>`,'teal','margin-top:14px'):''}`;
-function bancoBind(){ $('#bc_atu').onclick=bancoAtualizar; $('#bc_rem').onclick=bancoRemover; $('#bc_diag').onclick=bancoDiag; $('#bc_conf').onclick=bancoConferir; const s=bancoSessao(); if(s) bancoAviso('at',s); const m=$('#bc_mais'); if(m) m.addEventListener('change',e=>{ const l=bancoContas(), c=l[+e.target.dataset.n]; if(!c) return; c.renome=TFBanco.limparNome(e.target.value); save0('tf_banco_contas',l); }); }
+function bancoBind(){ $('#bc_atu').onclick=bancoAtualizar; $('#bc_rem').onclick=bancoRemover; $('#bc_diag').onclick=bancoDiag; $('#bc_conf').onclick=bancoConferir; $('#bc_cat').onclick=bancoCategorias; const s=bancoSessao(); if(s) bancoAviso('at',s); const m=$('#bc_mais'); if(m) m.addEventListener('change',e=>{ const l=bancoContas(), c=l[+e.target.dataset.n]; if(!c) return; c.renome=TFBanco.limparNome(e.target.value); save0('tf_banco_contas',l); }); }
 function bancoRemover(){
   const volta=$('#bc_rem'), fundo=document.createElement('div'); fundo.className='conf';
   fundo.innerHTML=`<div class="confc" role="alertdialog" aria-modal="true" aria-labelledby="conf_t" aria-describedby="conf_d"><h2 id="conf_t">Remover conexão?</h2><p id="conf_d">Apaga o endereço da ponte e as escolhas de sinal deste aparelho. Os lançamentos já importados continuam.</p><div class="confb"><button class="btn ghost" id="conf_nao" type="button">Cancelar</button><button class="btn" id="conf_sim" type="button">Remover</button></div></div>`;
@@ -1431,29 +1431,61 @@ async function bancoPedirDiag(id,rotulo){
 }
 async function bancoDiag(){
   const p=await bancoPedirDiag('bc_diag','Ver estrutura da resposta'); if(!p) return;
-  const e=TFBanco.estrutura(p.j,S.hojeISO()); if(!e.ok){ bancoDiagMsg('ru',TFBanco.mensagem(e.erro)); return; }
+  const e=TFBanco.estrutura(p.j,S.hojeISO(),Date.now()); if(!e.ok){ bancoDiagMsg('ru',TFBanco.mensagem(e.erro)); return; }
   const L=TFBanco.estruturaLinhas(e.e), txt=L.map(l=>(l.n?'  ':'')+l.t).join('\n');
   $('#bc_diag_out').innerHTML=`<h3 class="bc-dt">Estrutura da resposta</h3><ul class="bc-diag">${L.map(l=>`<li${l.n?' class="n1"':''}>${esc(l.t)}</li>`).join('')}</ul><div class="bc-acoes"><button class="btn ghost" id="bc_copiar" type="button">Copiar estrutura</button></div><div class="hint" id="bc_copiou" role="status"></div>`;
   $('#bc_copiar').onclick=()=>{ const diz=t=>{ const m=$('#bc_copiou'); if(m) m.textContent=t; }, nao=()=>diz('Não consegui copiar. Selecione o texto acima.');
-    try{ navigator.clipboard.writeText(txt).then(()=>diz('Copiado: só contagens e nomes de campos.'),nao); }catch(err){ nao(); } };
+    try{ navigator.clipboard.writeText(txt).then(()=>diz('Copiado: só contagens, idades e nomes de campos.'),nao); }catch(err){ nao(); } };
 }
 async function bancoConferir(){
   const p=await bancoPedirDiag('bc_conf','Conferir saldos'); if(!p) return;
-  const s=TFBanco.saldos(p.j); if(!s.ok){ bancoDiagMsg('ru',TFBanco.mensagem(s.erro)); return; }
+  const s=TFBanco.saldos(p.j,Date.now()); if(!s.ok){ bancoDiagMsg('ru',TFBanco.mensagem(s.erro)); return; }
   if(!s.contas.length){ bancoDiagMsg('at','A ponte não trouxe nenhuma conta com saldo.'); return; }
   const rot=TFBanco.rotulos(s.contas,bancoRenomes()), cartoes=DEMO.cartoes||[];
   const ops=[['caixa','Caixa hoje',DEMO.caixinha+DEMO.conta],['reserva','Caixinha (reserva)',DEMO.caixinha],['conta','Conta corrente',DEMO.conta]].concat(cartoes.map(c=>['c:'+c.id,'Fatura atual de '+c.nome,c.fatura]),[['','Não comparar',null]]);
   const val=k=>{ const o=ops.find(x=>x[0]===k); return o?o[2]:null; };
   const padrao=c=>c.subtipo==='CHECKING_ACCOUNT'?'conta':c.subtipo==='SAVINGS_ACCOUNT'?'reserva':c.tipo==='CREDIT'&&cartoes.length===1?'c:'+cartoes[0].id:'';
-  const dif=(app,banco)=>app==null||!isFinite(app)?'—':PRIV?MASK:(app-banco>0?'+':'')+brl(app-banco);
+  const dif=(app,banco)=>app==null||!isFinite(app)||banco==null?'—':PRIV?MASK:(app-banco>0?'+':'')+brl(app-banco);
   const opcoes=sel=>ops.map(o=>`<option value="${esc(o[0])}"${o[0]===sel?' selected':''}>${esc(o[1])}</option>`).join('');
   const soBanco=s.contas.filter(c=>c.tipo==='BANK').reduce((a,c)=>a+c.saldo,0), caixa=val('caixa');
-  $('#bc_diag_out').innerHTML=`<div id="bc_conf_box"><h3 class="bc-dt">Conferir saldos</h3><div class="small mu">Só nesta tela: nada é guardado. Diferença = número do app menos o saldo do banco. Escolha com qual número do app comparar cada conta.${s.contas.some(c=>c.tipo==='CREDIT')?' No cartão, o sinal do saldo do banco ainda é a confirmar.':''}</div>`+
-    s.contas.map((c,i)=>`<div class="bc-cs"><b>${esc(rot.get(c.id))}</b><div class="kv"><span>No banco</span><span>${brl(c.saldo)}</span>${c.fechamento!=null?`<span>Saldo de fechamento no banco</span><span>${brl(c.fechamento)}</span>`:''}${c.investidoAuto!=null?`<span>Investido automático no banco</span><span>${brl(c.investidoAuto)}</span>`:''}<span><label for="bc_cs_${i}">No app</label></span><span><select id="bc_cs_${i}" data-i="${i}">${opcoes(padrao(c))}</select></span><span>Diferença</span><span id="bc_cd_${i}">${dif(val(padrao(c)),c.saldo)}</span></div></div>`).join('')+
-    `<div class="bc-cs"><b>Somas</b><div class="kv"><span>Contas do tipo BANK, somadas</span><span>${brl(soBanco)}</span><span>Caixa hoje no app</span><span>${brl(caixa)}</span><span>Diferença</span><span id="bc_cd_soma">${dif(caixa,soBanco)}</span>${s.invest.presente?`<span>Contas BANK mais ${s.invest.n} investimento(s)</span><span>${brl(soBanco+s.invest.soma)}</span><span>Diferença com o Caixa hoje</span><span id="bc_cd_inv">${dif(caixa,soBanco+s.invest.soma)}</span>`:''}</div></div>`+
+  const cartaoDe=v=>v&&v.startsWith('c:')?cartoes.find(x=>'c:'+x.id===v)||null:null;
+  /* cartão: dados de crédito do banco ao lado dos números do cartão do app escolhido no seletor, com a idade do banco */
+  const cartaoCmp=(c,ap)=>{
+    const k=c.credito, dia=d=>d?d.slice(8)+'/'+d.slice(5,7)+'/'+d.slice(0,4):'—', inf=ap&&ap.limite>0?cartaoInfo(ap):null;
+    if(!k) return `<div class="bc-sub small">O banco não mandou os dados de crédito deste cartão.</div>`;
+    const linha=(rot,banco,app,d)=>`<span>${rot} no banco</span><span>${banco}</span><span>${rot} no app</span><span>${app}</span><span>Diferença</span><span>${d}</span>`;
+    const appV=v=>ap?brl(v):'—', venceApp=ap&&ap.vence?'dia '+esc(String(ap.vence)):'—', venceDif=!ap||!ap.vence||!k.vence?'—':+k.vence.slice(8)===+ap.vence?'mesmo dia':'dia diferente';
+    return `<div class="bc-sub"><div class="small mu">Dados de crédito do banco, atualizados ${esc(c.idade)}${ap?'':'. Para comparar, escolha acima a fatura de um cartão do app'}.</div><div class="kv">`+
+      linha('Limite (creditLimit)',brl(k.limite),ap&&ap.limite>0?appV(ap.limite):ap?'não informado':'—',dif(ap&&ap.limite>0?ap.limite:null,k.limite))+
+      linha('Disponível (availableCreditLimit)',brl(k.disponivel),inf?appV(inf.disponivel):ap?'não informado':'—',dif(inf?inf.disponivel:null,k.disponivel))+
+      linha('Vencimento (balanceDueDate)',dia(k.vence),venceApp,venceDif)+
+      `<span>Pagamento mínimo (minimumPayment) no banco</span><span>${brl(k.minimo)}</span><span>Pagamento mínimo no app</span><span>o app não tem</span></div></div>`;
+  };
+  /* cartão: todo campo numérico da conta como veio da ponte, para achar a qual número do app do banco o saldo corresponde */
+  const numTxt=v=>PRIV?'••••':esc(v.toLocaleString('pt-BR',{maximumFractionDigits:6}));
+  const camposNum=c=>c.numericos?`<div class="bc-sub"><div class="small mu">Campos numéricos desta conta, como vieram da ponte (atualizados ${esc(c.idade)})</div><div class="kv">${c.numericos.lista.map(([k,v])=>`<span>${esc(k)}</span><span>${numTxt(v)}</span>`).join('')}</div>${c.numericos.mais?`<div class="hint">Mais ${c.numericos.mais} campo(s) numérico(s) fora desta lista.</div>`:''}</div>`:'';
+  const invLinhas=vs=>vs.map(v=>`<span>${esc(v.nome||'Sem nome')}<small class="bc-st">${esc(v.status||'sem status')}</small></span><span>${brl(v.saldo)}</span>`).join('');
+  const blocoItem=(titulo,idade,it)=>`<div class="bc-sub"><b>${esc(titulo)}</b>${idade?`<div class="small mu">Item atualizado ${esc(idade)}</div>`:''}${it.investimentos.length?`<div class="kv">${invLinhas(it.investimentos)}<span>Total do item</span><span>${brl(it.soma)}</span></div>`:'<div class="small">Nenhum investimento veio da ponte para este item.</div>'}</div>`;
+  const nomeItem=(it,i)=>'Item '+(i+1)+(it.contas.length?': '+it.contas.map(id=>rot.get(id)).join(', '):' (sem contas)');
+  const invest=`<div class="bc-is"><b>Investimentos por item</b>`+(!s.invest.presente?'<div class="small">A ponte não mandou a lista de investimentos.</div>':
+    s.itens.map((it,i)=>blocoItem(nomeItem(it,i),it.idade,it)).join('')+(s.semItem.investimentos.length?blocoItem('Investimentos sem item na lista de itens',null,s.semItem):'')+
+    (!s.itens.length&&!s.semItem.investimentos.length?'<div class="small">A ponte mandou a lista de investimentos vazia.</div>':'')+(s.invest.mais?`<div class="hint">Mais ${s.invest.mais} investimento(s) fora desta lista.</div>`:''))+'</div>';
+  $('#bc_diag_out').innerHTML=`<div id="bc_conf_box"><h3 class="bc-dt">Conferir saldos</h3><div class="small mu">Só nesta tela: nada é guardado. Diferença = número do app menos o número do banco. Cada valor do banco aparece com a idade dele. Escolha com qual número do app comparar cada conta.${s.contas.some(c=>c.tipo==='CREDIT')?' No cartão, o sinal do saldo do banco ainda é a confirmar.':''}</div>`+
+    s.contas.map((c,i)=>`<div class="bc-cs"><b>${esc(rot.get(c.id))}</b><div class="kv"><span>Atualizado no banco</span><span id="bc_ci_${i}">${esc(c.idade)}</span><span>No banco</span><span>${brl(c.saldo)}</span>${c.fechamento!=null?`<span>Saldo de fechamento no banco</span><span>${brl(c.fechamento)}</span>`:''}${c.investidoAuto!=null?`<span>Investido automático no banco</span><span>${brl(c.investidoAuto)}</span>`:''}<span><label for="bc_cs_${i}">No app</label></span><span><select id="bc_cs_${i}" data-i="${i}">${opcoes(padrao(c))}</select></span><span>Diferença</span><span id="bc_cd_${i}">${dif(val(padrao(c)),c.saldo)}</span></div>${c.tipo==='CREDIT'?`<div id="bc_cc_${i}">${cartaoCmp(c,cartaoDe(padrao(c)))}</div>${camposNum(c)}`:''}</div>`).join('')+
+    invest+
+    `<div class="bc-cs"><b>Somas</b><div class="kv"><span>Contas do tipo BANK, somadas</span><span>${brl(soBanco)}</span><span>Caixa hoje no app</span><span>${brl(caixa)}</span><span>Diferença</span><span id="bc_cd_soma">${dif(caixa,soBanco)}</span>${s.invest.presente?`<span>Investimentos, somados (${s.invest.n} com saldo)</span><span id="bc_si">${brl(s.invest.soma)}</span><span>Contas BANK mais ${s.invest.n} investimento(s)</span><span>${brl(soBanco+s.invest.soma)}</span><span>Diferença com o Caixa hoje</span><span id="bc_cd_inv">${dif(caixa,soBanco+s.invest.soma)}</span>`:''}</div></div>`+
     (s.fora?`<div class="hint">${s.fora} conta(s) fora do formato não aparecem aqui.</div>`:'')+'</div>';
   /* o ouvinte fica na caixa nova de cada conferência: tocar de novo troca a caixa e o ouvinte antigo vai junto, sem acumular */
-  $('#bc_conf_box').addEventListener('change',e=>{ const i=e.target.dataset&&e.target.dataset.i, c=i!=null&&s.contas[+i]; if(!c) return; const out=$('#bc_cd_'+i); if(out) out.textContent=dif(val(e.target.value),c.saldo); });
+  $('#bc_conf_box').addEventListener('change',e=>{ const i=e.target.dataset&&e.target.dataset.i, c=i!=null&&s.contas[+i]; if(!c) return; const out=$('#bc_cd_'+i); if(out) out.textContent=dif(val(e.target.value),c.saldo); const cc=$('#bc_cc_'+i); if(cc) cc.innerHTML=cartaoCmp(c,cartaoDe(e.target.value)); });
+}
+/* categorias do banco: cada cat distinta com a contagem de movimentos. Sem descrição e sem valor; só nesta tela, nada guardado nem copiado. */
+async function bancoCategorias(){
+  const p=await bancoPedirDiag('bc_cat','Categorias do banco'); if(!p) return;
+  const r=TFBanco.categorias(p.j); if(!r.ok){ bancoDiagMsg('ru',TFBanco.mensagem(r.erro)); return; }
+  const mv=n=>n+(n===1?' movimento':' movimentos');
+  $('#bc_diag_out').innerHTML=`<h3 class="bc-dt">Categorias do banco</h3><div class="small mu">Só nesta tela: nada é guardado nem copiado. Cada categoria que veio do banco, com quantos movimentos tem, para ligar depois às categorias do app.</div>`+
+    (r.lista.length?`<div class="kv bc-cat">${r.lista.map(([c,n])=>`<span>${esc(c)}</span><span>${esc(mv(n))}</span>`).join('')}</div>`:'<div class="small bc-cat">Nenhum movimento veio com categoria.</div>')+
+    `<div class="hint" id="bc_cat_res">Sem categoria: ${esc(mv(r.semCat))}. Total: ${esc(mv(r.total))}.${r.mais?' Mais '+r.mais+' categoria(s) fora desta lista.':''}</div>`;
 }
 const bancoVinTxt=it=>it.soNeutro?'Marcar como não é gasto':it.neutro?'Vincular conta e marcar como não é gasto':'Vincular conta';
 const bancoContas=()=>{ const r=load('tf_banco_contas',[]); return Array.isArray(r)?r:[]; };

@@ -117,6 +117,26 @@
   var lista = function (x) { return Array.isArray(x) ? x.slice(0, LIM_DIAG) : null; };
   var tipoData = function (x) { return typeof x !== 'string' || !x.trim() ? 'ausente' : /^\d{4}-\d{2}-\d{2}/.test(x) && dataOk(x.slice(0, 10)) ? 'data' : 'texto'; };
   var soma1 = function (m, k) { m[k] = (m[k] || 0) + 1; };
+  /* idade de um carimbo ISO (AAAA-MM-DD, com hora e fuso opcionais), sem nunca devolver a data: "há N h" até 48 h, depois "há N dias".
+     Fora do formato: "sem data". Depois do relógio do aparelho: "data futura" (sem folga: um relógio atrasado pode dar "data futura"). */
+  var RE_ISO = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,9}))?)?(Z|[+-]\d{2}:?\d{2})?)?$/;
+  function idadeMs(x, agora) {
+    if (typeof x !== 'string' || x.length > 40) return null;
+    var m = RE_ISO.exec(x.trim()); if (!m || !dataOk(m[1] + '-' + m[2] + '-' + m[3])) return null;
+    var h = +(m[4] || 0), mi = +(m[5] || 0), s = +(m[6] || 0), ms = m[7] ? +(m[7] + '00').slice(0, 3) : 0, t;
+    if (h > 23 || mi > 59 || s > 59) return null;
+    if (!m[4] || m[8]) {   /* só a data, ou com fuso: hora universal menos o fuso */
+      t = Date.UTC(+m[1], +m[2] - 1, +m[3], h, mi, s, ms);
+      if (m[8] && m[8] !== 'Z') { var z = m[8].replace(':', ''), sinal = z[0] === '-' ? -1 : 1, zh = +z.slice(1, 3), zm = +z.slice(3, 5); if (zh > 23 || zm > 59) return null; t -= sinal * (zh * 60 + zm) * 6e4; }
+    } else t = new Date(+m[1], +m[2] - 1, +m[3], h, mi, s, ms).getTime();   /* com hora e sem fuso: hora do aparelho */
+    return isFinite(t) ? agora - t : null;
+  }
+  var idadeTxt = function (ms) { if (ms === null) return 'sem data'; if (ms < 0) return 'data futura'; var h = Math.floor(ms / 36e5); return h < 48 ? 'há ' + h + ' h' : 'há ' + Math.floor(h / 24) + ' dias'; };
+  var agoraDe = function (x) { return typeof x === 'number' && isFinite(x) ? x : Date.now(); };
+  var idade = function (x, agora) { return idadeTxt(idadeMs(x, agoraDe(agora))); };
+  /* descrição que termina em "n/N" (1 <= n <= N <= 120), como "PARC 02/05": heurística, A Confirmar com extratos reais */
+  var RE_NN = /(?:^|\D)(\d{1,3}) ?\/ ?(\d{1,3})\s*$/;
+  var fimNN = function (d) { if (typeof d !== 'string') return false; var m = RE_NN.exec(d.slice(-40)); return !!m && +m[1] >= 1 && +m[1] <= +m[2] && +m[2] <= 120; };
   var pares = function (m) { return Object.keys(m).sort().map(function (k) { return [k, m[k]]; }); };
   function contaChaves(objs, chaves) {
     var out = { com: 0, chaves: {}, outras: 0 };
@@ -133,29 +153,36 @@
   /* reserva do Nubank e do Mercado Pago: só "achou ou não", pelo nome (heurística, A Confirmar no teste real) */
   var INST = { nubank: /\bnu ?bank\b|\bnu pagamentos\b/, mercadoPago: /\bmercado ?pago\b/ };
   var RE_RESERVA = /\bcaixinhas?\b|\bcofrinhos?\b|\breservas?\b/;
-  /* resposta bruta da ponte -> {ok:true, e} com só contagens, ou {ok:false, erro}. hojeISO = "AAAA-MM-DD" local. */
-  function estrutura(j, hojeISO) {
+  /* resposta bruta da ponte -> {ok:true, e} com só contagens e idades, ou {ok:false, erro}. hojeISO = "AAAA-MM-DD" local; agora = Date.now() (injetável nos testes). */
+  function estrutura(j, hojeISO, agora) {
     if (!isObj(j) || typeof j.ok !== 'boolean') return { ok: false, erro: 'formato' };
     if (!j.ok) return typeof j.erro === 'string' && j.erro && j.erro.length <= 300 ? { ok: false, erro: j.erro } : { ok: false, erro: 'formato' };
-    var d = j.dados, e = { dados: isObj(d) }, token = conferidor();
+    var d = j.dados, e = { dados: isObj(d) }, token = conferidor(), ag = agoraDe(agora);
     if (!e.dados) return { ok: true, e: e };
     e.fora = token.fora;
     e.periodo = { de: dataOk(d.de), ate: dataOk(d.ate) };
     e.periodo.dias = e.periodo.de && e.periodo.ate ? Math.round((Date.UTC(+d.ate.slice(0, 4), +d.ate.slice(5, 7) - 1, +d.ate.slice(8, 10)) - Date.UTC(+d.de.slice(0, 4), +d.de.slice(5, 7) - 1, +d.de.slice(8, 10))) / 864e5) : null;
     var contas = lista(d.contas), movs = lista(d.movs), faturas = lista(d.faturas), inv = lista(d.investimentos), itens = lista(d.itens);
-    var cs = (contas || []).filter(isObj), porTipo = {};
-    cs.forEach(function (c) { soma1(porTipo, (token(c.tipo, 'contaTipo') || 'sem tipo') + ' / ' + (token(c.subtipo, 'contaSubtipo') || 'sem subtipo')); });
+    var cs = (contas || []).filter(isObj), porTipo = {}, rotTipo = [];
+    cs.forEach(function (c) { var k = (token(c.tipo, 'contaTipo') || 'sem tipo') + ' / ' + (token(c.subtipo, 'contaSubtipo') || 'sem subtipo'); rotTipo.push(k); soma1(porTipo, k); });
+    /* idade de atualizado por conta (rótulo pela ordem e pelo tipo da lista fixa) e a mínima e a máxima entre as que têm data válida */
+    var idades = cs.map(function (c) { return idadeMs(c.atualizado, ag); }), validas = idades.filter(function (x) { return x !== null && x >= 0; });
     e.contas = { presente: !!contas, total: contas ? contas.length : 0, invalidas: contas ? contas.length - cs.length : 0, porTipo: pares(porTipo),
       comAtualizado: cs.filter(function (c) { return tipoData(c.atualizado) !== 'ausente'; }).length, comSaldo: cs.filter(function (c) { return num(c.saldo); }).length,
-      banco: contaChaves(cs.map(function (c) { return c.banco; }), CHAVES_BANCO), credito: contaChaves(cs.map(function (c) { return c.credito; }), CHAVES_CRED) };
-    var ms = (movs || []).filter(isObj), st = {}, tp = {}, parc = 0, parcRuim = 0, cat = 0;
+      banco: contaChaves(cs.map(function (c) { return c.banco; }), CHAVES_BANCO), credito: contaChaves(cs.map(function (c) { return c.credito; }), CHAVES_CRED),
+      idades: idades.slice(0, MAX_CONTAS).map(function (x, i) { return { rotulo: 'conta ' + (i + 1) + ' (' + rotTipo[i] + ')', idade: idadeTxt(x) }; }), idadesMais: Math.max(0, idades.length - MAX_CONTAS),
+      idadeMin: validas.length ? idadeTxt(Math.min.apply(null, validas)) : null, idadeMax: validas.length ? idadeTxt(Math.max.apply(null, validas)) : null };
+    var ms = (movs || []).filter(isObj), st = {}, tp = {}, parc = 0, parcRuim = 0, cat = 0, cats = new Set(), nn = { parc: 0, desc: 0, ambos: 0, soParc: 0, soDesc: 0 };
     ms.forEach(function (m) {
       var s = token(m.status, 'movStatus'); soma1(st, s || 'sem status');
       soma1(tp, m.tipo === 'DEBIT' || m.tipo === 'CREDIT' ? m.tipo : 'outro');
       if (m.parc != null) { var p = m.parc; if (isObj(p) && Number.isInteger(p.n) && Number.isInteger(p.de) && p.n >= 1 && p.de >= p.n && p.de <= 120) parc++; else parcRuim++; }
-      if (typeof m.cat === 'string' && m.cat.trim()) cat++;
+      if (typeof m.cat === 'string' && m.cat.trim()) { cat++; cats.add(m.cat.trim()); }
+      /* parc preenchido (no formato ou não) e descrição terminando em n/N: só contagens */
+      var temP = m.parc != null, temD = fimNN(m.desc);
+      if (temP) nn.parc++; if (temD) nn.desc++; if (temP && temD) nn.ambos++; else if (temP) nn.soParc++; else if (temD) nn.soDesc++;
     });
-    e.movs = { presente: !!movs, total: movs ? movs.length : 0, status: st, tipo: tp, comParc: parc, parcInvalida: parcRuim, comCat: cat };
+    e.movs = { presente: !!movs, total: movs ? movs.length : 0, status: st, tipo: tp, comParc: parc, parcInvalida: parcRuim, comCat: cat, catDistintas: cats.size, nn: nn };
     var fats = (faturas || []).filter(isObj), hm = +hojeISO.slice(0, 4) * 12 + +hojeISO.slice(5, 7), comVence = 0, futuras = 0, meses = null;
     fats.forEach(function (f) {
       if (!dataOk(f.vence)) return; comVence++;
@@ -169,7 +196,7 @@
     var is = (itens || []).filter(isObj), chaveItem = function (x) { return typeof x === 'string' && x ? x : null; };
     e.itens = { presente: !!itens, total: itens ? itens.length : 0, lista: is.map(function (it, i) {
       var k = chaveItem(it.item);
-      return { rotulo: 'item ' + (i + 1), atualizado: tipoData(it.atualizado), status: token(it.status, 'itemStatus') || 'ausente',
+      return { rotulo: 'item ' + (i + 1), atualizado: idade(it.atualizado, ag), status: token(it.status, 'itemStatus') || 'ausente',
         contas: k ? cs.filter(function (c) { return c.item === k; }).length : 0, investimentos: k ? vs.filter(function (v) { return v.item === k; }).length : 0 };
     }) };
     var conhecidos = new Set(is.map(function (it) { return chaveItem(it.item); }).filter(Boolean));
@@ -198,6 +225,9 @@
       add('com atualizado: ' + c.comAtualizado + ' de ' + (c.total - c.invalidas) + '; com saldo numérico: ' + c.comSaldo, 1);
       add('com banco: ' + c.banco.com + (c.banco.com ? ' (' + CHAVES_BANCO.map(function (k) { return k + ' em ' + c.banco.chaves[k]; }).join(', ') + (c.banco.outras ? ', outras chaves em ' + c.banco.outras : '') + ')' : ''), 1);
       add('com credito: ' + c.credito.com + (c.credito.com ? ' (' + CHAVES_CRED.map(function (k) { return k + ' em ' + c.credito.chaves[k]; }).join(', ') + (c.credito.outras ? ', outras chaves em ' + c.credito.outras : '') + ')' : ''), 1);
+      c.idades.forEach(function (x) { add(x.rotulo + ': atualizado ' + x.idade, 1); });
+      if (c.idadesMais) add('mais ' + c.idadesMais + ' conta(s) sem idade nesta lista', 1);
+      add('idade de atualizado nas contas: ' + (c.idadeMin ? 'mínima ' + c.idadeMin + ', máxima ' + c.idadeMax : 'nenhuma conta com data válida'), 1);
     }
     var m = e.movs;
     add('movs: ' + (m.presente ? m.total : 'ausente'));
@@ -205,6 +235,8 @@
       add('por status: ' + ['POSTED', 'PENDING', 'outro', 'sem status'].map(function (k) { return k + ' ' + (m.status[k] || 0); }).join(', '), 1);
       add('por tipo: ' + ['DEBIT', 'CREDIT', 'outro'].map(function (k) { return k + ' ' + (m.tipo[k] || 0); }).join(', '), 1);
       add('com parc: ' + m.comParc + (m.parcInvalida ? ' (mais ' + m.parcInvalida + ' fora do formato n de N)' : '') + '; com cat: ' + m.comCat, 1);
+      add('parcelas: parc preenchido ' + m.nn.parc + '; descrição terminando em n/N ' + m.nn.desc + '; os dois ' + m.nn.ambos + '; só parc ' + m.nn.soParc + '; só descrição ' + m.nn.soDesc, 1);
+      add('cat distintas: ' + m.catDistintas, 1);
     }
     var f = e.faturas;
     add('faturas: ' + (f.presente ? f.total : 'ausente'));
@@ -225,22 +257,63 @@
     add('Fora da lista fixa (aparecem como outro): ' + ROTULO_FORA.map(function (p) { return p[1] + ' outro (' + e.fora[p[0]] + ')'; }).join(', '));
     return L;
   }
-  /* ===== Conferir saldos (dono): saldo de cada conta, só para a tela. Nada aqui é guardado. ===== */
-  function saldos(j) {
+  /* ===== Conferir saldos (dono): valores só para a tela. Nada aqui é guardado, registrado ou copiado. ===== */
+  var MAX_INV = 500, MAX_NUM = 40;
+  var chaveTxt = function (x) { return typeof x === 'string' && x ? x : null; };
+  var dataDe = function (x) { return typeof x === 'string' && x.length <= 40 && dataOk(x.slice(0, 10)) ? x.slice(0, 10) : null; };
+  /* todo campo numérico da conta como veio da ponte: chaves do primeiro nível e de um nível abaixo ("credito.creditLimit"). Nome de chave longo fica fora. */
+  function numericos(c) {
+    var out = [], mais = 0, poe = function (k, v) { if (out.length < MAX_NUM) out.push([k, v]); else mais++; };
+    Object.keys(c).forEach(function (k) {
+      if (k.length > 60) return;
+      var v = c[k];
+      if (num(v)) poe(k, v);
+      else if (isObj(v)) Object.keys(v).forEach(function (k2) { if (k2.length <= 60 && num(v[k2])) poe(k + '.' + k2, v[k2]); });
+    });
+    return { lista: out, mais: mais };
+  }
+  function saldos(j, agora) {
     if (!isObj(j) || typeof j.ok !== 'boolean') return { ok: false, erro: 'formato' };
     if (!j.ok) return typeof j.erro === 'string' && j.erro && j.erro.length <= 300 ? { ok: false, erro: j.erro } : { ok: false, erro: 'formato' };
     var d = j.dados; if (!isObj(d) || !Array.isArray(d.contas)) return { ok: false, erro: 'formato' };
-    var ids = new Set(), contas = [], fora = 0;
+    var ag = agoraDe(agora), ids = new Set(), contas = [], fora = 0;
     d.contas.slice(0, MAX_CONTAS).forEach(function (c) {
       if (!isObj(c) || typeof c.id !== 'string' || !RE_ID.test(c.id) || ids.has(c.id) || !texto(c.tipo, 40) || !ouNulo(c.subtipo, 40) || !texto(c.nome, 200) || !c.nome.trim() || !num(c.saldo)) { fora++; return; }
       ids.add(c.id);
-      var b = isObj(c.banco) ? c.banco : {};
-      contas.push({ id: c.id, tipo: c.tipo, subtipo: c.subtipo == null ? null : c.subtipo, nome: c.nome.trim(), saldo: c.saldo,
-        fechamento: num(b.closingBalance) ? b.closingBalance : null, investidoAuto: num(b.automaticallyInvestedBalance) ? b.automaticallyInvestedBalance : null });
+      var b = isObj(c.banco) ? c.banco : {}, k = isObj(c.credito) ? c.credito : null;
+      contas.push({ id: c.id, tipo: c.tipo, subtipo: c.subtipo == null ? null : c.subtipo, nome: c.nome.trim(), saldo: c.saldo, item: chaveTxt(c.item), idade: idade(c.atualizado, ag),
+        fechamento: num(b.closingBalance) ? b.closingBalance : null, investidoAuto: num(b.automaticallyInvestedBalance) ? b.automaticallyInvestedBalance : null,
+        credito: k ? { limite: num(k.creditLimit) ? k.creditLimit : null, disponivel: num(k.availableCreditLimit) ? k.availableCreditLimit : null, vence: dataDe(k.balanceDueDate), minimo: num(k.minimumPayment) ? k.minimumPayment : null } : null,
+        numericos: c.tipo === 'CREDIT' ? numericos(c) : null });
     });
     fora += Math.max(0, d.contas.length - MAX_CONTAS);
-    var vs = Array.isArray(d.investimentos) ? d.investimentos.slice(0, LIM_DIAG).filter(function (v) { return isObj(v) && num(v.saldo); }) : [];
-    return { ok: true, contas: contas, fora: fora, invest: { presente: Array.isArray(d.investimentos), n: vs.length, soma: r2(vs.reduce(function (s, v) { return s + v.saldo; }, 0)) } };
+    var presente = Array.isArray(d.investimentos), todos = presente ? d.investimentos.slice(0, LIM_DIAG).filter(isObj) : [];
+    var vs = todos.filter(function (v) { return num(v.saldo); });
+    /* cada investimento (nome, saldo, status) e o total por item. O id do item só liga as coisas: nunca sai daqui. */
+    var lista = todos.slice(0, MAX_INV).map(function (v) {
+      return { nome: typeof v.nome === 'string' && v.nome.trim() ? v.nome.trim().slice(0, 200) : null, saldo: num(v.saldo) ? v.saldo : null, status: typeof v.status === 'string' && v.status && v.status.length <= 40 ? v.status : null, item: chaveTxt(v.item) };
+    });
+    var its = Array.isArray(d.itens) ? d.itens.slice(0, MAX_CONTAS).filter(isObj) : [], vistos = new Set(), itens = [];
+    its.forEach(function (it) {
+      var k = chaveTxt(it.item); if (k && vistos.has(k)) return; if (k) vistos.add(k);
+      var seus = k ? lista.filter(function (v) { return v.item === k; }) : [];
+      itens.push({ idade: idade(it.atualizado, ag), contas: k ? contas.filter(function (c) { return c.item === k; }).map(function (c) { return c.id; }) : [], investimentos: seus,
+        soma: r2(seus.reduce(function (s, v) { return s + (v.saldo || 0); }, 0)) });
+    });
+    var semItem = lista.filter(function (v) { return !v.item || !vistos.has(v.item); });
+    return { ok: true, contas: contas, fora: fora, itens: itens, semItem: { investimentos: semItem, soma: r2(semItem.reduce(function (s, v) { return s + (v.saldo || 0); }, 0)) },
+      invest: { presente: presente, n: vs.length, soma: r2(vs.reduce(function (s, v) { return s + v.saldo; }, 0)), total: todos.length, mais: Math.max(0, todos.length - MAX_INV) } };
+  }
+  /* ===== Categorias do banco (dono): cada cat distinta com a contagem de movimentos. Sem descrição, sem valor. Só para a tela. ===== */
+  var MAX_CAT = 300;
+  function categorias(j) {
+    if (!isObj(j) || typeof j.ok !== 'boolean') return { ok: false, erro: 'formato' };
+    if (!j.ok) return typeof j.erro === 'string' && j.erro && j.erro.length <= 300 ? { ok: false, erro: j.erro } : { ok: false, erro: 'formato' };
+    var d = j.dados; if (!isObj(d) || !Array.isArray(d.movs)) return { ok: false, erro: 'formato' };
+    var n = new Map(), sem = 0, ms = d.movs.slice(0, LIM_DIAG).filter(isObj);
+    ms.forEach(function (m) { var c = typeof m.cat === 'string' ? m.cat.trim().slice(0, 100) : ''; if (!c) { sem++; return; } n.set(c, (n.get(c) || 0) + 1); });
+    var lista = Array.from(n.entries()).sort(function (a, b) { return b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0); });
+    return { ok: true, lista: lista.slice(0, MAX_CAT), mais: Math.max(0, lista.length - MAX_CAT), semCat: sem, total: ms.length };
   }
 
   var r2 = function (x) { return Math.round(x * 100) / 100; };
@@ -351,6 +424,6 @@
     return lista;
   }
 
-  var api = { rotulos: rotulos, padraoConta: padraoConta, limparNome: limparNome, marcarPares: marcarPares, PADROES: PADROES, RAZOES: RAZOES, validarUrl: validarUrl, validarResposta: validarResposta, mensagem: mensagem, consultar: consultar, pedir: pedir, estrutura: estrutura, estruturaLinhas: estruturaLinhas, saldos: saldos, mapear: mapear, normalizar: normalizar, chave: chave, montarPrevia: montarPrevia, MAX_MOVS: MAX_MOVS, DIAS: DIAS };
+  var api = { rotulos: rotulos, padraoConta: padraoConta, limparNome: limparNome, marcarPares: marcarPares, PADROES: PADROES, RAZOES: RAZOES, validarUrl: validarUrl, validarResposta: validarResposta, mensagem: mensagem, consultar: consultar, pedir: pedir, estrutura: estrutura, estruturaLinhas: estruturaLinhas, saldos: saldos, categorias: categorias, idade: idade, mapear: mapear, normalizar: normalizar, chave: chave, montarPrevia: montarPrevia, MAX_MOVS: MAX_MOVS, DIAS: DIAS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TFBanco = api;
 })(typeof window !== 'undefined' ? window : globalThis);
