@@ -168,7 +168,9 @@
     agora = agora || function () { return new Date(); };
     var ouvintes = [];
     function ler(k, padrao) { try { var v = JSON.parse(storage.getItem(k)); return v == null ? padrao : v; } catch (e) { return padrao; } }
-    function gravar(k, v) { try { storage.setItem(k, JSON.stringify(v)); } catch (e) { /* cheio ou bloqueado */ } }
+    /* devolve se gravou; uma falha (cheio ou bloqueado) fica marcada até alguém perguntar com S.falhouGravar() */
+    var falhou = false;
+    function gravar(k, v) { try { storage.setItem(k, JSON.stringify(v)); return true; } catch (e) { falhou = true; return false; } }
     var st = {
       modo: ler(CHAVES.modo, null), real: ler(CHAVES.real, null), numeros: ler(CHAVES.numeros, {}),
       lanc: ler(CHAVES.lanc, []), pagos: ler(CHAVES.pagos, {}), tetos: ler(CHAVES.tetos, {}), metas: ler(CHAVES.metas, []), taxa: ler(CHAVES.taxa, 0.8)
@@ -188,6 +190,7 @@
     var S = {
       st: st, CATEGORIAS: CATEGORIAS, FORMAS: FORMAS,
       aoMudar: function (f) { ouvintes.push(f); },
+      falhouGravar: function () { var f = falhou; falhou = false; return f; },
       hojeISO: function () { var d = agora(); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); },
       mesAtual: function () { return S.hojeISO().slice(0, 7); },
 

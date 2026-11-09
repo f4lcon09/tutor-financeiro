@@ -394,10 +394,11 @@ function bindLancar(){
   aplica();
   $('#f_ok').onclick=()=>{
     const dados={tipo:tipo==='entrada'?'entrada':'gasto',valor:$('#f_valor').value,desc:$('#f_desc').value,cat,data:$('#f_data').value,forma:$('#f_forma').value,essencial:$('#f_ess').checked,lazer:$('#f_laz').checked,neutro:$('#f_neu').checked};
+    S.falhouGravar();   // zera uma falha antiga: o aviso abaixo fala só deste toque
     const editando=editId!=null, r=editando?S.editar(editId,dados):S.lancar(dados);
     ['valor','data'].forEach(k=>{ const el=$('#f_'+k); if(el) el.setAttribute('aria-invalid',r.ok||!r.erros[k]?'false':'true'); });
     if(!r.ok){ $('#f_msg').innerHTML='<span class="tag ru" role="alert">'+IX+' '+esc(r.erros.valor||r.erros.data||r.erros.cat||r.erros.geral)+'</span>'; return; }
-    mesVer=dados.data.slice(0,7); reset(); $('#f_msg').innerHTML=IOK+(editando?' Alteração salva.':' Salvo.'); drawLista();
+    mesVer=dados.data.slice(0,7); reset(); $('#f_msg').innerHTML=S.falhouGravar()?'<span class="tag ru" role="alert">'+IX+' Não consegui guardar neste aparelho: o armazenamento está cheio ou bloqueado. O lançamento some se a página for recarregada.</span>':IOK+(editando?' Alteração salva.':' Salvo.'); drawLista();
   };
   const rapido=()=>{
     const r=TFStore.interpretarTexto($('#q_txt').value,S.hojeISO());
