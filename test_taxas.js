@@ -195,7 +195,7 @@ const okFetch = (log) => async (u, o) => { log && log.push([u, o]); const s = +u
   t('CSP: as outras diretivas não mudaram', JSON.stringify(antes.filter(x => !x.startsWith('connect-src '))) === JSON.stringify(agora.filter(x => !x.startsWith('connect-src '))));
   t('CSP: o host aparece uma vez no index', (fs.readFileSync('index.html', 'utf8').match(/api\.bcb\.gov\.br/g) || []).length === 1);
   const sw = fs.readFileSync('sw.js', 'utf8');
-  t('sw: taxas.js no casco e cache tf-v17', /'taxas\.js'/.test(sw) && /const V = 'tf-v17'/.test(sw));
+  t('sw: taxas.js no casco e cache tf-v18', /'taxas\.js'/.test(sw) && /const V = 'tf-v18'/.test(sw));
   t('sw: só guarda GET da própria origem', /e\.request\.method !== 'GET' \|\| u\.origin !== location\.origin\) return/.test(sw) && !/bcb/.test(sw));
 
   /* 8. tela: Decidir com calma > Investimento. Busca só quando Investimento aparece, só no modo real. */

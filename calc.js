@@ -74,7 +74,14 @@
   // Parcela de um financiamento de parcela fixa.
   function parcelaFixa(valor, i, n) { return i === 0 ? valor / n : valor * i / (1 - Math.pow(1 + i, -n)); }
 
+  // IR regressivo da renda fixa pelo prazo em dias: até 180, 22,5%; 181 a 360, 20%; 361 a 720, 17,5%; acima de 720, 15%.
+  // Faixas: A Confirmar com a Receita (fonte secundária). Sem isenções (LCI, LCA, poupança) nesta conta.
+  function aliquotaIR(dias) { return dias <= 180 ? 0.225 : dias <= 360 ? 0.20 : dias <= 720 ? 0.175 : 0.15; }
+
   // Investimento: aporte inicial + mensal por n meses, taxa mensal (bruta), IR regressivo opcional, inflação anual.
+  // O IR é cobrado de cada aporte sobre o próprio ganho, pela idade dele no fim do prazo, com meses de 30 dias:
+  // o inicial fica os n meses; o aporte do fim do mês k fica n - k meses (o último fica 0 e não rende).
+  // Como a idade é sempre múltipla de 30 dias, 181, 361 e 721 nunca ocorrem: as faixas trocam entre 6 e 7, 12 e 13, 24 e 25 meses.
   function investimento(inicial, mensal, taxaMensal, n, irRegressivo, inflacaoAnualPct) {
     var saldo = inicial, aportado = inicial, serie = [{ mes: 0, saldo: inicial, aportado: inicial }];
     for (var t = 1; t <= n; t++) {
@@ -82,15 +89,19 @@
       serie.push({ mes: t, saldo: saldo, aportado: aportado });
     }
     var ganho = saldo - aportado;
-    var aliq = 0;
-    if (irRegressivo) {
-      var dias = n * 30; aliq = dias <= 180 ? 0.225 : dias <= 360 ? 0.20 : dias <= 720 ? 0.175 : 0.15;
-    }
-    var imposto = Math.max(ganho, 0) * aliq;
+    var depositos = [], imposto = 0;
+    var aporte = function (valor, meses) {
+      var g = valor * (Math.pow(1 + taxaMensal, meses) - 1), a = irRegressivo ? aliquotaIR(meses * 30) : 0, ir = Math.max(g, 0) * a;
+      depositos.push({ valor: valor, meses: meses, dias: meses * 30, ganho: g, aliquota: a, imposto: ir }); imposto += ir;
+    };
+    aporte(inicial, n);
+    for (var k = 1; k <= n; k++) aporte(mensal, n - k);
+    // alíquota média: o imposto dividido pelo ganho total (0 sem IR ou sem ganho)
+    var aliq = irRegressivo && ganho > 0 ? imposto / ganho : 0;
     var liquido = saldo - imposto;
     var infl = (inflacaoAnualPct || 0) / 100;
     var real = liquido / Math.pow(1 + infl, n / 12);
-    return { serie: serie, bruto: saldo, aportado: aportado, ganho: ganho, aliquota: aliq, imposto: imposto, liquido: liquido, real: real, ganhoReal: real - aportado };
+    return { serie: serie, bruto: saldo, aportado: aportado, ganho: ganho, aliquota: aliq, imposto: imposto, liquido: liquido, real: real, ganhoReal: real - aportado, depositos: depositos };
   }
 
   // Meses para atingir uma meta com aportes mensais.
@@ -150,6 +161,6 @@
   // Dias entre hoje (dia do mês) e o vencimento no mês corrente (negativo = já passou).
   function diasAte(diaVenc, diaHoje) { return diaVenc - diaHoje; }
 
-  var api = { cartao: cartao, metaAporte: metaAporte, diasAte: diasAte, mensal: mensal, anual: anual, irr: irr, emprestimo: emprestimo, consorcio: consorcio, rotativo: rotativo, parcelaFixa: parcelaFixa, investimento: investimento, mesesParaMeta: mesesParaMeta, saude: saude, carteira: carteira };
+  var api = { cartao: cartao, metaAporte: metaAporte, diasAte: diasAte, mensal: mensal, anual: anual, irr: irr, emprestimo: emprestimo, consorcio: consorcio, rotativo: rotativo, parcelaFixa: parcelaFixa, investimento: investimento, aliquotaIR: aliquotaIR, mesesParaMeta: mesesParaMeta, saude: saude, carteira: carteira };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.Calc = api;
 })(typeof window !== 'undefined' ? window : this);

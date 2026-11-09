@@ -748,15 +748,15 @@ const CALCS = {
    const online=MODO==='real'?`<div class="toggle"><label><input type="checkbox" id="i_online"${taxasOnline()?' checked':''}> Buscar taxas online (Banco Central)</label></div><div class="hint">Só as taxas públicas são pedidas; nada seu é enviado.</div><div class="hint" id="i_status" role="status">${esc(textoStatus())}</div>`:'';
    return pn('Projeção de investimento',`
    ${online}${numField('i_0','Quanto você tem para investir agora (R$)',1000,'100')}${numField('i_m','Quanto aporta por mês (R$)',200,'10')}
-   ${modo}${taxa}${numField('i_n','Por quantos meses',36)}${numField('i_f','Inflação esperada (% ao ano)',esc(inf),'0.1',infH)}
+   ${modo}${taxa}${numField('i_n','Por quantos meses',36)}${numField('i_f','Inflação considerada (% ao ano)',esc(inf),'0.1',infH)}
    <div class="toggle"><label><input type="checkbox" id="i_ir" checked> Descontar IR da renda fixa (tabela regressiva)</label></div>`,'sky')+pn('O que pode acontecer','<div id="out"></div>','sky'); },
    run:()=>{ const tx=taxas(), cdi=tx[4389], ipca=tx[13522], comCdi=!!cdi&&!!$('#i_pct');   // o campo na tela decide: o select dispara input antes de redesenhar
     let i; if(comCdi){ i=TFTaxas.mensalDeCdi(cdi.valor,N('i_pct'))||0; $('#i_pct_h').textContent='Cerca de '+pc(i)+' ao mês. Estimativa com o CDI de '+TFTaxas.diaMes(cdi.dataRef)+' ('+pc(cdi.valor/100)+' ao ano); a convenção ainda é a confirmar.'; } else i=readRate('i_i');
-    const n=Math.max(1,Math.round(N('i_n'))), r=Calc.investimento(N('i_0'),N('i_m'),i,n,$('#i_ir').checked,N('i_f'));
+    const n=Math.max(1,Math.round(N('i_n'))), comIr=$('#i_ir').checked, r=Calc.investimento(N('i_0'),N('i_m'),i,n,comIr,N('i_f'));
     const usaIpca=!!ipca&&invInf==null&&N('i_f')===ipca.valor, usadas=[comCdi&&cdi&&[4389,cdi],usaIpca&&[13522,ipca]].filter(Boolean);
     const fonte=usadas.length?`<div class="hint" id="i_fonte">${esc('Fonte: Banco Central do Brasil (SGS), '+(usadas.length>1?'séries ':'série ')+usadas.map(u=>u[0]).join(' e ')+', consulta em '+TFTaxas.dataBR(Math.max(...usadas.map(u=>u[1].fetchedAt))))}</div>`:'';
     $('#out').innerHTML=`<div class="res" style="--h:var(--sky)"><div class="mu small">Em ${n} meses você teria, depois do imposto</div><div class="big">${brl0(r.liquido)}</div><div class="mu">Você colocou ${brl0(r.aportado)}; o resto, ${brl0(r.liquido-r.aportado)}, é rendimento líquido.</div></div>
-     <div class="kv"><span>Valor bruto</span><span>${brl0(r.bruto)}</span><span>Imposto (${pc(r.aliquota,1)} sobre o ganho)</span><span>${brl0(r.imposto)}</span><span>Em dinheiro de hoje (sem a inflação)</span><span>${brl0(r.real)}</span><span>Ganho de verdade, descontada a inflação</span><span style="color:${r.ganhoReal>=0?COR.ok:COR.ru}">${r.ganhoReal>=0?'+':''}${brl0(r.ganhoReal)}</span></div>
+     <div class="kv inv-kv"><span>Valor bruto</span><span>${brl0(r.bruto)}</span><span>${esc('Imposto ('+(comIr?'média ':'')+pc(r.aliquota,1)+' sobre o ganho)')}</span><span>${brl0(r.imposto)}</span><span>Em dinheiro de hoje (sem a inflação)</span><span>${brl0(r.real)}</span><span>Ganho de verdade, descontada a inflação</span><span style="color:${r.ganhoReal>=0?COR.ok:COR.ru}">${r.ganhoReal>=0?'+':''}${brl0(r.ganhoReal)}</span></div>
      ${det('decidir','graf-inv','Gráfico: evolução do saldo',`<div style="margin-top:14px">${lineChart(r.serie.map(x=>x.mes),[{name:'Com rendimento',values:r.serie.map(x=>x.saldo),c:'var(--sky)',area:true},{name:'Só o que você colocou',values:r.serie.map(x=>x.aportado),c:'var(--mu)',w:2}],[],200,440)}</div>
      <div class="legend"><span><i style="background:var(--sky)"></i>Com rendimento</span><span><i style="background:var(--mu)"></i>Só o que você colocou</span></div>`,'sky')}${fonte}`; }}
 };

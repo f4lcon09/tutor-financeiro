@@ -37,13 +37,59 @@ const r = C.rotativo(1000, 0.10, 200);
 perto('Rotativo meses', r.meses, 8, 0);
 const rn = C.rotativo(1000, 0.10, 90);
 console.log((rn.quita === false ? 'OK    ' : 'FALHA ') + 'Rotativo pagando menos que os juros não quita'); if (rn.quita) falhas++;
-// Investimento: 100/mês a 1% por 12 meses = 1268,25; IR 22,5% sobre o ganho de 68,25 em 360 dias => 20%
+// Investimento: 100/mês a 1% por 12 meses = 1268,25. IR por aporte, pela idade no fim (meses de 30 dias):
+// os aportes que ficam 7 a 11 meses (210 a 330 dias) pagam 20%; os que ficam 0 a 6 meses (até 180 dias) pagam 22,5%
 const inv = C.investimento(0, 100, 0.01, 12, true, 0);
 perto('Investimento bruto', inv.bruto, 1268.2503, 1e-3);
 perto('Investimento aportado', inv.aportado, 1200, 1e-9);
-perto('Investimento IR', inv.imposto, (1268.2503 - 1200) * 0.20, 1e-3);
+const somaG = (v, i, ms) => ms.reduce((a, m) => a + v * (Math.pow(1 + i, m) - 1), 0);
+perto('Investimento IR', inv.imposto, 0.20 * somaG(100, 0.01, [7, 8, 9, 10, 11]) + 0.225 * somaG(100, 0.01, [0, 1, 2, 3, 4, 5, 6]), 1e-9);
 const inv2 = C.investimento(1000, 0, 0.01, 24, false, 5);
 perto('Investimento real descontando inflação', inv2.real, 1000 * Math.pow(1.01, 24) / Math.pow(1.05, 2), 1e-6);
+// IR por aporte (tabela regressiva; faixas A Confirmar com a Receita). Conta de referência com dados inventados.
+const ok = (nome, c, extra) => { if (!c) falhas++; console.log((c ? 'OK    ' : 'FALHA ') + nome + (c || extra == null ? '' : ': ' + extra)); };
+const ref = C.investimento(1000, 200, 0.0085, 36, true, 0);
+ok('IR referência: bruto continua 9.738', Math.round(ref.bruto) === 9738, ref.bruto);
+ok('IR referência: ganho 1.538', Math.round(ref.ganho) === 1538, ref.ganho);
+ok('IR referência: imposto 249 (era 231 com 15% sobre tudo)', Math.round(ref.imposto) === 249, ref.imposto);
+ok('IR referência: média 16,2%', (ref.aliquota * 100).toFixed(1) === '16.2', ref.aliquota);
+ok('IR referência: líquido 9.489 (era 9.507)', Math.round(ref.liquido) === 9489, ref.liquido);
+perto('IR referência: imposto pela soma direta dos 37 aportes', ref.imposto, 0.15 * somaG(1000, 0.0085, [36]) + 0.15 * somaG(200, 0.0085, [25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35]) + 0.175 * somaG(200, 0.0085, [13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]) + 0.20 * somaG(200, 0.0085, [7, 8, 9, 10, 11, 12]) + 0.225 * somaG(200, 0.0085, [0, 1, 2, 3, 4, 5, 6]), 1e-9);
+ok('IR referência: 37 aportes, o inicial fica 36 meses e o último 0', ref.depositos.length === 37 && ref.depositos[0].meses === 36 && ref.depositos[0].valor === 1000 && ref.depositos[36].meses === 0 && ref.depositos[36].ganho === 0);
+const semIR = C.investimento(1000, 200, 0.0085, 36, false, 4.5), comIR = C.investimento(1000, 200, 0.0085, 36, true, 4.5);
+ok('IR desligado: imposto 0, alíquota 0, líquido = bruto', semIR.imposto === 0 && semIR.aliquota === 0 && semIR.liquido === semIR.bruto);
+ok('IR desligado e ligado: bruto, aportado e ganho iguais', semIR.bruto === comIR.bruto && semIR.aportado === comIR.aportado && semIR.ganho === comIR.ganho);
+perto('Inflação: mesma conta sobre o líquido', comIR.real, comIR.liquido / Math.pow(1.045, 3), 1e-9);
+const zero = C.investimento(1000, 200, 0, 36, true, 0);
+ok('Taxa zero: sem ganho, sem imposto, líquido = aportado', zero.ganho === 0 && zero.imposto === 0 && zero.aliquota === 0 && zero.liquido === 8200);
+// fronteiras das faixas, só com o valor inicial: 1 e 6 meses (30 e 180 dias) 22,5%; 7 e 12 (210 e 360) 20%; 24 (720) 17,5%; 25 (750) 15%
+[[1, 0.225], [6, 0.225], [7, 0.20], [12, 0.20], [24, 0.175], [25, 0.15]].forEach(([n, a]) => {
+  const r = C.investimento(1000, 0, 0.01, n, true, 0);
+  perto('Só o inicial, ' + n + ' meses (' + n * 30 + ' dias): imposto a ' + a * 100 + '%', r.imposto, a * 1000 * (Math.pow(1.01, n) - 1), 1e-9);
+  ok('Só o inicial, ' + n + ' meses: média igual à faixa', Math.abs(r.aliquota - a) < 1e-12, r.aliquota);
+});
+// fronteiras nos aportes mensais: em 25 meses, o aporte do mês 1 fica 24 meses (17,5%) e o do mês 19 fica 6 (22,5%); o do mês 18 fica 7 (20%)
+const b25 = C.investimento(0, 100, 0.01, 25, true, 0).depositos;
+ok('Aportes em 25 meses: mês 1 fica 24 meses, 17,5%', b25[1].meses === 24 && b25[1].aliquota === 0.175);
+ok('Aportes em 25 meses: mês 13 fica 12 meses, 20%', b25[13].meses === 12 && b25[13].aliquota === 0.20);
+ok('Aportes em 25 meses: mês 18 fica 7 meses, 20%', b25[18].meses === 7 && b25[18].aliquota === 0.20);
+ok('Aportes em 25 meses: mês 19 fica 6 meses, 22,5%', b25[19].meses === 6 && b25[19].aliquota === 0.225);
+const so = C.investimento(0, 200, 0.0085, 36, true, 0);
+perto('Só aportes mensais: imposto pela soma direta', so.imposto, 0.15 * somaG(200, 0.0085, [25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35]) + 0.175 * somaG(200, 0.0085, [13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]) + 0.20 * somaG(200, 0.0085, [7, 8, 9, 10, 11, 12]) + 0.225 * somaG(200, 0.0085, [0, 1, 2, 3, 4, 5, 6]), 1e-9);
+const lump = C.investimento(1000, 0, 0.0085, 36, true, 0);
+ok('Só o inicial em 36 meses: 15% exatos', Math.abs(lump.aliquota - 0.15) < 1e-12 && Math.abs(lump.imposto - 0.15 * lump.ganho) < 1e-9);
+// em vários casos: a soma dos ganhos por aporte é o ganho total, e a média fica entre 15% e 22,5%
+let somaOk = true, faixaOk = true, pior = '';
+[0, 1000, 25000].forEach(ini => [0, 50, 200].forEach(m => [0.001, 0.0085, 0.02].forEach(i => [1, 2, 6, 7, 12, 13, 24, 25, 36, 120].forEach(n => {
+  if (!ini && !m) return;
+  const r = C.investimento(ini, m, i, n, true, 0), sg = r.depositos.reduce((a, d) => a + d.ganho, 0), si = r.depositos.reduce((a, d) => a + d.imposto, 0);
+  if (Math.abs(sg - r.ganho) > 1e-6 * Math.max(1, r.ganho) || Math.abs(si - r.imposto) > 1e-9) { somaOk = false; pior = [ini, m, i, n].join('/'); }
+  if (r.ganho > 0 && (r.imposto < 0.15 * r.ganho - 1e-9 || r.imposto > 0.225 * r.ganho + 1e-9 || r.aliquota < 0.15 - 1e-12 || r.aliquota > 0.225 + 1e-12)) { faixaOk = false; pior = [ini, m, i, n].join('/'); }
+}))));
+ok('Soma dos ganhos por aporte = ganho total (240 casos)', somaOk, pior);
+ok('Imposto nunca abaixo de 15% nem acima de 22,5% do ganho (240 casos)', faixaOk, pior);
+const neg = C.investimento(1000, 100, -0.01, 12, true, 0);
+ok('Taxa negativa: sem imposto', neg.imposto === 0 && neg.aliquota === 0 && neg.liquido === neg.bruto);
 // Meses para a meta: 1000 + 100/mês a 0% até 2000 => 10
 perto('Meses para meta', C.mesesParaMeta(2000, 1000, 100, 0), 10, 0);
 // Saúde
