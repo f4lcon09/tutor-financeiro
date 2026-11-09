@@ -45,6 +45,7 @@ test_ui_casos.js
 !/taxas.js
 !/test_taxas.js
 !/test_investimento.js
+!/test_diagnostico.js
 !/test_banco.js
 !/test_ui_banco.js
 !/test_grafico.js

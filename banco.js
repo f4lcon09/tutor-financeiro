@@ -70,8 +70,8 @@
     return 'A ponte devolveu um erro que o app não conhece. Nada foi importado.';
   }
 
-  /* pede os dados à ponte. fetch é injetado para os testes. */
-  async function consultar(o) {
+  /* pede os dados à ponte e devolve o JSON ainda não conferido ({ok:true, j}) ou {ok:false, erro}. fetch é injetado para os testes. */
+  async function pedir(o) {
     var ctrl = typeof AbortController === 'function' ? new AbortController() : null, tempo = false;
     var timer = ctrl ? setTimeout(function () { tempo = true; ctrl.abort(); }, o.espera || ESPERA_MS) : null, r, t;
     try {
@@ -81,7 +81,166 @@
     } catch (e) { return { ok: false, erro: tempo ? 'tempo' : 'rede' }; } finally { if (timer) clearTimeout(timer); }
     if (typeof t !== 'string' || t.length > MAX_BYTES) return { ok: false, erro: 'formato' };
     var j; try { j = JSON.parse(t); } catch (e) { return { ok: false, erro: 'formato' }; }
-    return validarResposta(j);
+    return { ok: true, j: j };
+  }
+  /* pede e confere: só passa o que tem a forma combinada */
+  async function consultar(o) { var p = await pedir(o); return p.ok ? validarResposta(p.j) : p; }
+
+  /* ===== Diagnóstico só de estrutura (dono): contagens e nomes de campos conhecidos. Nunca devolve valor, nome, descrição ou id vindo da ponte. ===== */
+  var LIM_DIAG = 20000;
+  var CHAVES_BANCO = ['closingBalance', 'automaticallyInvestedBalance', 'overdraftContractedLimit', 'overdraftUsedLimit'];
+  var CHAVES_CRED = ['creditLimit', 'availableCreditLimit', 'balanceCloseDate', 'balanceDueDate', 'minimumPayment'];
+  /* lista fixa, por campo, dos valores do serviço do banco que podem aparecer. Qualquer outro valor vira "outro" e só é contado:
+     a segurança não depende do formato do que a ponte manda. Situações de item: nomes A Confirmar.
+     Investimentos: enums do esquema na documentação do Pluggy (referência da API, página "investments-retrieve"; o endereço fica fora do código),
+     passados pelo dono em 09/11/2026. A documentação não diz que as listas são completas: um valor novo aparece como "outro" até entrar aqui. */
+  var LISTA_DIAG = {
+    contaTipo: ['BANK', 'CREDIT'],
+    contaSubtipo: ['CHECKING_ACCOUNT', 'SAVINGS_ACCOUNT', 'CREDIT_CARD'],
+    movStatus: ['POSTED', 'PENDING'],
+    itemStatus: ['UPDATED', 'UPDATING', 'WAITING_USER_INPUT', 'LOGIN_ERROR', 'OUTDATED'],
+    invTipo: ['COE', 'EQUITY', 'ETF', 'FIXED_INCOME', 'MUTUAL_FUND', 'SECURITY', 'OTHER'],
+    invSubtipo: ['STRUCTURED_NOTE', 'STOCK', 'ETF', 'REAL_ESTATE_FUND', 'BDR', 'DERIVATIVES', 'OPTION', 'TREASURY', 'LCI', 'LCA', 'LC', 'LF', 'CDB', 'CRI', 'CRA', 'DEBENTURES', 'CORPORATE_DEBT',
+      'INVESTMENT_FUND', 'MULTIMARKET_FUND', 'FIXED_INCOME_FUND', 'STOCK_FUND', 'ETF_FUND', 'OFFSHORE_FUND', 'FIP_FUND', 'EXCHANGE_FUND', 'FI_INFRA', 'FI_AGRO', 'RETIREMENT', 'OTHER']
+  };
+  var ROTULO_FORA = [['contaTipo', 'tipo de conta'], ['contaSubtipo', 'subtipo de conta'], ['movStatus', 'status de movimento'], ['itemStatus', 'status de item'], ['invTipo', 'tipo de investimento'], ['invSubtipo', 'subtipo de investimento']];
+  /* devolve um conferidor novo a cada diagnóstico: vazio vira null, valor da lista passa, o resto vira "outro" e soma em fora[campo] */
+  var conferidor = function () {
+    var fora = {}; ROTULO_FORA.forEach(function (p) { fora[p[0]] = 0; });
+    var f = function (x, campo) {
+      if (x === null || x === undefined || x === '') return null;
+      if (typeof x === 'string' && LISTA_DIAG[campo].indexOf(x) >= 0) return x;
+      fora[campo]++; return 'outro';
+    };
+    f.fora = fora; return f;
+  };
+  var lista = function (x) { return Array.isArray(x) ? x.slice(0, LIM_DIAG) : null; };
+  var tipoData = function (x) { return typeof x !== 'string' || !x.trim() ? 'ausente' : /^\d{4}-\d{2}-\d{2}/.test(x) && dataOk(x.slice(0, 10)) ? 'data' : 'texto'; };
+  var soma1 = function (m, k) { m[k] = (m[k] || 0) + 1; };
+  var pares = function (m) { return Object.keys(m).sort().map(function (k) { return [k, m[k]]; }); };
+  function contaChaves(objs, chaves) {
+    var out = { com: 0, chaves: {}, outras: 0 };
+    chaves.forEach(function (k) { out.chaves[k] = 0; });
+    objs.forEach(function (o) {
+      if (!isObj(o)) return;
+      out.com++;
+      var outra = false;
+      Object.keys(o).forEach(function (k) { if (chaves.indexOf(k) >= 0) { if (o[k] !== undefined && o[k] !== null) out.chaves[k]++; } else outra = true; });
+      if (outra) out.outras++;
+    });
+    return out;
+  }
+  /* reserva do Nubank e do Mercado Pago: só "achou ou não", pelo nome (heurística, A Confirmar no teste real) */
+  var INST = { nubank: /\bnu ?bank\b|\bnu pagamentos\b/, mercadoPago: /\bmercado ?pago\b/ };
+  var RE_RESERVA = /\bcaixinhas?\b|\bcofrinhos?\b|\breservas?\b/;
+  /* resposta bruta da ponte -> {ok:true, e} com só contagens, ou {ok:false, erro}. hojeISO = "AAAA-MM-DD" local. */
+  function estrutura(j, hojeISO) {
+    if (!isObj(j) || typeof j.ok !== 'boolean') return { ok: false, erro: 'formato' };
+    if (!j.ok) return typeof j.erro === 'string' && j.erro && j.erro.length <= 300 ? { ok: false, erro: j.erro } : { ok: false, erro: 'formato' };
+    var d = j.dados, e = { dados: isObj(d) }, token = conferidor();
+    if (!e.dados) return { ok: true, e: e };
+    e.fora = token.fora;
+    e.periodo = { de: dataOk(d.de), ate: dataOk(d.ate) };
+    e.periodo.dias = e.periodo.de && e.periodo.ate ? Math.round((Date.UTC(+d.ate.slice(0, 4), +d.ate.slice(5, 7) - 1, +d.ate.slice(8, 10)) - Date.UTC(+d.de.slice(0, 4), +d.de.slice(5, 7) - 1, +d.de.slice(8, 10))) / 864e5) : null;
+    var contas = lista(d.contas), movs = lista(d.movs), faturas = lista(d.faturas), inv = lista(d.investimentos), itens = lista(d.itens);
+    var cs = (contas || []).filter(isObj), porTipo = {};
+    cs.forEach(function (c) { soma1(porTipo, (token(c.tipo, 'contaTipo') || 'sem tipo') + ' / ' + (token(c.subtipo, 'contaSubtipo') || 'sem subtipo')); });
+    e.contas = { presente: !!contas, total: contas ? contas.length : 0, invalidas: contas ? contas.length - cs.length : 0, porTipo: pares(porTipo),
+      comAtualizado: cs.filter(function (c) { return tipoData(c.atualizado) !== 'ausente'; }).length, comSaldo: cs.filter(function (c) { return num(c.saldo); }).length,
+      banco: contaChaves(cs.map(function (c) { return c.banco; }), CHAVES_BANCO), credito: contaChaves(cs.map(function (c) { return c.credito; }), CHAVES_CRED) };
+    var ms = (movs || []).filter(isObj), st = {}, tp = {}, parc = 0, parcRuim = 0, cat = 0;
+    ms.forEach(function (m) {
+      var s = token(m.status, 'movStatus'); soma1(st, s || 'sem status');
+      soma1(tp, m.tipo === 'DEBIT' || m.tipo === 'CREDIT' ? m.tipo : 'outro');
+      if (m.parc != null) { var p = m.parc; if (isObj(p) && Number.isInteger(p.n) && Number.isInteger(p.de) && p.n >= 1 && p.de >= p.n && p.de <= 120) parc++; else parcRuim++; }
+      if (typeof m.cat === 'string' && m.cat.trim()) cat++;
+    });
+    e.movs = { presente: !!movs, total: movs ? movs.length : 0, status: st, tipo: tp, comParc: parc, parcInvalida: parcRuim, comCat: cat };
+    var fats = (faturas || []).filter(isObj), hm = +hojeISO.slice(0, 4) * 12 + +hojeISO.slice(5, 7), comVence = 0, futuras = 0, meses = null;
+    fats.forEach(function (f) {
+      if (!dataOk(f.vence)) return; comVence++;
+      if (f.vence > hojeISO) { futuras++; var m = +f.vence.slice(0, 4) * 12 + +f.vence.slice(5, 7) - hm; meses = meses == null ? m : Math.max(meses, m); }
+    });
+    e.faturas = { presente: !!faturas, total: faturas ? faturas.length : 0, comVence: comVence, futuras: futuras, mesesFrente: meses };
+    var vs = (inv || []).filter(isObj), porTipoI = {};
+    vs.forEach(function (v) { soma1(porTipoI, (token(v.tipo, 'invTipo') || 'sem tipo') + ' / ' + (token(v.subtipo, 'invSubtipo') || 'sem subtipo')); });
+    e.investimentos = { presente: !!inv, total: inv ? inv.length : 0, porTipo: pares(porTipoI), comSaldo: vs.filter(function (v) { return num(v.saldo); }).length };
+    /* itens: rótulo pela ordem ("item 1"); o id só serve para ligar contas e investimentos ao item, nunca sai daqui */
+    var is = (itens || []).filter(isObj), chaveItem = function (x) { return typeof x === 'string' && x ? x : null; };
+    e.itens = { presente: !!itens, total: itens ? itens.length : 0, lista: is.map(function (it, i) {
+      var k = chaveItem(it.item);
+      return { rotulo: 'item ' + (i + 1), atualizado: tipoData(it.atualizado), status: token(it.status, 'itemStatus') || 'ausente',
+        contas: k ? cs.filter(function (c) { return c.item === k; }).length : 0, investimentos: k ? vs.filter(function (v) { return v.item === k; }).length : 0 };
+    }) };
+    var conhecidos = new Set(is.map(function (it) { return chaveItem(it.item); }).filter(Boolean));
+    e.itens.semInfo = new Set(cs.concat(vs).map(function (x) { return chaveItem(x.item); }).filter(function (k) { return k && !conhecidos.has(k); })).size;
+    e.reservas = {};
+    /* só nome em texto é olhado: outro tipo vira vazio (String() de um objeto estranho poderia lançar erro) */
+    var nomeDe = function (x) { return typeof x.nome === 'string' ? normalizar(x.nome.slice(0, 200)) : ''; };
+    Object.keys(INST).forEach(function (nome) {
+      var re = INST[nome], doBanco = new Set();
+      cs.forEach(function (c) { if (re.test(nomeDe(c)) && chaveItem(c.item)) doBanco.add(c.item); });
+      vs.forEach(function (v) { if (re.test(nomeDe(v)) && chaveItem(v.item)) doBanco.add(v.item); });
+      var seus = vs.filter(function (v) { return doBanco.has(v.item) || re.test(nomeDe(v)); });
+      e.reservas[nome] = { conta: cs.some(function (c) { return re.test(nomeDe(c)); }), investimentos: seus.length, nomeReserva: seus.some(function (v) { return RE_RESERVA.test(nomeDe(v)); }) };
+    });
+    return { ok: true, e: e };
+  }
+  /* o diagnóstico em linhas de texto fixo + números, para a tela e para copiar. {t, n} = texto e recuo. */
+  function estruturaLinhas(e) {
+    var L = [], add = function (t, n) { L.push({ t: t, n: n || 0 }); }, sn = function (b) { return b ? 'sim' : 'não'; };
+    if (!e.dados) { add('dados: ausente (a ponte respondeu ok, mas sem o bloco de dados)'); return L; }
+    add('Período: de ' + (e.periodo.de ? 'presente' : 'ausente') + ', até ' + (e.periodo.ate ? 'presente' : 'ausente') + (e.periodo.dias != null ? ' (' + e.periodo.dias + ' dias)' : ''));
+    var c = e.contas;
+    add('contas: ' + (c.presente ? c.total + (c.invalidas ? ' (' + c.invalidas + ' fora do formato)' : '') : 'ausente'));
+    c.porTipo.forEach(function (p) { add(p[0] + ': ' + p[1], 1); });
+    if (c.presente) {
+      add('com atualizado: ' + c.comAtualizado + ' de ' + (c.total - c.invalidas) + '; com saldo numérico: ' + c.comSaldo, 1);
+      add('com banco: ' + c.banco.com + (c.banco.com ? ' (' + CHAVES_BANCO.map(function (k) { return k + ' em ' + c.banco.chaves[k]; }).join(', ') + (c.banco.outras ? ', outras chaves em ' + c.banco.outras : '') + ')' : ''), 1);
+      add('com credito: ' + c.credito.com + (c.credito.com ? ' (' + CHAVES_CRED.map(function (k) { return k + ' em ' + c.credito.chaves[k]; }).join(', ') + (c.credito.outras ? ', outras chaves em ' + c.credito.outras : '') + ')' : ''), 1);
+    }
+    var m = e.movs;
+    add('movs: ' + (m.presente ? m.total : 'ausente'));
+    if (m.presente) {
+      add('por status: ' + ['POSTED', 'PENDING', 'outro', 'sem status'].map(function (k) { return k + ' ' + (m.status[k] || 0); }).join(', '), 1);
+      add('por tipo: ' + ['DEBIT', 'CREDIT', 'outro'].map(function (k) { return k + ' ' + (m.tipo[k] || 0); }).join(', '), 1);
+      add('com parc: ' + m.comParc + (m.parcInvalida ? ' (mais ' + m.parcInvalida + ' fora do formato n de N)' : '') + '; com cat: ' + m.comCat, 1);
+    }
+    var f = e.faturas;
+    add('faturas: ' + (f.presente ? f.total : 'ausente'));
+    if (f.presente) add('com vencimento: ' + f.comVence + '; vencimento futuro: ' + (f.futuras ? 'sim, ' + f.futuras + ', até ' + f.mesesFrente + (f.mesesFrente === 1 ? ' mês' : ' meses') + ' à frente' : 'não'), 1);
+    var v = e.investimentos;
+    add('investimentos: ' + (v.presente ? v.total : 'ausente'));
+    v.porTipo.forEach(function (p) { add(p[0] + ': ' + p[1], 1); });
+    if (v.presente && v.total) add('com saldo numérico: ' + v.comSaldo, 1);
+    var it = e.itens;
+    add('itens: ' + (it.presente ? it.total : 'ausente') + (it.semInfo ? '; ' + it.semInfo + ' item(ns) citado(s) em contas ou investimentos sem informação em itens' : ''));
+    it.lista.forEach(function (x) { add(x.rotulo + ': atualizado ' + x.atualizado + ', status ' + x.status + ', ' + x.contas + ' conta(s), ' + x.investimentos + ' investimento(s)', 1); });
+    [['nubank', 'Nubank'], ['mercadoPago', 'Mercado Pago']].forEach(function (p) {
+      var r = e.reservas[p[0]];
+      add('Reserva ' + p[1] + ' (pelo nome, A Confirmar): conta com o nome ' + sn(r.conta) + '; investimentos do mesmo item ' + r.investimentos + '; algum com nome de caixinha, cofrinho ou reserva ' + sn(r.nomeReserva));
+    });
+    add('banco.closingBalance: ' + (c.presente && c.banco.chaves.closingBalance ? 'existe em ' + c.banco.chaves.closingBalance + ' conta(s)' : 'não existe'));
+    add('banco.automaticallyInvestedBalance: ' + (c.presente && c.banco.chaves.automaticallyInvestedBalance ? 'existe em ' + c.banco.chaves.automaticallyInvestedBalance + ' conta(s)' : 'não existe'));
+    add('Fora da lista fixa (aparecem como outro): ' + ROTULO_FORA.map(function (p) { return p[1] + ' outro (' + e.fora[p[0]] + ')'; }).join(', '));
+    return L;
+  }
+  /* ===== Conferir saldos (dono): saldo de cada conta, só para a tela. Nada aqui é guardado. ===== */
+  function saldos(j) {
+    if (!isObj(j) || typeof j.ok !== 'boolean') return { ok: false, erro: 'formato' };
+    if (!j.ok) return typeof j.erro === 'string' && j.erro && j.erro.length <= 300 ? { ok: false, erro: j.erro } : { ok: false, erro: 'formato' };
+    var d = j.dados; if (!isObj(d) || !Array.isArray(d.contas)) return { ok: false, erro: 'formato' };
+    var ids = new Set(), contas = [], fora = 0;
+    d.contas.slice(0, MAX_CONTAS).forEach(function (c) {
+      if (!isObj(c) || typeof c.id !== 'string' || !RE_ID.test(c.id) || ids.has(c.id) || !texto(c.tipo, 40) || !ouNulo(c.subtipo, 40) || !texto(c.nome, 200) || !c.nome.trim() || !num(c.saldo)) { fora++; return; }
+      ids.add(c.id);
+      var b = isObj(c.banco) ? c.banco : {};
+      contas.push({ id: c.id, tipo: c.tipo, subtipo: c.subtipo == null ? null : c.subtipo, nome: c.nome.trim(), saldo: c.saldo,
+        fechamento: num(b.closingBalance) ? b.closingBalance : null, investidoAuto: num(b.automaticallyInvestedBalance) ? b.automaticallyInvestedBalance : null });
+    });
+    fora += Math.max(0, d.contas.length - MAX_CONTAS);
+    var vs = Array.isArray(d.investimentos) ? d.investimentos.slice(0, LIM_DIAG).filter(function (v) { return isObj(v) && num(v.saldo); }) : [];
+    return { ok: true, contas: contas, fora: fora, invest: { presente: Array.isArray(d.investimentos), n: vs.length, soma: r2(vs.reduce(function (s, v) { return s + v.saldo; }, 0)) } };
   }
 
   var r2 = function (x) { return Math.round(x * 100) / 100; };
@@ -192,6 +351,6 @@
     return lista;
   }
 
-  var api = { rotulos: rotulos, padraoConta: padraoConta, limparNome: limparNome, marcarPares: marcarPares, PADROES: PADROES, RAZOES: RAZOES, validarUrl: validarUrl, validarResposta: validarResposta, mensagem: mensagem, consultar: consultar, mapear: mapear, normalizar: normalizar, chave: chave, montarPrevia: montarPrevia, MAX_MOVS: MAX_MOVS, DIAS: DIAS };
+  var api = { rotulos: rotulos, padraoConta: padraoConta, limparNome: limparNome, marcarPares: marcarPares, PADROES: PADROES, RAZOES: RAZOES, validarUrl: validarUrl, validarResposta: validarResposta, mensagem: mensagem, consultar: consultar, pedir: pedir, estrutura: estrutura, estruturaLinhas: estruturaLinhas, saldos: saldos, mapear: mapear, normalizar: normalizar, chave: chave, montarPrevia: montarPrevia, MAX_MOVS: MAX_MOVS, DIAS: DIAS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TFBanco = api;
 })(typeof window !== 'undefined' ? window : globalThis);

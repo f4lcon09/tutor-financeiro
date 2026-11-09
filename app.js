@@ -1386,8 +1386,10 @@ const bancoAviso=(cls,txt)=>{ const m=$('#bc_msg'); if(m) m.innerHTML=txt?alerta
 T.banco = () => `<div class="head"><div><h1>Conexão bancária (em teste)</h1><div class="sub">Só neste aparelho. Só atualiza quando você pedir.</div></div></div>
   ${pn('Ponte',`<div class="field"><label for="bc_url">Endereço da ponte</label><input id="bc_url" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(load('tf_banco_url',''))}"></div>
     <div class="bc-acoes"><button class="btn" id="bc_atu" type="button">Atualizar do banco</button><button class="btn ghost" id="bc_rem" type="button">Remover conexão</button></div><div id="bc_msg" style="margin-top:12px"></div>`,'teal')}
+  ${pn('Diagnóstico (só para o dono)',`<div class="small mu">Pede os dados à ponte de novo. A estrutura mostra só contagens e nomes de campos: nenhum valor, nome, descrição ou identificador. Conferir saldos mostra valores só nesta tela. Nada é guardado.</div>
+    <div class="bc-acoes"><button class="btn ghost" id="bc_diag" type="button">Ver estrutura da resposta</button><button class="btn ghost" id="bc_conf" type="button">Conferir saldos</button></div><div id="bc_diag_out" style="margin-top:12px"></div>`,'teal','margin-top:14px')}
   ${bancoContas().length?pn('Contas',`<div class="small mu" style="margin-bottom:12px">O novo nome vale para as próximas importações. Quem já foi importado mantém o nome daquele dia.</div><div id="bc_mais">${bancoNomesHtml(bancoContas(),'bc_mn')}</div>`,'teal','margin-top:14px'):''}`;
-function bancoBind(){ $('#bc_atu').onclick=bancoAtualizar; $('#bc_rem').onclick=bancoRemover; const s=bancoSessao(); if(s) bancoAviso('at',s); const m=$('#bc_mais'); if(m) m.addEventListener('change',e=>{ const l=bancoContas(), c=l[+e.target.dataset.n]; if(!c) return; c.renome=TFBanco.limparNome(e.target.value); save0('tf_banco_contas',l); }); }
+function bancoBind(){ $('#bc_atu').onclick=bancoAtualizar; $('#bc_rem').onclick=bancoRemover; $('#bc_diag').onclick=bancoDiag; $('#bc_conf').onclick=bancoConferir; const s=bancoSessao(); if(s) bancoAviso('at',s); const m=$('#bc_mais'); if(m) m.addEventListener('change',e=>{ const l=bancoContas(), c=l[+e.target.dataset.n]; if(!c) return; c.renome=TFBanco.limparNome(e.target.value); save0('tf_banco_contas',l); }); }
 function bancoRemover(){
   const volta=$('#bc_rem'), fundo=document.createElement('div'); fundo.className='conf';
   fundo.innerHTML=`<div class="confc" role="alertdialog" aria-modal="true" aria-labelledby="conf_t" aria-describedby="conf_d"><h2 id="conf_t">Remover conexão?</h2><p id="conf_d">Apaga o endereço da ponte e as escolhas de sinal deste aparelho. Os lançamentos já importados continuam.</p><div class="confb"><button class="btn ghost" id="conf_nao" type="button">Cancelar</button><button class="btn" id="conf_sim" type="button">Remover</button></div></div>`;
@@ -1410,6 +1412,45 @@ async function bancoAtualizar(){
   if(!r.ok){ bancoAviso('ru',TFBanco.mensagem(r.erro)); return; }
   if(!r.dados.movs.length){ bancoAviso('ok','Nenhum movimento encontrado nesse período.'); return; }
   bancoPrevia(r.dados);
+}
+/* diagnóstico (só estrutura) e conferência de saldos: pedem à ponte de novo, quando o dono toca. Nada é guardado nem registrado; sair da tela descarta tudo. */
+const bancoDiagMsg=(cls,txt)=>{ const m=$('#bc_diag_out'); if(m) m.innerHTML=txt?alerta(cls,esc(txt)):''; };
+async function bancoPedirDiag(id,rotulo){
+  const v=TFBanco.validarUrl($('#bc_url').value); if(!v.ok){ bancoDiagMsg('ru',v.erro); return null; }
+  const s=bancoSessao(); if(s){ bancoDiagMsg('at',s); return null; }
+  const b=$('#'+id); b.disabled=true; b.textContent='Buscando…'; bancoDiagMsg('',''); bancoCsp=false;
+  let r=await TFBanco.pedir({url:v.url,token:Drive.token(),fetch:(u,o)=>fetch(u,o)});
+  if(!r.ok&&r.erro==='rede'){ await new Promise(k=>setTimeout(k,60)); if(bancoCsp) r={ok:false,erro:'csp'}; }
+  const b2=$('#'+id); if(!b2) return null;   // saiu da tela: a resposta é descartada
+  b2.disabled=false; b2.textContent=rotulo;
+  if(!r.ok){ bancoDiagMsg('ru',TFBanco.mensagem(r.erro)); return null; }
+  return {j:r.j};
+}
+async function bancoDiag(){
+  const p=await bancoPedirDiag('bc_diag','Ver estrutura da resposta'); if(!p) return;
+  const e=TFBanco.estrutura(p.j,S.hojeISO()); if(!e.ok){ bancoDiagMsg('ru',TFBanco.mensagem(e.erro)); return; }
+  const L=TFBanco.estruturaLinhas(e.e), txt=L.map(l=>(l.n?'  ':'')+l.t).join('\n');
+  $('#bc_diag_out').innerHTML=`<h3 class="bc-dt">Estrutura da resposta</h3><ul class="bc-diag">${L.map(l=>`<li${l.n?' class="n1"':''}>${esc(l.t)}</li>`).join('')}</ul><div class="bc-acoes"><button class="btn ghost" id="bc_copiar" type="button">Copiar estrutura</button></div><div class="hint" id="bc_copiou" role="status"></div>`;
+  $('#bc_copiar').onclick=()=>{ const diz=t=>{ const m=$('#bc_copiou'); if(m) m.textContent=t; }, nao=()=>diz('Não consegui copiar. Selecione o texto acima.');
+    try{ navigator.clipboard.writeText(txt).then(()=>diz('Copiado: só contagens e nomes de campos.'),nao); }catch(err){ nao(); } };
+}
+async function bancoConferir(){
+  const p=await bancoPedirDiag('bc_conf','Conferir saldos'); if(!p) return;
+  const s=TFBanco.saldos(p.j); if(!s.ok){ bancoDiagMsg('ru',TFBanco.mensagem(s.erro)); return; }
+  if(!s.contas.length){ bancoDiagMsg('at','A ponte não trouxe nenhuma conta com saldo.'); return; }
+  const rot=TFBanco.rotulos(s.contas,bancoRenomes()), cartoes=DEMO.cartoes||[];
+  const ops=[['caixa','Caixa hoje',DEMO.caixinha+DEMO.conta],['reserva','Caixinha (reserva)',DEMO.caixinha],['conta','Conta corrente',DEMO.conta]].concat(cartoes.map(c=>['c:'+c.id,'Fatura atual de '+c.nome,c.fatura]),[['','Não comparar',null]]);
+  const val=k=>{ const o=ops.find(x=>x[0]===k); return o?o[2]:null; };
+  const padrao=c=>c.subtipo==='CHECKING_ACCOUNT'?'conta':c.subtipo==='SAVINGS_ACCOUNT'?'reserva':c.tipo==='CREDIT'&&cartoes.length===1?'c:'+cartoes[0].id:'';
+  const dif=(app,banco)=>app==null||!isFinite(app)?'—':PRIV?MASK:(app-banco>0?'+':'')+brl(app-banco);
+  const opcoes=sel=>ops.map(o=>`<option value="${esc(o[0])}"${o[0]===sel?' selected':''}>${esc(o[1])}</option>`).join('');
+  const soBanco=s.contas.filter(c=>c.tipo==='BANK').reduce((a,c)=>a+c.saldo,0), caixa=val('caixa');
+  $('#bc_diag_out').innerHTML=`<div id="bc_conf_box"><h3 class="bc-dt">Conferir saldos</h3><div class="small mu">Só nesta tela: nada é guardado. Diferença = número do app menos o saldo do banco. Escolha com qual número do app comparar cada conta.${s.contas.some(c=>c.tipo==='CREDIT')?' No cartão, o sinal do saldo do banco ainda é a confirmar.':''}</div>`+
+    s.contas.map((c,i)=>`<div class="bc-cs"><b>${esc(rot.get(c.id))}</b><div class="kv"><span>No banco</span><span>${brl(c.saldo)}</span>${c.fechamento!=null?`<span>Saldo de fechamento no banco</span><span>${brl(c.fechamento)}</span>`:''}${c.investidoAuto!=null?`<span>Investido automático no banco</span><span>${brl(c.investidoAuto)}</span>`:''}<span><label for="bc_cs_${i}">No app</label></span><span><select id="bc_cs_${i}" data-i="${i}">${opcoes(padrao(c))}</select></span><span>Diferença</span><span id="bc_cd_${i}">${dif(val(padrao(c)),c.saldo)}</span></div></div>`).join('')+
+    `<div class="bc-cs"><b>Somas</b><div class="kv"><span>Contas do tipo BANK, somadas</span><span>${brl(soBanco)}</span><span>Caixa hoje no app</span><span>${brl(caixa)}</span><span>Diferença</span><span id="bc_cd_soma">${dif(caixa,soBanco)}</span>${s.invest.presente?`<span>Contas BANK mais ${s.invest.n} investimento(s)</span><span>${brl(soBanco+s.invest.soma)}</span><span>Diferença com o Caixa hoje</span><span id="bc_cd_inv">${dif(caixa,soBanco+s.invest.soma)}</span>`:''}</div></div>`+
+    (s.fora?`<div class="hint">${s.fora} conta(s) fora do formato não aparecem aqui.</div>`:'')+'</div>';
+  /* o ouvinte fica na caixa nova de cada conferência: tocar de novo troca a caixa e o ouvinte antigo vai junto, sem acumular */
+  $('#bc_conf_box').addEventListener('change',e=>{ const i=e.target.dataset&&e.target.dataset.i, c=i!=null&&s.contas[+i]; if(!c) return; const out=$('#bc_cd_'+i); if(out) out.textContent=dif(val(e.target.value),c.saldo); });
 }
 const bancoVinTxt=it=>it.soNeutro?'Marcar como não é gasto':it.neutro?'Vincular conta e marcar como não é gasto':'Vincular conta';
 const bancoContas=()=>{ const r=load('tf_banco_contas',[]); return Array.isArray(r)?r:[]; };
