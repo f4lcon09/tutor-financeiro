@@ -41,7 +41,7 @@
     for (i = 0; i < d.movs.length; i++) {
       m = d.movs[i];
       if (!isObj(m) || !RE_ID.test(m.id) || !ids.has(m.conta) || !dataOk(m.data) || !texto(m.desc, 1000) || !num(m.valor) || (m.tipo !== 'DEBIT' && m.tipo !== 'CREDIT') || !ouNulo(m.status, 40)) return ruim;
-      movs.push({ id: m.id, conta: m.conta, data: m.data, desc: m.desc, valor: m.valor, tipo: m.tipo, status: m.status == null ? null : m.status });
+      movs.push({ id: m.id, conta: m.conta, data: m.data, desc: m.desc, valor: m.valor, tipo: m.tipo, status: m.status == null ? null : m.status, cat: typeof m.cat === 'string' && m.cat.trim() && m.cat.length <= 100 ? m.cat.trim() : null });   // cat: só para o mapeamento, nunca é gravada
     }
     return { ok: true, dados: { de: d.de, ate: d.ate, contas: contas, movs: movs } };
   }
@@ -319,9 +319,9 @@
   var r2 = function (x) { return Math.round(x * 100) / 100; };
   /* única camada de tradução. Sentido vem de tipo (DEBIT = saída, CREDIT = entrada); inverter é escolha do dono, por conta. */
   function mapear(mov, conta, inverter) {
-    var entrada = mov.tipo === 'CREDIT';
+    var entrada = mov.tipo === 'CREDIT', mc = catDoBanco(mov.cat);
     if (inverter) entrada = !entrada;
-    return { idExterno: mov.id, contaId: conta.id, conta: conta.nome, data: mov.data, desc: String(mov.desc).trim().slice(0, LIM_DESC) || 'Sem descrição', valor: r2(Math.abs(mov.valor)), direcao: entrada ? 'entrada' : 'saida', pendente: mov.status === 'PENDING', forma: conta.tipo === 'CREDIT' ? 'Crédito' : 'Débito' };
+    return { idExterno: mov.id, contaId: conta.id, conta: conta.nome, data: mov.data, desc: String(mov.desc).trim().slice(0, LIM_DESC) || 'Sem descrição', valor: r2(Math.abs(mov.valor)), direcao: entrada ? 'entrada' : 'saida', pendente: mov.status === 'PENDING', forma: conta.tipo === 'CREDIT' ? 'Crédito' : 'Débito', cat: mc.cat, neutroCat: mc.neutro };
   }
 
   var normalizar = function (s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); };
@@ -406,6 +406,7 @@
         if (c.tipo === 'CREDIT' && combina(PADROES.cartaoFatura, it.desc)) it.marca = 'cartao';
         else if (c.tipo !== 'CREDIT' && combina(PADROES.fatura, it.desc)) it.marca = 'fatura';
         else if (combina(PADROES.reserva, it.desc)) it.marca = 'entre';
+        else if (it.neutroCat) it.marca = 'categoria';   // categoria do banco: transferência entre contas da mesma pessoa ou pagamento de cartão
       }
       return it;
     });
@@ -413,7 +414,7 @@
     /* entre contas e reserva não são gasto; quem já tem a conta só ganha essa marca */
     lista.forEach(function (it) {
       if (it.marca || it.possivel) it.marcado = false;
-      it.neutro = it.marca === 'entre' || ((it.marca === 'fatura' || it.marca === 'cartao') && it.vinculo == null);   // fatura: neutro só ao importar como novo; vínculos e lançamentos já salvos não mudam
+      it.neutro = it.marca === 'entre' || ((it.marca === 'fatura' || it.marca === 'cartao' || it.marca === 'categoria') && it.vinculo == null);   // fatura: neutro só ao importar como novo; vínculos e lançamentos já salvos não mudam
       var l = feitos.get(it);
       if (l && it.neutro && !l.neutro) { it.vinculo = 'sim'; it.alvo = l.id; it.soNeutro = true; }
       var dest = it.alvo != null ? it.alvo : it.possivel && it.possivel.alvo;
@@ -424,6 +425,61 @@
     return lista;
   }
 
-  var api = { rotulos: rotulos, padraoConta: padraoConta, limparNome: limparNome, marcarPares: marcarPares, PADROES: PADROES, RAZOES: RAZOES, validarUrl: validarUrl, validarResposta: validarResposta, mensagem: mensagem, consultar: consultar, pedir: pedir, estrutura: estrutura, estruturaLinhas: estruturaLinhas, saldos: saldos, categorias: categorias, idade: idade, mapear: mapear, normalizar: normalizar, chave: chave, montarPrevia: montarPrevia, MAX_MOVS: MAX_MOVS, DIAS: DIAS };
+  /* ===== pluggy-6: categoria do banco -> categoria do app. Lista fixa; o que não está aqui vira Outros. A categoria do banco nunca é gravada. ===== */
+  var CAT_BANCO = {
+    'Mercado': ['Groceries'],
+    'Comida': ['Eating out', 'Food delivery'],
+    'Transporte': ['Taxi and ride-hailing', 'Public transportation', 'Bus tickets'],
+    'Estudos': ['Education', 'University', 'Bookstore'],
+    'Saúde': ['Pharmacy', 'Hospital clinics and labs'],
+    'Lazer': ['Music streaming', 'Video streaming', 'Tickets'],
+    'Compras': ['Shopping', 'Online shopping', 'Electronics'],
+    'Outros': ['Transfers', 'Services', 'Digital services', 'Tax on financial operations', 'Internet', 'Telecommunications', 'Cashback']
+  };
+  var CAT_NEUTRA = ['Transfer - Internal', 'Same person transfer', 'Credit card payment'];   // entram como Outros e "não é gasto"
+  var CAT_PAGAMENTO = 'credit card payment';   // pagamento de fatura: fica fora da fatura estimada
+  var CAT_IDX = (function () { var m = new Map(); Object.keys(CAT_BANCO).forEach(function (c) { CAT_BANCO[c].forEach(function (b) { m.set(b.toLowerCase(), c); }); }); return m; })();
+  var NEUTRA_IDX = new Set(CAT_NEUTRA.map(function (b) { return b.toLowerCase(); }));
+  function catDoBanco(cat) {
+    var k = typeof cat === 'string' ? cat.trim().toLowerCase() : '';
+    if (NEUTRA_IDX.has(k)) return { cat: 'Outros', neutro: true, pagamento: k === CAT_PAGAMENTO };
+    return { cat: CAT_IDX.get(k) || 'Outros', neutro: false, pagamento: false };
+  }
+
+  /* ===== pluggy-6: foto dos valores do banco (o "último bom"). Só os números que o app usa, com a data de atualização de cada um.
+     Contas BANK e CREDIT (saldo; no cartão, limite e disponível), investimentos com saldo maior que zero e fora de TOTAL_WITHDRAWAL,
+     e os movimentos dos cartões (data e valor com sinal, sem descrição e sem id), para a fatura estimada. inversoes: contas com o sinal invertido pelo dono. */
+  var MAX_MOV_CARTAO = 400;
+  var atuDe = function (x) { return typeof x === 'string' && x.length <= 40 && idadeMs(x, 0) !== null ? x : null; };
+  function instantaneo(j, agora, inversoes) {
+    if (!isObj(j) || j.ok !== true || !isObj(j.dados) || !Array.isArray(j.dados.contas)) return { ok: false, erro: 'formato' };
+    var d = j.dados, inv = new Set(inversoes || []), itAtu = new Map();
+    (Array.isArray(d.itens) ? d.itens.slice(0, MAX_CONTAS) : []).forEach(function (it) { if (isObj(it) && chaveTxt(it.item) && atuDe(it.atualizado)) itAtu.set(it.item, it.atualizado); });
+    var contas = [], ids = new Set();
+    d.contas.slice(0, MAX_CONTAS).forEach(function (c) {
+      if (!isObj(c) || typeof c.id !== 'string' || !RE_ID.test(c.id) || ids.has(c.id) || (c.tipo !== 'BANK' && c.tipo !== 'CREDIT') || !num(c.saldo) || typeof c.nome !== 'string' || !c.nome.trim()) return;
+      ids.add(c.id);
+      var o = { id: c.id, tipo: c.tipo, nome: c.nome.trim().slice(0, 60), saldo: r2(c.saldo), atu: atuDe(c.atualizado) || atuDe(itAtu.get(c.item)) || null };
+      if (c.tipo === 'CREDIT') { var k = isObj(c.credito) ? c.credito : {}; o.lim = num(k.creditLimit) ? r2(k.creditLimit) : null; o.disp = num(k.availableCreditLimit) ? r2(k.availableCreditLimit) : null; }
+      contas.push(o);
+    });
+    if (!contas.length) return { ok: false, erro: 'formato' };
+    var invs = [];
+    (Array.isArray(d.investimentos) ? d.investimentos.slice(0, MAX_INV) : []).forEach(function (v) {
+      if (!isObj(v) || !num(v.saldo) || !(v.saldo > 0) || v.status === 'TOTAL_WITHDRAWAL') return;   // resgatado ou zerado não é reserva
+      invs.push({ nome: typeof v.nome === 'string' && v.nome.trim() ? v.nome.trim().slice(0, 60) : 'Investimento', saldo: r2(v.saldo), atu: atuDe(v.atualizado) || atuDe(itAtu.get(v.item)) || null });
+    });
+    var cred = new Set(contas.filter(function (c) { return c.tipo === 'CREDIT'; }).map(function (c) { return c.id; })), movs = {};
+    (Array.isArray(d.movs) ? d.movs.slice(0, MAX_MOVS) : []).forEach(function (m) {
+      if (!isObj(m) || !cred.has(m.conta) || !dataOk(m.data) || !num(m.valor) || (m.tipo !== 'DEBIT' && m.tipo !== 'CREDIT')) return;
+      if (catDoBanco(m.cat).pagamento) return;   // pagamento da fatura anterior não é compra desta fatura
+      var gasto = m.tipo === 'DEBIT'; if (inv.has(m.conta)) gasto = !gasto;
+      var l = movs[m.conta] = movs[m.conta] || [];
+      if (l.length < MAX_MOV_CARTAO) l.push([m.data, r2((gasto ? 1 : -1) * Math.abs(m.valor))]);
+    });
+    return { ok: true, snap: { v: 1, em: agoraDe(agora), contas: contas, inv: invs, ip: Array.isArray(d.investimentos), movs: movs } };   // ip: a ponte mandou a lista de investimentos
+  }
+
+  var api = { catDoBanco: catDoBanco, CAT_BANCO: CAT_BANCO, CAT_NEUTRA: CAT_NEUTRA, instantaneo: instantaneo, idadeMs: idadeMs, rotulos: rotulos, padraoConta: padraoConta, limparNome: limparNome, marcarPares: marcarPares, PADROES: PADROES, RAZOES: RAZOES, validarUrl: validarUrl, validarResposta: validarResposta, mensagem: mensagem, consultar: consultar, pedir: pedir, estrutura: estrutura, estruturaLinhas: estruturaLinhas, saldos: saldos, categorias: categorias, idade: idade, mapear: mapear, normalizar: normalizar, chave: chave, montarPrevia: montarPrevia, MAX_MOVS: MAX_MOVS, DIAS: DIAS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TFBanco = api;
 })(typeof window !== 'undefined' ? window : globalThis);

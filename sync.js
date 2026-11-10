@@ -17,12 +17,15 @@
     m['taxa'] = st.taxa;
     if (st.real !== undefined) m['real'] = st.real;
     if (st.numeros !== undefined) m['numeros'] = st.numeros;
+    if (st.banco) m['banco'] = st.banco;   // pluggy-6: último bom do banco
+    (st.reserva || []).forEach(r => { m['res:' + r.id] = r; });   // pluggy-6: reserva digitada
+    if (st.liga && Object.keys(st.liga).length) m['liga'] = st.liga;   // pluggy-6: cartão do banco -> cartão do app
     return m;
   }
 
   /* Mapa de itens -> estado do app (ignora apagados) */
   function montar(itens) {
-    const st = { lanc: [], pagos: {}, tetos: {}, metas: [], taxa: undefined };
+    const st = { lanc: [], pagos: {}, tetos: {}, metas: [], taxa: undefined, reserva: [] };
     Object.keys(itens).forEach(k => {
       const it = itens[k]; if (it.d || Seg.perigosa(k.replace(/^[a-z]+:/, ''))) return;
       if (k.startsWith('lanc:')) st.lanc.push(it.v);
@@ -32,6 +35,9 @@
       else if (k === 'taxa') st.taxa = it.v;
       else if (k === 'real') st.real = it.v;
       else if (k === 'numeros') st.numeros = it.v;
+      else if (k.startsWith('res:')) st.reserva.push(it.v);
+      else if (k === 'banco') st.banco = it.v;
+      else if (k === 'liga') st.liga = it.v;
     });
     return st;
   }

@@ -2,7 +2,7 @@
    O armazenamento (localStorage) entra por parâmetro. Nada aqui conhece telas. */
 (function (root) {
   var Seg = (typeof require === 'function' && typeof module !== 'undefined') ? require('./seguranca.js') : root.TFSeg;
-  var CHAVES = { lanc: 'tf_lanc3', pagos: 'tf_pagos', tetos: 'tf_tetos', metas: 'tf_metas', taxa: 'tf_taxameta', numeros: 'tf_numeros', real: 'tf_real', modo: 'tf_modo' };
+  var CHAVES = { lanc: 'tf_lanc3', pagos: 'tf_pagos', tetos: 'tf_tetos', metas: 'tf_metas', taxa: 'tf_taxameta', numeros: 'tf_numeros', real: 'tf_real', modo: 'tf_modo', banco: 'tf_bsnap', reserva: 'tf_reserva', liga: 'tf_liga' };
   var CATEGORIAS = ['Mercado', 'Compras', 'Transporte', 'Lazer', 'Comida', 'Estudos', 'Saúde', 'Jogos', 'Outros'];
   /* categoria fora da lista (gravada por outra versão do app): só a exibição vira Outros, o valor guardado fica como veio */
   var catExibida = function (c) { return CATEGORIAS.indexOf(c) >= 0 ? c : 'Outros'; };
@@ -175,7 +175,8 @@
     function gravar(k, v) { try { storage.setItem(k, JSON.stringify(v)); return true; } catch (e) { falhou = true; return false; } }
     var st = {
       modo: ler(CHAVES.modo, null), real: ler(CHAVES.real, null), numeros: ler(CHAVES.numeros, {}),
-      lanc: ler(CHAVES.lanc, []), pagos: ler(CHAVES.pagos, {}), tetos: ler(CHAVES.tetos, {}), metas: ler(CHAVES.metas, []), taxa: ler(CHAVES.taxa, 0.8)
+      lanc: ler(CHAVES.lanc, []), pagos: ler(CHAVES.pagos, {}), tetos: ler(CHAVES.tetos, {}), metas: ler(CHAVES.metas, []), taxa: ler(CHAVES.taxa, 0.8),
+      banco: ler(CHAVES.banco, null), reserva: ler(CHAVES.reserva, []), liga: ler(CHAVES.liga, {})   // pluggy-6
     };
     var seq = 0;
     function novoId() { return Date.now() * 1000 + (seq++ % 1000); }
@@ -187,6 +188,9 @@
       if (qual.taxa) gravar(CHAVES.taxa, st.taxa);
       if (qual.numeros) gravar(CHAVES.numeros, st.numeros);
       if (qual.real) gravar(CHAVES.real, st.real);
+      if (qual.banco) gravar(CHAVES.banco, st.banco);
+      if (qual.reserva) gravar(CHAVES.reserva, st.reserva);
+      if (qual.liga) gravar(CHAVES.liga, st.liga);
       ouvintes.forEach(function (f) { f(qual); });
     }
     var S = {
@@ -217,7 +221,7 @@
           ext.add(x.idExterno);
           do { id = novoId(); } while (usados[String(id)]);
           usados[String(id)] = 1;
-          novos.push({ id: id, data: x.data, desc: String(x.desc || '').trim().slice(0, Seg.LIM.desc) || 'Outros', cat: 'Outros', valor: r2(x.direcao === 'entrada' ? -v : v), forma: x.forma, essencial: false, lazer: false, origem: 'pluggy', idExterno: x.idExterno });
+          novos.push({ id: id, data: x.data, desc: String(x.desc || '').trim().slice(0, Seg.LIM.desc) || 'Outros', cat: CATEGORIAS.indexOf(x.cat) >= 0 ? x.cat : 'Outros', valor: r2(x.direcao === 'entrada' ? -v : v), forma: x.forma, essencial: false, lazer: false, origem: 'pluggy', idExterno: x.idExterno });
           if (x.contaId && x.contaNome) { novos[novos.length - 1].contaId = x.contaId; novos[novos.length - 1].contaNome = String(x.contaNome).slice(0, Seg.LIM.nome); }
           comNeutro(novos[novos.length - 1], x.neutro === true);
         }
@@ -358,14 +362,40 @@
         st.real = j; st.modo = 'real'; gravar(CHAVES.modo, 'real'); mudou({ real: 1 }); return { ok: true };
       },
       /* troca o estado inteiro (vindo da sincronização) */
+      /* ---- pluggy-6: último bom do banco, reserva digitada, ligação dos cartões ---- */
+      setBanco: function (snap) { var b = Seg.sanBanco(snap); if (!b) return { ok: false }; st.banco = b; mudou({ banco: 1 }); return { ok: true }; },
+      addReserva: function (o) {
+        o = o || {}; var nome = String(o.nome || '').trim().slice(0, 60), v = lerNumero(o.valor), erros = {};
+        if (!nome) erros.nome = 'Informe o nome da reserva.';
+        if (!(v >= 0)) erros.valor = 'Informe o valor; zero também vale.';
+        if (Object.keys(erros).length) return { ok: false, erros: erros };
+        var r = { id: novoId(), nome: nome, valor: r2(v), data: S.hojeISO() };
+        st.reserva = st.reserva.concat([r]); mudou({ reserva: 1 }); return { ok: true, id: r.id };
+      },
+      editarReserva: function (id, o) {
+        o = o || {}; var nome = String(o.nome || '').trim().slice(0, 60), v = lerNumero(o.valor), erros = {}, achou = false;
+        if (!nome) erros.nome = 'Informe o nome da reserva.';
+        if (!(v >= 0)) erros.valor = 'Informe o valor; zero também vale.';
+        if (Object.keys(erros).length) return { ok: false, erros: erros };
+        st.reserva = st.reserva.map(function (r) { if (String(r.id) !== String(id)) return r; achou = true; return { id: r.id, nome: nome, valor: r2(v), data: S.hojeISO() }; });
+        if (!achou) return { ok: false, erros: { geral: 'Reserva não encontrada.' } };
+        mudou({ reserva: 1 }); return { ok: true };
+      },
+      apagarReserva: function (id) { var n = st.reserva.length; st.reserva = st.reserva.filter(function (r) { return String(r.id) !== String(id); }); if (st.reserva.length === n) return false; mudou({ reserva: 1 }); return true; },
+      setLiga: function (bancoId, appId) {
+        if (typeof bancoId !== 'string' || !bancoId) return false;
+        var l = Object.assign({}, st.liga); if (appId == null || appId === '') delete l[bancoId]; else l[bancoId] = String(appId);
+        var s = Seg.sanLiga(l); if (!s) return false; st.liga = s; mudou({ liga: 1 }); return true;
+      },
       aplicar: function (novo) {
         novo = Seg.sanearEstado(novo).estado;   // o que vem do Drive nunca é confiável
         if (novo.lanc) st.lanc = novo.lanc; if (novo.pagos) st.pagos = novo.pagos; if (novo.tetos) st.tetos = novo.tetos;
         if (novo.metas) st.metas = novo.metas; if (novo.taxa != null) st.taxa = novo.taxa; if (novo.numeros !== undefined) st.numeros = novo.numeros || {};
         if (novo.real !== undefined) st.real = novo.real;
-        mudou({ lanc: 1, pagos: 1, tetos: 1, metas: 1, taxa: 1, numeros: 1, real: novo.real !== undefined });
+        if (novo.banco !== undefined) st.banco = novo.banco; if (novo.reserva) st.reserva = novo.reserva; if (novo.liga) st.liga = novo.liga;
+        mudou({ lanc: 1, pagos: 1, tetos: 1, metas: 1, taxa: 1, numeros: 1, real: novo.real !== undefined, banco: novo.banco !== undefined, reserva: !!novo.reserva, liga: !!novo.liga });
       },
-      paraSync: function () { return { lanc: st.lanc, pagos: st.pagos, tetos: st.tetos, metas: st.metas, taxa: st.taxa, numeros: Object.keys(st.numeros).length ? st.numeros : undefined, real: st.modo === 'demo' || (st.modo !== 'real' && !st.real) ? undefined : st.real }; },   // sem modo, os dados guardados continuam valendo: nunca viram lápide no Drive
+      paraSync: function () { return { banco: st.modo === 'demo' ? undefined : st.banco || undefined, reserva: st.modo === 'demo' ? [] : st.reserva, liga: st.modo === 'demo' ? undefined : st.liga, lanc: st.lanc, pagos: st.pagos, tetos: st.tetos, metas: st.metas, taxa: st.taxa, numeros: Object.keys(st.numeros).length ? st.numeros : undefined, real: st.modo === 'demo' || (st.modo !== 'real' && !st.real) ? undefined : st.real }; },   // sem modo, os dados guardados continuam valendo: nunca viram lápide no Drive
 
       exportarCSV: function () {
         var q = function (t) { t = String(t); if (/^[=+@\t\r-]/.test(t)) t = "'" + t; return /[",\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };

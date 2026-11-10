@@ -121,6 +121,41 @@
     if (l.neutro === true) o.neutro = true;
     return o;
   }
+  /* ---------- pluggy-6: foto do banco, reserva digitada e ligação dos cartões ---------- */
+  var RE_ATU = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d{1,9})?)?(Z|[+-]\d{2}:?\d{2})?)?$/;
+  var atuOk = function (x) { return typeof x === 'string' && x.length <= 40 && RE_ATU.test(x) && data(x.slice(0, 10)); };
+  var idExt = function (x) { return typeof x === 'string' && RE_EXT.test(x) && !perigosa(x); };
+  var nomeOk = function (x) { return typeof x === 'string' && !!x.trim(); };
+  function sanBanco(b) {
+    if (!isObj(b) || !num(b.em) || b.em < 0 || !Array.isArray(b.contas)) return null;
+    var contas = [], ids = {};
+    b.contas.slice(0, 50).forEach(function (c) {
+      if (!isObj(c) || !idExt(c.id) || ids[c.id] || (c.tipo !== 'BANK' && c.tipo !== 'CREDIT') || !num(c.saldo) || !nomeOk(c.nome)) return;
+      ids[c.id] = c.tipo;
+      var o = { id: c.id, tipo: c.tipo, nome: corta(c.nome.trim(), 60), saldo: c.saldo, atu: atuOk(c.atu) ? c.atu : null };
+      if (c.tipo === 'CREDIT') { o.lim = num(c.lim) ? c.lim : null; o.disp = num(c.disp) ? c.disp : null; }
+      contas.push(o);
+    });
+    if (!contas.length) return null;
+    var inv = (Array.isArray(b.inv) ? b.inv.slice(0, 500) : []).filter(function (v) { return isObj(v) && num(v.saldo) && v.saldo > 0 && nomeOk(v.nome); })
+      .map(function (v) { return { nome: corta(v.nome.trim(), 60), saldo: v.saldo, atu: atuOk(v.atu) ? v.atu : null }; });
+    var movs = {};
+    if (isObj(b.movs)) Object.keys(b.movs).forEach(function (k) {
+      if (ids[k] !== 'CREDIT' || !Array.isArray(b.movs[k])) return;
+      movs[k] = b.movs[k].slice(0, 400).filter(function (m) { return Array.isArray(m) && m.length === 2 && data(m[0]) && num(m[1]); }).map(function (m) { return [m[0], m[1]]; });
+    });
+    return { v: 1, em: b.em, contas: contas, inv: inv, ip: b.ip === true, movs: movs };
+  }
+  function sanReserva(r) {
+    if (!isObj(r) || !idOk(r.id) || !nomeOk(r.nome) || !num(r.valor) || r.valor < 0 || !data(r.data)) return null;
+    return { id: r.id, nome: corta(r.nome.trim(), 60), valor: r.valor, data: r.data };
+  }
+  function sanLiga(l) {
+    if (!isObj(l)) return null;
+    var o = {};
+    Object.keys(l).slice(0, 50).forEach(function (k) { if (idExt(k) && (l[k] === 'nao' || (typeof l[k] === 'string' && RE_ID.test(l[k]) && !perigosa(l[k])))) o[k] = l[k]; });
+    return o;
+  }
   function sanMeta(m) {
     if (!isObj(m) || !idOk(m.id) || typeof m.nome !== 'string' || !m.nome.trim() || !mes(m.prazo) || !num(m.alvo) || m.alvo <= 0 || !num(m.guardado) || m.guardado < 0 || !num(m.aporte) || m.aporte < 0) return null;
     return { id: m.id, nome: corta(m.nome, LIM.nome), alvo: m.alvo, guardado: m.guardado, prazo: m.prazo, aporte: m.aporte };
@@ -135,6 +170,9 @@
     if (st.tetos !== undefined) { out.tetos = {}; if (isObj(st.tetos)) Object.keys(st.tetos).forEach(function (k) { if (k.length >= 1 && k.length <= LIM.cat && !perigosa(k) && num(st.tetos[k]) && st.tetos[k] >= 0) out.tetos[k] = st.tetos[k]; else desc++; }); }
     if (st.taxa !== undefined && st.taxa !== null) { if (num(st.taxa) && st.taxa >= 0 && st.taxa <= 100) out.taxa = st.taxa; else desc++; }
     if (st.numeros !== undefined) out.numeros = sanNumeros(st.numeros);
+    if (st.banco !== undefined) { if (st.banco === null) out.banco = null; else { var b = sanBanco(st.banco); if (b) out.banco = b; else desc++; } }
+    if (st.reserva !== undefined) { out.reserva = []; (Array.isArray(st.reserva) ? st.reserva.slice(0, 200) : []).forEach(function (r) { var x = sanReserva(r); if (x) out.reserva.push(x); else desc++; }); }
+    if (st.liga !== undefined) { var lg = sanLiga(st.liga); if (lg) out.liga = lg; else desc++; }
     if (st.real !== undefined) { if (validarImportacao(st.real).ok) out.real = st.real; else desc++; }
     return { estado: out, descartados: desc };
   }
@@ -145,8 +183,8 @@
     var ks = Object.keys(itens); if (ks.length > LIM.itens) return { itens: out, descartados: ks.length };
     ks.forEach(function (k) {
       var it = itens[k], ok = false;
-      var m = /^(lanc|pago|teto|meta):(.{1,80})$/.exec(k);
-      if (isObj(it) && num(it.u) && it.u >= 0 && it.u <= Date.now() + 86400000 && typeof it.d === 'boolean' && !perigosa(k) && (m ? !perigosa(m[2]) : (k === 'taxa' || k === 'real' || k === 'numeros'))) {
+      var m = /^(lanc|pago|teto|meta|res):(.{1,80})$/.exec(k);
+      if (isObj(it) && num(it.u) && it.u >= 0 && it.u <= Date.now() + 86400000 && typeof it.d === 'boolean' && !perigosa(k) && (m ? !perigosa(m[2]) : (k === 'taxa' || k === 'real' || k === 'numeros' || k === 'banco' || k === 'liga'))) {
         if (it.d) { out[k] = { u: it.u, d: true, v: null }; ok = true; }
         else {
           var tipo = m ? m[1] : k, v;
@@ -156,7 +194,10 @@
           else if (tipo === 'taxa') v = num(it.v) && it.v >= 0 && it.v <= 100 ? it.v : undefined;
           else if (tipo === 'numeros') v = isObj(it.v) ? sanNumeros(it.v) : undefined;
           else if (tipo === 'real') v = isObj(it.v) && validarImportacao(it.v).ok ? it.v : undefined;
-          if (v && (tipo === 'lanc' || tipo === 'meta') && String(v.id) !== m[2]) v = undefined;   // a chave tem de bater com o id
+          else if (tipo === 'banco') v = sanBanco(it.v) || undefined;
+          else if (tipo === 'liga') v = sanLiga(it.v) || undefined;
+          else if (tipo === 'res') v = sanReserva(it.v) || undefined;
+          if (v && (tipo === 'lanc' || tipo === 'meta' || tipo === 'res') && String(v.id) !== m[2]) v = undefined;   // a chave tem de bater com o id
           if (v !== undefined && v !== null) { out[k] = { u: it.u, d: false, v: v }; ok = true; }
         }
       }
@@ -165,6 +206,6 @@
     return { itens: out, descartados: desc };
   }
 
-  var api = { esc: esc, validarImportacao: validarImportacao, sanearEstado: sanearEstado, limparItens: limparItens, varrer: varrer, LIM: LIM, perigosa: perigosa, catOk: catOk, CATS: CATS };
+  var api = { sanBanco: sanBanco, sanReserva: sanReserva, sanLiga: sanLiga, esc: esc, validarImportacao: validarImportacao, sanearEstado: sanearEstado, limparItens: limparItens, varrer: varrer, LIM: LIM, perigosa: perigosa, catOk: catOk, CATS: CATS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TFSeg = api;
 })(typeof window !== 'undefined' ? window : globalThis);

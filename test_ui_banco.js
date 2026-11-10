@@ -22,7 +22,9 @@ const fundo = A => A.d.querySelector('.bc-prev');
 const linhas = A => [...A.d.querySelectorAll('.bc-it')];
 const caixa = (A, i) => A.d.querySelector('.bc-it input[data-i="' + i + '"]');
 const marca = (A, i, v) => { const c = caixa(A, i); c.checked = v; c.dispatchEvent(new A.w.Event('change', { bubbles: true })); };
-const foto = A => JSON.stringify(['tf_lanc3', 'tf_banco_ids', 'tf_banco_inv', 'tf_items', 'tf_banco_on'].map(k => A.w.localStorage.getItem(k)));
+/* pluggy-6: Atualizar do banco grava os últimos valores do banco (tf_bsnap e o item banco da sincronização) antes da prévia; a foto confere o resto */
+const semBanco = v => { if (!v) return v; try { const o = JSON.parse(v); delete o.banco; return JSON.stringify(o); } catch (e) { return v; } };
+const foto = A => JSON.stringify(['tf_lanc3', 'tf_banco_ids', 'tf_banco_inv', 'tf_items', 'tf_banco_on'].map(k => k === 'tf_items' ? semBanco(A.w.localStorage.getItem(k)) : A.w.localStorage.getItem(k)));
 
 (async () => {
   /* escondida por padrão */
@@ -264,7 +266,7 @@ const foto = A => JSON.stringify(['tf_lanc3', 'tf_banco_ids', 'tf_banco_inv', 't
     const l = A.w.eval('S.st.lanc');
     t('campo: conta no lançamento', l.find(x => x.idExterno === 'm3').contaId === 'c2' && l.find(x => x.idExterno === 'm3').contaNome === 'Roxinho' && l.find(x => x.idExterno === 'm1').contaNome === 'Conta Teste · conta');
     t('nome: fica neste aparelho', (A.ls('tf_banco_contas') || []).find(c => c.id === 'c2').renome === 'Roxinho');
-    t('nome: não vai para a sincronização como item', Object.keys(A.w.eval('capturar()')).every(k => /^(lanc|pago|teto|meta):|^taxa$|^real$|^numeros$/.test(k)) && !JSON.stringify(A.w.eval('S.paraSync()')).includes('renome'));
+    t('nome: não vai para a sincronização como item', Object.keys(A.w.eval('capturar()')).every(k => /^(lanc|pago|teto|meta|res):|^taxa$|^real$|^numeros$|^banco$|^liga$/.test(k)) && !JSON.stringify(A.w.eval('S.paraSync()')).includes('renome'));
     await A.ir('hoje'); await A.ir('banco');
     t('Mais: lista as contas', !!A.$('#bc_mais') && A.$('#bc_mn1').value === 'Roxinho' && !!A.d.querySelector('label[for="bc_mn1"]'));
     t('Mais: explica o que muda', /próximas importações/.test(A.texto()));

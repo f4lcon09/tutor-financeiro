@@ -22,7 +22,7 @@ t('url: ignora espaços nas pontas', B.validarUrl('  ' + URLOK + ' ').ok);
 /* forma da resposta */
 t('resposta boa passa', B.validarResposta(RESP()).ok);
 t('resposta boa: 0 movimentos passa', B.validarResposta(RESP({ movs: [] })).ok);
-t('resposta boa: sem campos extras', !('saldo' in DADOS().contas[0]) && !('item' in DADOS().contas[0]) && Object.keys(DADOS().movs[0]).length === 7);
+t('resposta boa: sem campos extras (o movimento ganha só cat, para o mapeamento)', !('saldo' in DADOS().contas[0]) && !('item' in DADOS().contas[0]) && Object.keys(DADOS().movs[0]).length === 8 && 'cat' in DADOS().movs[0]);
 t('resposta boa: campo a mais não passa adiante', !('x' in B.validarResposta(RESP({ movs: [{ ...MOVS[0], x: 1 }] })).dados.movs[0]));
 t('resposta boa: subtipo e status podem ser nulos', B.validarResposta(RESP({ contas: [{ ...CONTAS[0], subtipo: null }], movs: [{ ...MOVS[0], status: null }] })).ok);
 const RUINS = {
