@@ -176,7 +176,7 @@ t('esc não escapa duas vezes o que já é texto', Seg.esc('&lt;') === '&amp;lt;
     t('sw: arquivo do casco é guardado', guardados.length === 1 && guardados[0] === '/app/index.html');
     await pedir('https://exemplo.github.io/app/dados.json'); await pedir('https://exemplo.github.io/app/dados_reais_2026-11-04.json'); await pedir('https://exemplo.github.io/app/qualquer.txt?token=1');
     t('sw: arquivo fora da lista do casco (dados, json, qualquer outro) nunca é guardado', guardados.length === 1);
-    t('sw: lista do casco inclui os arquivos novos', /'app\.js'/.test(fs.readFileSync('sw.js', 'utf8')) && /'seguranca\.js'/.test(fs.readFileSync('sw.js', 'utf8')) && /'tema\.js'/.test(fs.readFileSync('sw.js', 'utf8')) && /'tokens\.css'/.test(fs.readFileSync('sw.js', 'utf8')) && /const V = 'tf-v26'/.test(fs.readFileSync('sw.js', 'utf8')));
+    t('sw: lista do casco inclui os arquivos novos', /'app\.js'/.test(fs.readFileSync('sw.js', 'utf8')) && /'seguranca\.js'/.test(fs.readFileSync('sw.js', 'utf8')) && /'tema\.js'/.test(fs.readFileSync('sw.js', 'utf8')) && /'tokens\.css'/.test(fs.readFileSync('sw.js', 'utf8')) && /const V = 'tf-v28'/.test(fs.readFileSync('sw.js', 'utf8')));
     const casco = (fs.readFileSync('sw.js', 'utf8').match(/const CASCO = \[([^\]]+)\]/) || [])[1].match(/'([^']+)'/g).map(x => x.slice(1, -1)).filter(x => x !== './');
     t('sw: todo arquivo do casco existe no repositório', casco.every(a => fs.existsSync(a)), casco.filter(a => !fs.existsSync(a)).join());
     await fimInterface();

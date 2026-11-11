@@ -409,6 +409,37 @@ table.lt .mu.small{overflow-wrap:anywhere}
   .stats3 .mu{overflow-wrap:anywhere}
 }
 .stats3{display:flex}
+/* ===== visual-1: camada por cima das regras acima (nada foi apagado). Cores dos temas não mudam. =====
+   Escala de letra: 13 (legenda), 15 (corpo), 16 (campos), 18, 22, 28, 34. */
+.demo,.info,.info:hover::after,.info:focus::after,.tip,.hint,.disc,.strip .l,.cal .w,.cal .d,.cal .d b,.vb small,.vb em,.sync,.bc-razao,.pv-sub,.pv-nota,.tag,.orig,.cx-lista .cx-t{font-size:13px}
+th{font-size:13px !important}
+nav button,.chip,.toggle label,.kv,.det>summary,.alerta,.ins .d,.bc-prev p,.bc-cont,.bc-inv,.bc-tx,.bc-val,.bc-vin,.bc-nomes>summary,.pv-lin,.pg4 button{font-size:15px}
+.brand{font-size:18px}
+.verdict h2,.pv-val{font-size:28px}
+.verdict .ico{font-size:28px}
+/* valores com algarismos de largura fixa. As famílias de letra aprovadas na ux-2-fontes não mudam */
+.big,.mid,.mini b,.pv-val{font-variant-numeric:tabular-nums}
+td.n,th.n,.kv span:nth-child(even),.ag .agv{font-variant-numeric:tabular-nums}
+/* título de painel: 13px, mesma família de antes */
+.pn>h2{font-size:13px}
+/* borda colorida só em painel de estado; os outros ficam neutros. --h continua valendo para barras e etiquetas */
+.pn{border-left:1px solid var(--card-border);border-radius:var(--radius-lg)}
+.pn.verdict{border-left:3px solid var(--h,var(--ln2))}
+.pn.click:hover{border-color:var(--ln2)}
+.grid{gap:16px}
+@media(min-width:1200px){
+  table{font-size:15px}
+}
+@media(max-width:860px){
+  h1{font-size:22px} .big{font-size:28px}
+  .verdict.compacto h2{font-size:22px}
+  .card3d .cardnum{font-size:18px}
+  .pn{border-radius:16px}
+  .pn.verdict{border-left:1px solid var(--card-border)}
+  nav>button,.secw>button{font-size:13px}   /* cabe sem cortar em 320 e 360 px, WebKit e Chromium */
+  table.rt td::before{font-size:13px}
+  .sync.comtexto b{font-size:13px}
+}
 </style>
 </head>
 <body>
