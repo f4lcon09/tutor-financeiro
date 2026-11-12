@@ -12,6 +12,15 @@ const soltos = A => { const r = []; const w = A.d.createTreeWalker(A.d.querySele
   const css = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
   t('app.js e index.html: nenhum dos sete símbolos no código', !/[↗▴▾⚠✎✔✖]/.test(src) && !/[↗▴▾⚠✎✔✖]/.test(css));
   t('o ícone usa fill:currentColor (herda a cor do tema)', /\.gl\{[^}]*fill:currentColor/.test(css));
+  /* fix-1: a classe .gl é só do ícone (altura 1,05em). O glossário usava a mesma classe e ficava esmagado: cortado no celular, vazando no PC */
+  t('a classe .gl aparece no CSS só na regra do ícone', (css.match(/\.gl[\s{,:.>]/g) || []).length === 1);
+  t('o glossário usa a classe própria .glos, em grade', /\.glos\{display:grid/.test(css) && /class="glos"/.test(src) && !/<div class="gl"/.test(src));
+  t('a grade da Agenda não alarga com o texto do dia (rolagem lateral em 900 e 1023 px)', /\.cal\{display:grid;grid-template-columns:repeat\(7,minmax\(0,1fr\)\)/.test(css) && /\.cal \.d\{min-width:0;overflow:hidden\}/.test(css));
+  {
+    const G = await abrir({ tf_modo: 'demo' }); await G.ir('decidir'); G.$$('main details.det').forEach(d => { d.open = true; }); await tick(10);
+    const g = G.$$('main .pn').find(p => /Glossário rápido/.test(p.textContent));
+    t('Decidir: o glossário tem 7 termos dentro de .glos e nenhum em .gl', !!g && g.querySelectorAll('.glos > div').length === 7 && !g.querySelector('div.gl') && G.erros.length === 0);
+  }
 
   for (const [nome, ini] of [['exemplo', { tf_modo: 'demo' }], ['ficticio', { tf_modo: 'real', tf_real: FICTICIO }]]) for (const larg of [1440, 390]) {
     const A = await abrir(ini);

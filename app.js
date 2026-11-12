@@ -946,7 +946,7 @@ function glossario(){
    ['Taxa de administração (consórcio)','Cobrada pela administradora mesmo sem juros mensais. Está no contrato.'],
    ['IR regressivo','Imposto na renda fixa que cai com o prazo: 22,5% até 6 meses e 15% depois de 2 anos.'],
    ['Ganho real','O rendimento depois de descontar a inflação. É o que de fato aumenta seu poder de compra.']];
-  return pn('Glossário rápido',`<div class="gl">${t.map(x=>`<div><b>${x[0]}</b><div class="mu small">${x[1]}</div></div>`).join('')}</div>`,'teal','margin-top:14px');
+  return pn('Glossário rápido',`<div class="glos">${t.map(x=>`<div><b>${x[0]}</b><div class="mu small">${x[1]}</div></div>`).join('')}</div>`,'teal','margin-top:14px');
 }
 
 
