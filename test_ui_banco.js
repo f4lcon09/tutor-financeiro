@@ -603,6 +603,33 @@ const foto = A => JSON.stringify(['tf_lanc3', 'tf_banco_ids', 'tf_banco_inv', 't
     t(n + 'com um pedido em curso não abre outro', R.chamadas.length === 1);
     R.w.localStorage.removeItem('tf_banco_url'); solta(); await tick(80);
     t(n + 'conexão removida no meio: a resposta é descartada', JSON.parse(snap(R)).em === bom.em);
+    /* lacunas apontadas pela prova por mutação (13/11) */
+    {
+      const g = n + 'limites: ';
+      const G = await abre(RESP([M1]));
+      await G.ir('cartao');
+      for (const sel of ['bc-prev', 'menutema']) {
+        const e = G.d.createElement('div'); if (sel === 'menutema') e.id = sel; else e.className = sel; G.d.body.appendChild(e);
+        const m0 = G.$('main').firstElementChild, c0 = G.chamadas.length; G.w.eval('bancoAutoT=0'); await volta(G);
+        t(g + 'com ' + (sel === 'menutema' ? 'o menu de temas' : 'a prévia') + ' aberto: atualiza os valores e não redesenha', G.chamadas.length === c0 + 1 && G.$('main').firstElementChild === m0);
+        e.remove();
+      }
+      for (const tag of ['input', 'select', 'textarea']) {
+        const e = G.d.createElement(tag); G.$('main').appendChild(e); e.focus();
+        const c0 = G.chamadas.length; G.w.eval('bancoAutoT=0'); await volta(G);
+        t(g + 'com o foco num ' + tag + ': não redesenha', G.d.activeElement === e && G.chamadas.length === c0 + 1 && e.isConnected);
+        e.blur(); e.remove();
+      }
+      const rol = []; Object.defineProperty(G.w, 'scrollY', { value: 321, configurable: true }); G.w.scrollTo = (x, y) => rol.push([x, y]);
+      const m1 = G.$('main').firstElementChild; G.w.eval('bancoAutoT=0'); await volta(G);
+      t(g + 'ao redesenhar, a rolagem volta para onde estava', G.$('main').firstElementChild !== m1 && rol.length > 0 && rol[rol.length - 1][0] === 0 && rol[rol.length - 1][1] === 321);
+      const I = await abre(RESP([M3]), { tf_banco_inv: ['c2'] }), I0 = await abre(RESP([M3]));
+      t(g + 'usa a escolha de sinal guardada neste aparelho', I.w.eval('S.st.banco.movs.c2[0][1]') === -45.9 && I0.w.eval('S.st.banco.movs.c2[0][1]') === 45.9);
+      let solta2; const lenta2 = ch => async (u, o) => { if (u !== URLOK) throw new Error('sem rede'); ch.push({ u, o }); await new Promise(k => { solta2 = k; }); return { ok: true, text: async () => JSON.stringify(RESP([M1])) }; };
+      const D = await abre(null, { tf_bsnap: bom }, lenta2);
+      D.w.localStorage.setItem('tf_banco_on', 'false'); solta2(); await tick(80);
+      t(g + 'conexão desligada no meio (endereço mantido): a resposta é descartada', D.chamadas.length === 1 && JSON.parse(snap(D)).em === bom.em);
+    }
     /* texto da tela */
     await A.ir('banco');
     t(n + 'a tela diz o que roda sozinho', /Os valores do banco atualizam ao abrir o app\. Importar movimentos, só quando você pedir\./.test(A.texto()) && !/Só atualiza quando você pedir/.test(A.texto()));

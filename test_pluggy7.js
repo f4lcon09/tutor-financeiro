@@ -495,6 +495,38 @@ const P = (n, de) => ({ n, de });
       const F = await abre(null, larg);
       t(n + larg + ' px: sem banco: gráfico e tabela como antes (por posição, a partir do mês de hoje)', barras(F) === '300|300|200' && meses(F) === 'nov/26|dez/26|jan/27' && linhas(F) === '12/26|01/27' && /Fatura do mês mais as parcelas que ainda estão rodando\./.test(txt(F)) && !/A primeira barra/.test(txt(F)));
     }
+    /* lacunas apontadas pela prova por mutação (13/11) */
+    {
+      const g = n + 'limites: ';
+      t(g + 'parcela datada hoje, fora do dia de fechamento, conta', eq(PS([['2026-11-09', 10, 1, 3]], 5, '2026-11-09', '2026-11-01').todas, [10, 10]));
+      t(g + 'fechamento no dia 1 funciona', eq(PS([['2026-11-05', 10, 1, 2]], 1, '2026-11-09', '2026-01-01').todas, [10]) && MA(1, 10, '2026-11-09') === '2026-12');
+      t(g + 'fechamento no dia 31 funciona (30/11 ainda é antes do fechamento; vence dia 10: dois meses depois do último)', MA(31, 10, '2026-11-09') === '2026-12' && MA(31, 10, '2026-12-05') === '2027-01');
+      t(g + 'fechamento 31 em mês de 30 dias: 30/04 é dia de fechamento, a parcela datada nele fica fora', eq(PS([['2026-04-30', 10, 1, 3], ['2026-03-31', 7, 1, 3]], 31, '2026-04-30', '2026-01-01').todas, [7, 7]));
+      t(g + 'vencimento no dia 1: dois meses depois do último fechamento', MA(5, 1, '2026-11-09') === '2027-01');
+      t(g + 'parcela nova de centavos não se perde', JS(SER(), { todas: [0.5], novas: [0.5] }, '2026-11')[0].novas === 0.5);
+      t(g + 'no máximo 120 faturas, mesmo com N absurdo', PS([['2026-11-07', 1, 1, 500]], 5, '2026-11-09', '2026-11-01').todas.length === 120);
+      const linhas450 = []; for (let i = 0; i < 450; i++) linhas450.push(['2026-11-07', 1, 1, 2]);
+      const f450 = clone(foto); f450.pn = { crA: linhas450 };
+      t(g + 'sanBanco: no máximo 400 parcelas por cartão', Seg.sanBanco(f450).pn.crA.length === 400);
+      const fN = clone(foto); fN.pn = { crA: [['2026-11-07', 1, 1, 7.5], ['2026-11-07', 2, 1, 120], ['2026-11-07', 3, 1, 121], ['2026-11-07', 4, 119, 120]] };
+      t(g + 'sanBanco: N quebrado cai; N = 120 fica; N = 121 cai', eq(Seg.sanBanco(fN).pn.crA, [['2026-11-07', 2, 1, 120], ['2026-11-07', 4, 119, 120]]));
+      /* derivar com fechamento 20 e vencimento 10: usa o fechamento do cartão para escolher as parcelas e o vencimento para o mês */
+      const r20 = REAL(); r20.cartao.fechamento_dia = 20; r20.cartao.fatura_atual.vence_em = '2026-11-10'; r20.faturas_futuras_parcelas_antigas = [];
+      const f20 = B.instantaneo(RESP([mov('a', 'crA', '2026-11-22', 60, 'DEBIT', { parc: P(1, 3) }), mov('b', 'crA', '2026-11-15', 33, 'DEBIT', { parc: P(1, 3) })]), AG, []).snap;
+      const c20 = Real.derivar(r20, {}, ctxB(f20, { liga: { crA: 'c1', crB: 'nao' }, hojeISO: '2026-11-25' })).cartoes[0];
+      t(g + 'derivar: fecha 20, vence 10, hoje 25/11: aberta vence em janeiro; só a parcela depois do dia 20 conta, em fevereiro e março', c20.mesAberta === '2027-01' && eq(c20.serie, [{ mes: '2027-02', fatura_total: 0, parte_mae: 0, novas: 60 }, { mes: '2027-03', fatura_total: 0, parte_mae: 0, novas: 60 }]));
+      /* derivar: parcela antiga (começou antes do arquivo) não vira "nova" quando o arquivo já tem mais que ela no mês */
+      const fVelha = B.instantaneo(RESP([mov('a', 'crA', '2026-11-05', 50, 'DEBIT', { parc: P(4, 6) })]), AG, []).snap;
+      const cV = Real.derivar(real, {}, ctxB(fVelha, LG)).cartoes[0];
+      t(g + 'derivar: parcela antiga não é somada de novo em janeiro (o arquivo já tem 120); em fevereiro, que o arquivo não tem, entra', eq(cV.serie, [{ mes: '2027-01', fatura_total: 120, parte_mae: 0 }, { mes: '2027-02', fatura_total: 0, parte_mae: 0, novas: 50 }]));
+      /* derivar: a projeção de saldo do app desconta as parcelas novas no mês delas */
+      const arr12 = o => { const out = []; (function v(x) { if (Array.isArray(x)) { if (x.length === 12 && x.every(y => typeof y === 'number')) out.push(x); else x.forEach(v); } else if (x && typeof x === 'object') Object.keys(x).forEach(k => v(x[k])); })(o); return out; };
+      const pA = arr12(d), pB = arr12(dSem);
+      t(g + 'derivar: as projeções de saldo caem 65 em janeiro e mais 90 em fevereiro', pA.length >= 2 && pA.length === pB.length && pA.every((a, i) => Math.round((pB[i][1] - a[1]) * 100) === 0 && Math.round((pB[i][2] - a[2]) * 100) === 6500 && Math.round((pB[i][3] - a[3]) * 100) === 15500));
+      /* tela: série em que só um mês tem parcela nova */
+      const M = await abre({ crA: [['2026-11-09', 60, 1, 2]] }, 390, [{ mes: '2026-12', fatura_total: 300, parte_mae: 0 }, { mes: '2027-01', fatura_total: 200, parte_mae: 0 }, { mes: '2027-02', fatura_total: 100, parte_mae: 0 }]);
+      t(g + 'tela: só um mês com parcela nova: a coluna aparece, o outro mês mostra traço, e o texto do gráfico avisa', col(M, 'Parcelas novas (banco)') === '60,00|—' && /Inclui as parcelas novas vistas no banco/.test(txt(M)) && barras(M) === '160|260|100|0|0|0');
+    }
     const Ad = await abrir({ tf_modo: 'demo' }, { largura: 390 }); await Ad.ir('cartao');
     t(n + 'modo de exemplo: nada de parcelas novas nem de fatura aberta', !/Parcelas novas/.test(txt(Ad)) && !/Inclui as parcelas novas/.test(txt(Ad)) && !/A primeira barra/.test(txt(Ad)));
   }
