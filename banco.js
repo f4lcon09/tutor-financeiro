@@ -448,7 +448,8 @@
 
   /* ===== pluggy-6: foto dos valores do banco (o "último bom"). Só os números que o app usa, com a data de atualização de cada um.
      Contas BANK e CREDIT (saldo; no cartão, limite e disponível), investimentos com saldo maior que zero e fora de TOTAL_WITHDRAWAL,
-     e os movimentos dos cartões (data e valor com sinal, sem descrição e sem id), para a fatura estimada. inversoes: contas com o sinal invertido pelo dono. */
+     e os movimentos dos cartões (data e valor com sinal, sem descrição e sem id), para a fatura estimada. inversoes: contas com o sinal invertido pelo dono.
+     pluggy-7: pm = as parcelas dos cartões (parc n de N), repetidas numa lista à parte. movs fica igual a antes, então versão antiga do app, que descarta pm, estima como antes. */
   var MAX_MOV_CARTAO = 400;
   var atuDe = function (x) { return typeof x === 'string' && x.length <= 40 && idadeMs(x, 0) !== null ? x : null; };
   function instantaneo(j, agora, inversoes) {
@@ -469,15 +470,17 @@
       if (!isObj(v) || !num(v.saldo) || !(v.saldo > 0) || v.status === 'TOTAL_WITHDRAWAL') return;   // resgatado ou zerado não é reserva
       invs.push({ nome: typeof v.nome === 'string' && v.nome.trim() ? v.nome.trim().slice(0, 60) : 'Investimento', saldo: r2(v.saldo), atu: atuDe(v.atualizado) || atuDe(itAtu.get(v.item)) || null });
     });
-    var cred = new Set(contas.filter(function (c) { return c.tipo === 'CREDIT'; }).map(function (c) { return c.id; })), movs = {};
+    var cred = new Set(contas.filter(function (c) { return c.tipo === 'CREDIT'; }).map(function (c) { return c.id; })), movs = {}, pm = {};
+    var ehParc = function (p) { return isObj(p) && Number.isInteger(p.n) && Number.isInteger(p.de) && p.n >= 1 && p.de >= p.n && p.de <= 120; };
     (Array.isArray(d.movs) ? d.movs.slice(0, MAX_MOVS) : []).forEach(function (m) {
       if (!isObj(m) || !cred.has(m.conta) || !dataOk(m.data) || !num(m.valor) || (m.tipo !== 'DEBIT' && m.tipo !== 'CREDIT')) return;
       if (catDoBanco(m.cat).pagamento) return;   // pagamento da fatura anterior não é compra desta fatura
       var gasto = m.tipo === 'DEBIT'; if (inv.has(m.conta)) gasto = !gasto;
       var l = movs[m.conta] = movs[m.conta] || [];
       if (l.length < MAX_MOV_CARTAO) l.push([m.data, r2((gasto ? 1 : -1) * Math.abs(m.valor))]);
+      if (ehParc(m.parc)) { var lp = pm[m.conta] = pm[m.conta] || []; if (lp.length < MAX_MOV_CARTAO) lp.push([m.data, r2((gasto ? 1 : -1) * Math.abs(m.valor))]); }
     });
-    return { ok: true, snap: { v: 1, em: agoraDe(agora), contas: contas, inv: invs, ip: Array.isArray(d.investimentos), movs: movs } };   // ip: a ponte mandou a lista de investimentos
+    return { ok: true, snap: { v: 1, em: agoraDe(agora), contas: contas, inv: invs, ip: Array.isArray(d.investimentos), movs: movs, pm: pm } };   // ip: a ponte mandou a lista de investimentos
   }
 
   var api = { catDoBanco: catDoBanco, CAT_BANCO: CAT_BANCO, CAT_NEUTRA: CAT_NEUTRA, instantaneo: instantaneo, idadeMs: idadeMs, rotulos: rotulos, padraoConta: padraoConta, limparNome: limparNome, marcarPares: marcarPares, PADROES: PADROES, RAZOES: RAZOES, validarUrl: validarUrl, validarResposta: validarResposta, mensagem: mensagem, consultar: consultar, pedir: pedir, estrutura: estrutura, estruturaLinhas: estruturaLinhas, saldos: saldos, categorias: categorias, idade: idade, mapear: mapear, normalizar: normalizar, chave: chave, montarPrevia: montarPrevia, MAX_MOVS: MAX_MOVS, DIAS: DIAS };

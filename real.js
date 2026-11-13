@@ -111,12 +111,19 @@
     return y + '-' + pad(m) + '-' + pad(dia(y, m));
   }
   /* fatura aberta estimada: movimentos do cartão depois do último fechamento até hoje (compra soma, estorno desconta), mínimo 0.
-     O dia do fechamento fica na fatura que fechou (A Confirmar por banco). Cada parcela conta pelo próprio valor e pela própria data. */
-  function estimarFatura(movs, fecha, hojeISO) {
+     O dia do fechamento fica na fatura que fechou. Exceção (pluggy-7, visto no Nubank em 12/11/2026, A Confirmar em outros bancos):
+     as parcelas de uma fatura chegam datadas no dia do fechamento anterior. Então, com pm (as parcelas, já dentro de movs):
+     soma as parcelas datadas no último fechamento e tira as datadas hoje, quando hoje é dia de fechamento. Sem pm, igual a antes. */
+  function estimarFatura(movs, fecha, hojeISO, pm) {
     if (!(fecha >= 1 && fecha <= 31) || !/^\d{4}-\d{2}-\d{2}$/.test(hojeISO || '')) return null;
-    var desde = fechamentoAnterior(fecha, hojeISO), s = 0;
+    var desde = fechamentoAnterior(fecha, hojeISO), s = 0, np = 0;
     (movs || []).forEach(function (m) { if (m[0] > desde && m[0] <= hojeISO) s += m[1]; });
-    return { valor: r2(Math.max(s, 0)), desde: desde };
+    var hp = hojeISO.split('-').map(Number), fechaHoje = hp[2] === Math.min(fecha, new Date(Date.UTC(hp[0], hp[1], 0)).getUTCDate());
+    (pm || []).forEach(function (m) {
+      if (m[0] === desde) { s += m[1]; np++; }
+      else if (fechaHoje && m[0] === hojeISO) s -= m[1];
+    });
+    return { valor: r2(Math.max(s, 0)), desde: desde, parcelas: np };
   }
   var somaV = function (l) { return r2(l.reduce(function (s, x) { return s + x.valor; }, 0)); };
 
@@ -178,9 +185,9 @@
     var cartaoDe = function (bc) { var v = liga[bc.id]; if (v === 'nao') return null; if (v) return cartoes.filter(function (c) { return c.id === v; })[0] || null; return credB.length === 1 && cartoes.length === 1 ? cartoes[0] : null; };
     credB.forEach(function (bc) {
       var c = cartaoDe(bc); if (!c || usados[c.id]) return; usados[c.id] = 1;
-      var o = oBanco(bc.atu), est = estimarFatura((B.movs || {})[bc.id], c.fecha, ctx.hojeISO);
+      var o = oBanco(bc.atu), est = estimarFatura((B.movs || {})[bc.id], c.fecha, ctx.hojeISO, (B.pm || {})[bc.id]);
       c.banco = { id: bc.id, nome: bc.nome };
-      c.origem = { limite: typeof bc.lim === 'number' ? o : null, usado: o, fatura: est ? { t: 'estimado', desde: est.desde, ms: o.ms, desat: o.desat } : null };
+      c.origem = { limite: typeof bc.lim === 'number' ? o : null, usado: o, fatura: est ? { t: 'estimado', desde: est.desde, parcelas: est.parcelas, ms: o.ms, desat: o.desat } : null };
       if (typeof bc.lim === 'number') c.limite = bc.lim;
       c.disponivel = typeof bc.disp === 'number' ? bc.disp : null;
       c.usadoBanco = bc.saldo;   // limite usado = saldo do cartão no banco (limite menos disponível): fatura aberta mais parcelas que ainda vêm

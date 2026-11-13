@@ -144,7 +144,12 @@
       if (ids[k] !== 'CREDIT' || !Array.isArray(b.movs[k])) return;
       movs[k] = b.movs[k].slice(0, 400).filter(function (m) { return Array.isArray(m) && m.length === 2 && data(m[0]) && num(m[1]); }).map(function (m) { return [m[0], m[1]]; });
     });
-    return { v: 1, em: b.em, contas: contas, inv: inv, ip: b.ip === true, movs: movs };
+    var pm = {};   // pluggy-7: parcelas dos cartões, mesma forma de movs
+    if (isObj(b.pm)) Object.keys(b.pm).forEach(function (k) {
+      if (ids[k] !== 'CREDIT' || !Array.isArray(b.pm[k])) return;
+      pm[k] = b.pm[k].slice(0, 400).filter(function (m) { return Array.isArray(m) && m.length === 2 && data(m[0]) && num(m[1]); }).map(function (m) { return [m[0], m[1]]; });
+    });
+    return { v: 1, em: b.em, contas: contas, inv: inv, ip: b.ip === true, movs: movs, pm: pm };
   }
   function sanReserva(r) {
     if (!isObj(r) || !idOk(r.id) || !nomeOk(r.nome) || !num(r.valor) || r.valor < 0 || !data(r.data)) return null;
