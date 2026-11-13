@@ -321,7 +321,29 @@
   function mapear(mov, conta, inverter) {
     var entrada = mov.tipo === 'CREDIT', mc = catDoBanco(mov.cat);
     if (inverter) entrada = !entrada;
-    return { idExterno: mov.id, contaId: conta.id, conta: conta.nome, data: mov.data, desc: String(mov.desc).trim().slice(0, LIM_DESC) || 'Sem descrição', valor: r2(Math.abs(mov.valor)), direcao: entrada ? 'entrada' : 'saida', pendente: mov.status === 'PENDING', forma: conta.tipo === 'CREDIT' ? 'Crédito' : 'Débito', cat: mc.cat, neutroCat: mc.neutro };
+    var cat = mc.cat === 'Outros' && !mc.neutro && !entrada ? catPorDescricao(mov.desc) || 'Outros' : mc.cat;   // pluggy-12: o banco não mandou categoria (ou mandou uma que vira Outros): tenta pela descrição
+    return { idExterno: mov.id, contaId: conta.id, conta: conta.nome, data: mov.data, desc: String(mov.desc).trim().slice(0, LIM_DESC) || 'Sem descrição', valor: r2(Math.abs(mov.valor)), direcao: entrada ? 'entrada' : 'saida', pendente: mov.status === 'PENDING', forma: conta.tipo === 'CREDIT' ? 'Crédito' : 'Débito', cat: cat, neutroCat: mc.neutro };
+  }
+  /* pluggy-12: categoria pela descrição do movimento, para quando o banco não manda categoria (visto no Nubank em 14/11/2026: tudo vinha como Outros).
+     Lista fixa de palavras, sobre o texto sem acento e em minúsculas; a primeira regra que casa vale. "mercado livre" e "mercado pago" não são Mercado.
+     Não casou: null (fica Outros). Só é usada para gastos; a escolha do dono, pelo lápis, sempre vale mais. */
+  var CAT_DESC = [
+    ['Compras', /\b(mercadolivre|mercado livre|amazon|shopee|magalu|magazine luiza|havan|americanas|aliexpress|shein|renner|riachuelo|kabum|casas bahia)/],
+    ['Mercado', /(supermerc|hipermerc|atacad|mercado|mercearia|minimercado|hortifruti|acougue|sacolao|komprao|koch|giassi|angeloni|bistek|assai|carrefour)/],
+    ['Comida', /(ifood|restaurante|lanchonete|lanches|pizza|burger|hamburg|mcdonald|subway|padaria|panificadora|confeitaria|cafeteria|sorvet|cremolatto|caldo de cana|churrasc|pastel|acai|espetinho)/],
+    ['Transporte', /\b(uber|99app|99 ?pop|99 ?taxi|cabify|posto|combustiveis|combustivel|estacionamento|pedagio|onibus|passagem)\b/],
+    ['Lazer', /(spotify|netflix|disney|hbo|prime video|youtube|deezer|ingresso|cinema|steam|playstation|xbox|nintendo)/],
+    ['Estudos', /\b(faculdade|universidade|escola|ensino|colegio|curso|cursos|udemy|alura|livraria)\b/],
+    ['Saúde', /(farmacia|drogaria|droga raia|drogasil|panvel|clinica|laboratorio|hospital|dentista|odonto)/]
+  ];
+  function catPorDescricao(desc) {
+    var d = normalizar(desc); if (!d) return null;
+    var semMp = d.replace(/mercado ?pago|mercadopago/g, ' ');
+    for (var i = 0; i < CAT_DESC.length; i++) {
+      var alvo = CAT_DESC[i][0] === 'Mercado' ? semMp.replace(/mercado ?livre/g, ' ') : semMp;
+      if (CAT_DESC[i][1].test(alvo)) return CAT_DESC[i][0];
+    }
+    return null;
   }
 
   var normalizar = function (s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); };
@@ -484,6 +506,6 @@
     return { ok: true, snap: { v: 1, em: agoraDe(agora), contas: contas, inv: invs, ip: Array.isArray(d.investimentos), movs: movs, pm: pm, pn: pn, pg: pg } };   // ip: a ponte mandou a lista de investimentos
   }
 
-  var api = { catDoBanco: catDoBanco, CAT_BANCO: CAT_BANCO, CAT_NEUTRA: CAT_NEUTRA, instantaneo: instantaneo, idadeMs: idadeMs, rotulos: rotulos, padraoConta: padraoConta, limparNome: limparNome, marcarPares: marcarPares, PADROES: PADROES, RAZOES: RAZOES, validarUrl: validarUrl, validarResposta: validarResposta, mensagem: mensagem, consultar: consultar, pedir: pedir, estrutura: estrutura, estruturaLinhas: estruturaLinhas, saldos: saldos, categorias: categorias, idade: idade, mapear: mapear, normalizar: normalizar, chave: chave, montarPrevia: montarPrevia, MAX_MOVS: MAX_MOVS, DIAS: DIAS };
+  var api = { catDoBanco: catDoBanco, catPorDescricao: catPorDescricao, CAT_BANCO: CAT_BANCO, CAT_NEUTRA: CAT_NEUTRA, instantaneo: instantaneo, idadeMs: idadeMs, rotulos: rotulos, padraoConta: padraoConta, limparNome: limparNome, marcarPares: marcarPares, PADROES: PADROES, RAZOES: RAZOES, validarUrl: validarUrl, validarResposta: validarResposta, mensagem: mensagem, consultar: consultar, pedir: pedir, estrutura: estrutura, estruturaLinhas: estruturaLinhas, saldos: saldos, categorias: categorias, idade: idade, mapear: mapear, normalizar: normalizar, chave: chave, montarPrevia: montarPrevia, MAX_MOVS: MAX_MOVS, DIAS: DIAS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TFBanco = api;
 })(typeof window !== 'undefined' ? window : globalThis);

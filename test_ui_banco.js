@@ -651,6 +651,28 @@ const foto = A => JSON.stringify(['tf_lanc3', 'tf_banco_ids', 'tf_banco_inv', 't
       V.w.eval("S.setBanco({v:1,em:Date.now(),contas:[{id:'c2',tipo:'CREDIT',nome:'Cartão Teste',saldo:200,atu:null}],inv:[],movs:{},pm:{},pn:{}})"); V.click('#bc_fat'); await tick(120);
       t(g + 'resposta sem a lista de movimentos: avisa', /não trouxe a lista de movimentos/.test(saida(V)) && !V.$('table.bc-fat'));
     }
+    /* pluggy-12: botão "Recategorizar importados" */
+    {
+      const g = 'recategorizar (tela): ', saida = X => X.$('#bc_diag_out').textContent.replace(/\s+/g, ' ');
+      const it = (id, desc, extra) => Object.assign({ idExterno: id, data: mes + '-02', desc, valor: 10, forma: 'Crédito', direcao: 'saida', cat: 'Outros' }, extra || {});
+      const R = await abreCom(RESP([M1]));
+      R.w.eval('S.importarBanco(' + JSON.stringify([it('r1', 'Supermercado <b>X</b>'), it('r2', 'Uber'), it('r3', 'Loja Sem Pista'), it('r4', 'Farmácia Y', { cat: 'Saúde' })]) + ')');
+      await R.ir('banco');
+      t(g + 'o botão existe, com tipo button', R.$('#bc_rec') && R.$('#bc_rec').getAttribute('type') === 'button' && R.$('#bc_rec').textContent === 'Recategorizar importados');
+      const c0 = R.chamadas.length; R.click('#bc_rec'); await tick(20);
+      t(g + 'não chama a ponte', R.chamadas.length === c0);
+      t(g + 'lista só os importados em Outros com descrição reconhecida, com a nova categoria', R.d.querySelectorAll('#bc_diag_out table td.tt').length === 2 && /Mercado/.test(saida(R)) && /Transporte/.test(saida(R)) && !/Loja Sem Pista/.test(saida(R)) && !/Farmácia/.test(saida(R)));
+      t(g + 'descrição é escapada', R.$('#bc_diag_out').innerHTML.includes('Supermercado &lt;b&gt;X&lt;/b&gt;') && !R.$('#bc_diag_out td b b'));
+      t(g + 'nada muda antes de Aplicar', R.w.eval("S.st.lanc.filter(l=>l.idExterno&&l.cat==='Outros').length") === 3 && R.$('#bc_rec_ok').textContent === 'Aplicar em 2 lançamentos');
+      R.click('#bc_rec_ok'); await tick(20);
+      t(g + 'Aplicar muda a categoria dos dois e avisa', R.w.eval("S.st.lanc.find(l=>l.idExterno==='r1').cat") === 'Mercado' && R.w.eval("S.st.lanc.find(l=>l.idExterno==='r2').cat") === 'Transporte' && R.w.eval("S.st.lanc.find(l=>l.idExterno==='r3').cat") === 'Outros' && /2 lançamentos recategorizados\./.test(saida(R)) && R.erros.length === 0);
+      R.click('#bc_rec'); await tick(20);
+      t(g + 'de novo: não há mais o que mudar', /Nenhum lançamento importado em Outros com descrição reconhecida\./.test(saida(R)) && !R.$('#bc_rec_ok'));
+      const U = await abreCom(RESP([M1])); U.w.eval('S.importarBanco(' + JSON.stringify([it('u1', 'Uber')]) + ')'); await U.ir('banco'); U.click('#bc_rec'); await tick(20);
+      t(g + 'um só: texto no singular', U.$('#bc_rec_ok').textContent === 'Aplicar em 1 lançamento' && (U.click('#bc_rec_ok'), /1 lançamento recategorizado\./.test(saida(U))));
+      U.w.eval('S.importarBanco(' + JSON.stringify([it('u2', 'Supermercado Z')]) + ')'); U.w.eval('PRIV=true'); await U.ir('banco'); U.click('#bc_rec'); await tick(20);
+      t(g + 'com "esconder valores" ligado, nenhum valor aparece', !/10,00/.test(saida(U)) && /••••/.test(saida(U)));
+    }
     /* texto da tela */
     await A.ir('banco');
     t(n + 'a tela diz o que roda sozinho', /Os valores do banco atualizam ao abrir o app\. Importar movimentos, só quando você pedir\./.test(A.texto()) && !/Só atualiza quando você pedir/.test(A.texto()));

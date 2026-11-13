@@ -95,7 +95,22 @@ const sel = (extra) => B.montarPrevia(DADOS(), [], [], []).map(x => ({ ...x, ...
   t('gasto fica positivo', g.valor === 12.5 && g.origem === 'pluggy');
   t('entrada fica negativa, como no app', e.valor === -300);
   t('cartão fica com forma Crédito', c.forma === 'Crédito' && g.forma === 'Débito');
-  t('item é lançamento comum', ['id', 'data', 'desc', 'cat', 'valor', 'forma', 'essencial', 'lazer'].every(k => k in g) && g.cat === 'Outros' && !g.essencial && !g.lazer);
+  t('item é lançamento comum', ['id', 'data', 'desc', 'cat', 'valor', 'forma', 'essencial', 'lazer'].every(k => k in g) && g.cat === 'Comida' && c.cat === 'Outros' && !g.essencial && !g.lazer);   // pluggy-12: "Padaria Exemplo" sem categoria do banco vira Comida pela descrição; "Loja Inventada" continua Outros
+  /* pluggy-12: categoria pela descrição quando o banco não manda */
+  {
+    const P = B.catPorDescricao, casos = { Mercado: ['Supermercados Inventados', 'Compra no débito|ATACADISTA TESTE', 'Mercado do bairro', 'HORTIFRUTI X', 'Açougue Central'], Comida: ['iFood Delivery', 'Padaria Exemplo', 'Pizzaria Teste', 'Caldo de Cana', 'Açaí da praça'], Transporte: ['Uber', 'Uber - NuPay', 'Posto Teste', 'Estacionamento Centro', '99app *corrida'], Lazer: ['Compra no débito via NuPay|EBW*Spotify', 'Netflix.com', 'Mp *Ingressos608 4/10', 'Cinema Teste'], Estudos: ['Transferência enviada pelo Pix|SOCIEDADE INVENTADA DE ENSINO', 'Faculdade Teste', 'Curso de ingles'], 'Saúde': ['Farmácia Teste', 'Drogaria X', 'Clínica Y', 'Laboratório Z'], Compras: ['MERCADOLIVRE*3PRODUTO 10/10', 'Mercado Livre', 'Amazon Marketplace 5/12', 'Shopee *loja'] };
+    Object.keys(casos).forEach(cat => t('pela descrição: ' + cat, casos[cat].every(d => P(d) === cat)));
+    t('pela descrição: sem pista fica sem categoria', ['Loja Inventada', 'Apple.Com/Bill', 'IOF gerado por compra em moeda estrangeira', 'Transferência enviada pelo Pix|Fulano de Tal', 'Pix recebido', '', '   ', null, undefined, 42].every(d => P(d) === null));
+    t('pela descrição: Mercado Pago não é Mercado; Mercado Livre é Compras', P('Mercado Pago') === null && P('MP *MERCADOPAGO') === null && P('Transferência enviada|MERCADO PAGO IP') === null && P('MERCADOLIVRE*X') === 'Compras');
+    t('pela descrição: palavra dentro de outra não casa onde há limite de palavra', P('Aposto que sim') === null && P('Cursor Editora') === null && P('Escolares Papel') === null);
+    t('pela descrição: acento e maiúsculas não importam', P('FARMÁCIA') === 'Saúde' && P('açougue') === 'Mercado' && P('ÔNIBUS urbano') === 'Transporte');
+    const mk = (desc, extra) => B.mapear({ id: 'x', conta: 'c2', data: '2026-11-04', desc, valor: 10, tipo: 'DEBIT', status: 'POSTED', ...(extra || {}) }, CONTAS[1]);
+    t('importar: sem categoria do banco, usa a descrição', mk('Supermercados Inventados').cat === 'Mercado' && mk('Loja Inventada').cat === 'Outros');
+    t('importar: a categoria do banco, quando mapeada, vale mais que a descrição', mk('Supermercados Inventados', { cat: 'Pharmacy' }).cat === 'Saúde' && mk('Uber', { cat: 'Groceries' }).cat === 'Mercado');
+    t('importar: categoria do banco que vira Outros (ou desconhecida) deixa a descrição decidir', mk('Uber', { cat: 'Services' }).cat === 'Transporte' && mk('Uber', { cat: 'Categoria Nova' }).cat === 'Transporte' && mk('Loja Inventada', { cat: 'Services' }).cat === 'Outros');
+    t('importar: entrada (estorno, Pix recebido) não ganha categoria pela descrição', mk('Supermercados Inventados', { tipo: 'CREDIT' }).cat === 'Outros' && B.mapear({ id: 'x', conta: 'c2', data: '2026-11-04', desc: 'Uber', valor: 10, tipo: 'CREDIT', status: 'POSTED' }, CONTAS[1], true).cat === 'Transporte');
+    t('importar: pagamento de fatura e transferência interna continuam Outros e "não é gasto"', (x => x.cat === 'Outros' && x.neutroCat === true)(mk('Supermercado Pagamento', { cat: 'Credit card payment' })) && (x => x.cat === 'Outros' && x.neutroCat === true)(mk('Uber', { cat: 'Same person transfer' })));
+  }
   t('não cria outro tipo de item', Object.keys(Sync.achatar(S.paraSync())).every(k => /^(lanc|pago|teto|meta):|^taxa$|^real$|^numeros$/.test(k)));
   const r2 = S.importarBanco(sel());
   t('importar de novo cria zero duplicados', r2.ok && r2.n === 0 && S.st.lanc.length === 3);

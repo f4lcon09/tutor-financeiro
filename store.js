@@ -247,6 +247,19 @@
         if (n) { st.lanc = novo; mudou({ lanc: 1 }); }
         return { ok: true, n: n, neutros: nn };
       },
+      /* pluggy-12: troca a categoria de lançamentos importados do banco que ficaram em Outros. lista: [{id, cat}]. Só mexe em quem veio do banco,
+         é gasto, não é "não é gasto" e ainda está em Outros; o resto do lançamento fica igual. Devolve quantos mudaram. */
+      recategorizar: function (lista) {
+        var mapa = {}, n = 0;
+        (Array.isArray(lista) ? lista : []).forEach(function (x) { if (x && CATEGORIAS.indexOf(x.cat) >= 0 && x.cat !== 'Outros') mapa[String(x.id)] = x.cat; });
+        st.lanc = st.lanc.map(function (l) {
+          var c = Object.prototype.hasOwnProperty.call(mapa, String(l.id)) ? mapa[String(l.id)] : null;
+          if (!c || !l.idExterno || l.cat !== 'Outros' || !(l.valor > 0) || l.neutro) return l;
+          n++; return Object.assign({}, l, { cat: c });
+        });
+        if (n) mudou({ lanc: 1 });
+        return { ok: true, n: n };
+      },
       editar: function (id, o) {
         var atual = st.lanc.filter(function (l) { return String(l.id) === String(id); })[0];
         var v = validarLancamento(o, atual ? atual.cat : null); if (!v.ok) return { ok: false, erros: v.erros };

@@ -340,4 +340,23 @@ t('categoria inválida é erro', S.validarLancamento({ ...base, cat: 'Xis' }).er
   t('plataforma: já instalado', p(IOS, true) === 'instalado' && p(AND, true) === 'instalado');
 }
 
+/* pluggy-12: recategorizar lançamentos importados do banco que ficaram em Outros */
+{
+  const s = novo(), it = (id, desc, extra) => Object.assign({ idExterno: id, data: '2026-11-04', desc, valor: 10, forma: 'Crédito', direcao: 'saida', cat: 'Outros' }, extra || {});
+  const imp = s.importarBanco([it('e1', 'Supermercado X'), it('e2', 'Uber'), it('e3', 'Loja'), it('e4', 'Estorno mercado', { direcao: 'entrada' }), it('e5', 'Farmácia', { cat: 'Saúde' }), it('e6', 'Pagamento', { neutro: true })]);
+  s.lancar(Object.assign({}, base, { cat: 'Outros', desc: 'Manual em Outros' }));
+  const por = d => s.st.lanc.find(l => l.desc === d), antes = JSON.stringify(s.st.lanc);
+  let vezes = 0; s.aoMudar(() => { vezes++; });
+  t('recategorizar: importou os itens do teste', imp.ok && s.st.lanc.length === 7);
+  const r = s.recategorizar([{ id: por('Supermercado X').id, cat: 'Mercado' }, { id: por('Uber').id, cat: 'Transporte' }]);
+  t('recategorizar: muda só a categoria dos escolhidos e avisa uma vez', r.ok && r.n === 2 && por('Supermercado X').cat === 'Mercado' && por('Uber').cat === 'Transporte' && vezes === 1);
+  t('recategorizar: o resto do lançamento fica igual (valor, data, origem, forma, essencial, lazer)', (l => l.valor === 10 && l.data === '2026-11-04' && l.idExterno === 'e1' && l.origem === 'pluggy' && l.forma === 'Crédito' && l.essencial === false && l.lazer === false)(por('Supermercado X')) && por('Loja').cat === 'Outros');
+  const meio = JSON.stringify(s.st.lanc); vezes = 0;
+  const r2 = s.recategorizar([{ id: por('Manual em Outros').id, cat: 'Mercado' }, { id: por('Estorno mercado').id, cat: 'Mercado' }, { id: por('Farmácia').id, cat: 'Mercado' }, { id: por('Pagamento').id, cat: 'Mercado' }, { id: por('Loja').id, cat: 'Outros' }, { id: por('Loja').id, cat: 'Inexistente' }, { id: 'nao-existe', cat: 'Mercado' }, null, { cat: 'Mercado' }]);
+  t('recategorizar: não mexe em lançamento manual, entrada, quem já tem categoria, "não é gasto", categoria inválida ou id desconhecido', r2.ok && r2.n === 0 && JSON.stringify(s.st.lanc) === meio && vezes === 0);
+  t('recategorizar: lista vazia ou que não é lista não faz nada', s.recategorizar([]).n === 0 && s.recategorizar(null).n === 0 && s.recategorizar('x').n === 0 && JSON.stringify(s.st.lanc) === meio);
+  t('recategorizar: segunda vez no mesmo item não muda de novo (já não está em Outros)', s.recategorizar([{ id: por('Uber').id, cat: 'Lazer' }]).n === 0 && por('Uber').cat === 'Transporte');
+  t('recategorizar: o que mudou foi só a categoria de dois itens', antes !== meio && JSON.stringify(JSON.parse(meio).map(l => Object.assign(l, { cat: 'X' }))) === JSON.stringify(JSON.parse(antes).map(l => Object.assign(l, { cat: 'X' }))));
+}
+
 console.log(f ? f + ' falha(s)' : 'Todos os ' + ok + ' testes da camada de dados passaram.'); process.exit(f ? 1 : 0);
