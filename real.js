@@ -66,7 +66,7 @@
     var mercado = num.mercado > 0 ? +num.mercado : (num.mercadoMedia > 0 ? +num.mercadoMedia : 0);
     var periodicos = num.periodicos || real.gastos_periodicos || [];
     var pend = num.pend != null && isFinite(num.pend) ? +num.pend : real.pendencias_novembro.reduce(function (s, p) { return s + p.valor; }, 0);   // pluggy-6: num.pend = só as não pagas, quando o início vem do banco ou da reserva digitada
-    var fut = {}; real.faturas_futuras_parcelas_antigas.forEach(function (f) { fut[f.mes] = f; });
+    var fut = {}; (num.futuras || real.faturas_futuras_parcelas_antigas).forEach(function (f) { fut[f.mes] = f; });   // pluggy-8: num.futuras = a série com as parcelas novas do banco
     var p = real._meta.as_of.split('-'), y = +p[0], m = +p[1] - 1;
     var inicio = num.inicio != null && isFinite(num.inicio) ? +num.inicio : real.liquidez.total;   // pluggy-6: a reserva (banco e digitada) quando houver; senão, a liquidez do arquivo
     var lazer0 = num.lazer0 != null && isFinite(num.lazer0) ? +num.lazer0 : lazer, mercado0 = num.mercado0 != null && isFinite(num.mercado0) ? +num.mercado0 : mercado;   // pluggy-6: só o que falta do mês, no início do banco ou digitado
@@ -83,7 +83,7 @@
         var q = g.primeiro.split('-'), idx = (yy - +q[0]) * 12 + (mm + 1 - +q[1]);
         if (idx >= 0 && idx % g.a_cada_meses === 0) per += g.valor;
       });
-      var sai = fx.ajuda_em_casa_a_partir_de_dezembro + f.fatura_total + ass + fac + lazer + mercado + per;
+      var sai = fx.ajuda_em_casa_a_partir_de_dezembro + f.fatura_total + (f.novas || 0) + ass + fac + lazer + mercado + per;
       saldo = r2(saldo + entra - sai); out.push(saldo);
     }
     return out;
@@ -124,6 +124,47 @@
       else if (fechaHoje && m[0] === hojeISO) s -= m[1];
     });
     return { valor: r2(Math.max(s, 0)), desde: desde, parcelas: np };
+  }
+  /* pluggy-8: as parcelas do banco nas faturas seguintes à aberta. pn: [data, valor, n, N] com n < N.
+     Parcela da fatura aberta: datada no último fechamento (regra da pluggy-7) ou depois dele até hoje (menos as datadas hoje, quando hoje é dia de fechamento).
+     Cada uma repete o valor nas N - n faturas seguintes. "novas": as que começaram depois da data do arquivo (a 1ª parcela, n - 1 meses antes, é posterior a asOf);
+     o arquivo não tem como conhecê-las. Devolve { todas: [...], novas: [...] }, posição 0 = a fatura logo depois da aberta. */
+  function parcelasSeguintes(pn, fecha, hojeISO, asOf) {
+    if (!(fecha >= 1 && fecha <= 31) || !/^\d{4}-\d{2}-\d{2}$/.test(hojeISO || '')) return null;
+    var desde = fechamentoAnterior(fecha, hojeISO), hp = hojeISO.split('-').map(Number), fechaHoje = hp[2] === Math.min(fecha, new Date(Date.UTC(hp[0], hp[1], 0)).getUTCDate());
+    var todas = [], novas = [], n = 0;
+    var inicio = function (iso, k) { var p = iso.split('-').map(Number), t = p[0] * 12 + (p[1] - 1) - (k - 1), y = Math.floor(t / 12), m = t % 12 + 1; return y + '-' + pad(m) + '-' + pad(Math.min(p[2], new Date(Date.UTC(y, m, 0)).getUTCDate())); };
+    (pn || []).forEach(function (m) {
+      if (!(m[0] === desde || (m[0] > desde && m[0] <= hojeISO && !(fechaHoje && m[0] === hojeISO)))) return;
+      var nova = inicio(m[0], m[2]) > String(asOf || ''); n++;
+      for (var i = 0; i < m[3] - m[2] && i < 120; i++) { todas[i] = (todas[i] || 0) + m[1]; novas[i] = (novas[i] || 0) + (nova ? m[1] : 0); }
+    });
+    return { todas: todas.map(function (x) { return r2(x); }), novas: novas.map(function (x) { return r2(x); }), n: n };
+  }
+  function mesMais(mes, k) { var p = mes.split('-').map(Number), t = p[0] * 12 + (p[1] - 1) + k; return Math.floor(t / 12) + '-' + pad(t % 12 + 1); }
+  /* mês em que a fatura aberta vence ('AAAA-MM'): ela fecha no mês seguinte ao do último fechamento e vence nesse mesmo mês,
+     ou no seguinte quando o dia do vencimento não é depois do dia do fechamento. É a chave "mes" das faturas do arquivo. */
+  function mesAberta(fecha, vence, hojeISO) {
+    if (!(fecha >= 1 && fecha <= 31) || !/^\d{4}-\d{2}-\d{2}$/.test(hojeISO || '')) return null;
+    return mesMais(fechamentoAnterior(fecha, hojeISO).slice(0, 7), vence >= 1 && vence <= fecha ? 2 : 1);
+  }
+  /* série das faturas DEPOIS da aberta, por mês (nunca por posição): as linhas do arquivo (parcelas antigas) com mes > aberta, mais as do banco.
+     Em cada mês, o que o banco acrescenta ("novas") é o maior entre: as parcelas que começaram depois da data do arquivo; e o que o banco mostra
+     a mais que o arquivo naquele mês. Mínimo 0. Mês que o arquivo não tem ganha linha nova. O arquivo não é alterado; a saída vem em ordem de mês. */
+  function juntarSerie(serie, ps, aberta) {
+    var mapa = {};
+    (serie || []).forEach(function (f) {
+      if (!(f.mes > aberta)) return;
+      if (mapa[f.mes]) { mapa[f.mes].fatura_total = r2(mapa[f.mes].fatura_total + f.fatura_total); mapa[f.mes].parte_mae = r2((mapa[f.mes].parte_mae || 0) + (f.parte_mae || 0)); }
+      else mapa[f.mes] = Object.assign({}, f);
+    });
+    ((ps && ps.todas) || []).forEach(function (tot, k) {
+      var mes = mesMais(aberta, k + 1), arq = mapa[mes] ? mapa[mes].fatura_total : 0, nv = r2(Math.max(ps.novas[k] || 0, (tot || 0) - arq, 0));
+      if (!(nv > 0)) return;
+      if (!mapa[mes]) mapa[mes] = { mes: mes, fatura_total: 0, parte_mae: 0 };
+      mapa[mes].novas = nv;
+    });
+    return Object.keys(mapa).sort().map(function (k) { return mapa[k]; });
   }
   var somaV = function (l) { return r2(l.reduce(function (s, x) { return s + x.valor; }, 0)); };
 
@@ -191,6 +232,14 @@
       if (typeof bc.lim === 'number') c.limite = bc.lim;
       c.disponivel = typeof bc.disp === 'number' ? bc.disp : null;
       c.usadoBanco = bc.saldo;   // limite usado = saldo do cartão no banco (limite menos disponível): fatura aberta mais parcelas que ainda vêm
+      /* pluggy-8: com o banco, a fatura aberta é a estimada; a série passa a ser só o que vem depois dela, por mês, com as parcelas do banco.
+         Antes a linha do arquivo do mês da fatura aberta aparecia de novo como "mês seguinte" (parcelas antigas contadas duas vezes). */
+      var ab = c.serie && est ? mesAberta(c.fecha, c.vence, ctx.hojeISO) : null;
+      if (ab) {
+        var arqS = c.serie, ps = parcelasSeguintes((B.pn || {})[bc.id], c.fecha, ctx.hojeISO, real._meta.as_of);
+        c.mesAberta = ab; c.serie = juntarSerie(arqS, ps, ab);
+        n2.futuras = arqS.filter(function (f) { return !(f.mes > ab); }).concat(c.serie);
+      }
       if (est) { c.fatura = est.valor; c.parcelasFuturas = r2(Math.max(bc.saldo - est.valor, 0)); }   // compromisso futuro estimado, mínimo 0
     });
     var base = projetar(real, {}, n2), com = projetar(real, { repasseMae: true }, n2);
@@ -233,6 +282,6 @@
     };
   }
 
-  var api = { estimarFatura: estimarFatura, fechamentoAnterior: fechamentoAnterior, LIMITE_DESATUALIZADO_H: LIMITE_DESATUALIZADO_H, projetar: projetar, derivar: derivar, rotulosMeses: rotulosMeses, quintoDiaUtil: quintoDiaUtil, feriados: feriados, mediaMercado: mediaMercado, salarioEstimado: salarioEstimado, fmt: fmt };
+  var api = { estimarFatura: estimarFatura, parcelasSeguintes: parcelasSeguintes, juntarSerie: juntarSerie, mesAberta: mesAberta, mesMais: mesMais, fechamentoAnterior: fechamentoAnterior, LIMITE_DESATUALIZADO_H: LIMITE_DESATUALIZADO_H, projetar: projetar, derivar: derivar, rotulosMeses: rotulosMeses, quintoDiaUtil: quintoDiaUtil, feriados: feriados, mediaMercado: mediaMercado, salarioEstimado: salarioEstimado, fmt: fmt };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.Real = api;
 })(typeof window !== 'undefined' ? window : this);

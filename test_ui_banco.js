@@ -540,5 +540,72 @@ const foto = A => JSON.stringify(['tf_lanc3', 'tf_banco_ids', 'tf_banco_inv', 't
     t('fatura: os dois lados entram como não é gasto', f('fa') && f('fk') && f('fa').neutro === true && f('fk').neutro === true);
     t('fatura: nenhum dos dois conta como gasto', !B2.w.eval("S.gastosMes('" + mes + "')").some(l => l.idExterno === 'fa' || l.idExterno === 'fk'));
   }
+  /* pluggy-8: os valores do banco atualizam sozinhos ao abrir o app e ao voltar para ele */
+  {
+    const n = 'automático: ';
+    const abre = async (corpo, extra, f) => { const ch = []; const A = await abrir({ ...LIGADO(), tf_banco_url: URLOK, ...(extra || {}) }, { ...larg, fetch: f ? f(ch) : ponte(corpo, ch) }); await tick(80); A.chamadas = ch; return A; };
+    const volta = async A => { A.d.dispatchEvent(new A.w.Event('visibilitychange')); await tick(80); };
+    const snap = A => A.w.eval('JSON.stringify(S.st.banco||null)');
+    const A = await abre(RESP([M1, M3]));
+    const corpo = JSON.parse(A.chamadas[0].o.body);
+    t(n + 'abrir o app chama a ponte uma vez', A.chamadas.length === 1 && A.chamadas[0].u === URLOK);
+    t(n + 'mesmo pedido do botão (token só no corpo, 35 dias, tipo access)', corpo.token === TOKEN && corpo.dias === 35 && corpo.tipo === 'access' && !A.chamadas[0].u.includes(TOKEN));
+    const b = JSON.parse(snap(A));
+    t(n + 'guarda os valores do banco', !!b && b.contas.some(c => c.id === 'c1' && c.saldo === 100.5) && Date.now() - b.em < 5000 && !!A.ls('tf_bsnap'));
+    t(n + 'fica no Hoje, sem prévia e sem aviso', A.w.eval('atual') === 'hoje' && !fundo(A) && !A.$('#bc_msg') && !A.d.querySelector('.conf'));
+    t(n + 'não importa movimento nenhum', A.w.eval('S.st.lanc').every(l => !l.idExterno) && A.w.localStorage.getItem('tf_banco_ids') === null);
+    t(n + 'sem erro de script', A.erros.length === 0);
+    await volta(A);
+    t(n + 'voltar ao app antes de 5 minutos não chama de novo', A.chamadas.length === 1);
+    A.w.eval('bancoAutoT=Date.now()-' + (5 * 60000 - 2000)); await volta(A);
+    t(n + 'a 2 segundos dos 5 minutos ainda não', A.chamadas.length === 1);
+    A.w.eval('bancoAutoT=Date.now()-' + (5 * 60000 + 1000)); await volta(A);
+    t(n + 'passados 5 minutos, voltar ao app chama de novo', A.chamadas.length === 2);
+    Object.defineProperty(A.d, 'hidden', { value: true, configurable: true }); A.w.eval('bancoAutoT=0'); await volta(A);
+    t(n + 'app escondido não chama', A.chamadas.length === 2);
+    /* a tela é redesenhada com o valor novo, menos onde há algo sendo digitado */
+    const C = await abre(RESP([M1]));
+    const em0 = JSON.parse(snap(C)).em;
+    await C.ir('lancar'); const campo = C.$('main input'); campo.value = 'rascunho'; C.w.eval('window.__marca=document.querySelector("main")');
+    C.w.eval('bancoAutoT=0'); await tick(5); await volta(C);
+    t(n + 'no Lançar: atualiza os valores sem redesenhar a tela', C.chamadas.length === 2 && JSON.parse(snap(C)).em > em0 && C.$('main input') === campo && campo.value === 'rascunho');
+    await C.ir('banco'); C.set('#bc_url', URLOK + '?x'); C.w.eval('bancoAutoT=0'); await volta(C);
+    t(n + 'na tela da conexão: não redesenha', C.chamadas.length === 3 && C.$('#bc_url').value === URLOK + '?x');
+    await C.ir('cartao'); const antes = C.$('main').firstElementChild; C.w.eval('bancoAutoT=0'); await volta(C);
+    t(n + 'no Cartão: redesenha com os valores novos', C.chamadas.length === 4 && C.$('main').firstElementChild !== antes && C.w.eval('atual') === 'cartao');
+    await C.ir('banco'); C.click('#bc_rem'); const dlg = C.d.querySelector('.conf'); await C.ir('hoje'); const h1 = C.$('main').firstElementChild; C.w.eval('bancoAutoT=0'); await volta(C);
+    t(n + 'com uma confirmação aberta: não redesenha', !!dlg && C.d.querySelector('.conf') === dlg && C.$('main').firstElementChild === h1);
+    /* quando não roda */
+    const semUrl = await abre(RESP([M1]), { tf_banco_url: null });
+    t(n + 'sem endereço guardado não chama', semUrl.chamadas.length === 0);
+    const urlRuim = await abre(RESP([M1]), { tf_banco_url: 'https://example.com/x' }, ch => async (u, o) => { if (/example\.com/.test(u)) ch.push({ u, o }); throw new Error('sem rede'); });
+    t(n + 'endereço guardado inválido não chama', urlRuim.chamadas.length === 0);
+    const desl = await abre(RESP([M1]), { tf_banco_on: null });
+    t(n + 'conexão desligada não chama', desl.chamadas.length === 0);
+    const exp = await abre(RESP([M1]), { tf_gtoken: { v: TOKEN, exp: Date.now() - 1000 } });
+    t(n + 'sessão do Google expirada não chama', exp.chamadas.length === 0);
+    const semG = await abre(RESP([M1]), { tf_gtoken: null, tf_gjaconectou: null });
+    t(n + 'sem conta Google não chama', semG.chamadas.length === 0);
+    const demo = await abre(RESP([M1]), { tf_modo: 'demo' });
+    t(n + 'modo de exemplo não chama', demo.chamadas.length === 0);
+    /* falhas: calado, os últimos valores bons ficam */
+    const bom = JSON.parse(snap(A)); bom.em = Date.now() - 3 * 86400000;
+    for (const [nome, f] of [['sem rede', ch => async (u, o) => { if (u !== URLOK) throw new Error('sem rede'); ch.push({ u, o }); throw new TypeError('rede'); }], ['ponte recusa', ch => ponte({ ok: false, erro: 'pluggy_503' }, ch)], ['resposta que não é JSON', ch => ponte('<html>', ch)], ['resposta sem contas', ch => ponte({ ok: true, dados: { de: mes + '-01', ate: mes + '-05', movs: [] } }, ch)]]) {
+      const F = await abre(null, { tf_bsnap: bom }, f);
+      t(n + nome + ': chamou, não mudou os valores e não mostrou erro', F.chamadas.length === 1 && JSON.parse(snap(F)).em === bom.em && F.erros.length === 0 && !F.d.querySelector('.alerta,.conf') === !A.d.querySelector('.alerta,.conf'));
+      F.w.eval('bancoAutoT=0'); await volta(F);
+      t(n + nome + ': depois da falha, tenta de novo na próxima volta', F.chamadas.length === 2);
+    }
+    /* conexão removida enquanto a resposta não chegou */
+    let solta; const lenta = ch => async (u, o) => { if (u !== URLOK) throw new Error('sem rede'); ch.push({ u, o }); await new Promise(k => { solta = k; }); return { ok: true, text: async () => JSON.stringify(RESP([M1])) }; };
+    const R = await abre(null, { tf_bsnap: bom }, lenta);
+    await volta(R);
+    t(n + 'com um pedido em curso não abre outro', R.chamadas.length === 1);
+    R.w.localStorage.removeItem('tf_banco_url'); solta(); await tick(80);
+    t(n + 'conexão removida no meio: a resposta é descartada', JSON.parse(snap(R)).em === bom.em);
+    /* texto da tela */
+    await A.ir('banco');
+    t(n + 'a tela diz o que roda sozinho', /Os valores do banco atualizam ao abrir o app\. Importar movimentos, só quando você pedir\./.test(A.texto()) && !/Só atualiza quando você pedir/.test(A.texto()));
+  }
   process.exit(fim());
 })().catch(e => { console.log('ERRO NO TESTE:', e); process.exit(2); });

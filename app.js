@@ -492,8 +492,10 @@ function drawCartao(){
   const ehPrincipal = c.id==='c1';
   const pCabe = pn('Cabe esta compra?'+info('Digite um valor e veja quanto do limite você passaria a usar e se continua dentro do ideal.'),`<div class="field"><label>Valor da compra (R$)</label><input type="number" id="sim_v" value="800" min="0" step="50"></div><div id="sim_out"></div>`,'vio');
   const pParc = pn('Parcelas que ainda vêm',c.serie?serieTabela(c):ehPrincipal?`<table class="rt"><tr><th>Compra</th><th class="n">Parcela</th><th class="n">Faltam</th><th class="n">Total</th></tr>${DEMO.parcelamentos.map(p=>`<tr><td class="tt"><b>${esc(p.nome)}</b></td><td class="n" data-l="Parcela">${brl0(p.parcela)}</td><td class="n" data-l="Faltam">${p.restam} de ${p.total}</td><td class="n" data-l="Total">${brl0(p.parcela*p.restam)}</td></tr>`).join('')}</table>`:'<div class="mu">Sem parcelamentos neste cartão.</div>','vio');
-  const pPeso = pn('Quanto o cartão pesa nos próximos meses',(()=>{ const v=c.serie?[c.fatura,...c.serie.slice(0,5).map(f=>f.fatura_total)]:[0,1,2,3,4,5].map(k=>(k===0?c.fatura:0)+(ehPrincipal?DEMO.parcelamentos.filter(p=>p.restam>k).reduce((s,p)=>s+p.parcela,0):0)); const mx=Math.max(...v,1);
-      return `<div class="vb">${v.map((x,k)=>`<div><em>${brl0(x)}</em><span style="height:${Math.max(x/mx*100,2)}%"></span><small>${mesNome(k)}</small></div>`).join('')}</div><div class="hint">Fatura do mês mais as parcelas que ainda estão rodando. Sem novas compras, o peso cai a cada mês.</div>`; })(),'vio');
+  const pPeso = pn('Quanto o cartão pesa nos próximos meses',(()=>{ const ab=c.mesAberta, porMes=ab?Object.fromEntries(c.serie.map(f=>[f.mes,f.fatura_total+(f.novas||0)])):null;   // com o banco: barras por mês (a 1ª é a fatura aberta, no mês em que vence)
+      const rot=k=>ab?mesRotulo(Real.mesMais(ab,k)):mesNome(k);
+      const v=ab?[c.fatura,...[1,2,3,4,5].map(k=>porMes[Real.mesMais(ab,k)]||0)]:c.serie?[c.fatura,...c.serie.slice(0,5).map(f=>f.fatura_total+(f.novas||0))]:[0,1,2,3,4,5].map(k=>(k===0?c.fatura:0)+(ehPrincipal?DEMO.parcelamentos.filter(p=>p.restam>k).reduce((s,p)=>s+p.parcela,0):0)); const mx=Math.max(...v,1);
+      return `<div class="vb">${v.map((x,k)=>`<div><em>${brl0(x)}</em><span style="height:${Math.max(x/mx*100,2)}%"></span><small>${rot(k)}</small></div>`).join('')}</div><div class="hint">${ab?'A primeira barra é a fatura aberta (estimada), no mês em que ela vence. Depois, as parcelas que ainda estão rodando.':'Fatura do mês mais as parcelas que ainda estão rodando.'} Sem novas compras, o peso cai a cada mês.${c.serie&&c.serie.some(f=>f.novas)?' Inclui as parcelas novas vistas no banco (A Confirmar).':''}</div>`; })(),'vio');
   const pLim = c.limite||!DEMO.real?'':pn('Informe o limite do cartão'+info('Não veio no seu arquivo. Com o limite, o app calcula o uso (ideal até 30%) e o quanto cabe de nova compra.'),`<div class="row" style="gap:12px;align-items:end"><div class="field" style="flex:1;margin:0"><label>Limite total (R$)</label><input type="number" id="lim_v" min="0" step="50" placeholder="ex.: 3000"></div><button class="btn" id="lim_ok">Salvar limite</button></div>`,'vio','margin-bottom:14px');
   const al=[];
   if(c.limite && cls!=='ok') al.push([cls==='ru'?2:1, alerta(cls==='ru'?'ru':'at', (cls==='ru'?'Uso do limite muito alto: ':'Uso do limite acima do ideal: ')+pc(i.utilizacao,0)+' (ideal até 30%).')]);
@@ -533,7 +535,7 @@ function drawCartao(){
   $('#sim_v').oninput=sim; sim();
   const lb=$('#lim_ok'); if(lb) lb.onclick=()=>{ const r=S.setNumeros({limites:{[c.id]:$('#lim_v').value}}); if(!r.ok){ $('#lim_v').setAttribute('aria-invalid','true'); return; } recalcDemo(); ir('cartao'); };
 }
-function serieTabela(c){ return `<table class="rt"><tr><th>Fatura de</th><th class="n">Parcelas antigas</th><th class="n">Parte da mãe</th></tr>${c.serie.map(f=>`<tr><td class="tt"><b>${esc(String(f.mes).slice(5))}/${esc(String(f.mes).slice(2,4))}</b></td><td class="n" data-l="Parcelas antigas">${brl(f.fatura_total)}</td><td class="n" data-l="Parte da mãe">${f.parte_mae?brl(f.parte_mae):'—'}</td></tr>`).join('')}</table><div class="hint">Parcelas antigas já contratadas. A parte da mãe só conta quando ela repassa.</div>`; }
+function serieTabela(c){ const nv=c.serie.some(f=>f.novas); if(!c.serie.length) return `<div class="mu small">Nenhuma parcela depois da fatura aberta.</div>`; return `<table class="rt"><tr><th>Fatura de</th><th class="n">Parcelas antigas</th>${nv?'<th class="n">Parcelas novas (banco)</th>':''}<th class="n">Parte da mãe</th></tr>${c.serie.map(f=>`<tr><td class="tt"><b>${esc(String(f.mes).slice(5))}/${esc(String(f.mes).slice(2,4))}</b></td><td class="n" data-l="Parcelas antigas">${brl(f.fatura_total)}</td>${nv?`<td class="n" data-l="Parcelas novas (banco)">${f.novas?brl(f.novas):'—'}</td>`:''}<td class="n" data-l="Parte da mãe">${f.parte_mae?brl(f.parte_mae):'—'}</td></tr>`).join('')}</table><div class="hint">Parcelas antigas já contratadas. A parte da mãe só conta quando ela repassa.${nv?' Parcelas novas: as que o banco mostra e o arquivo não tem (A Confirmar).':''}</div>`; }
 
 /* --- Agenda --- */
 T.agenda = () => {
@@ -903,6 +905,7 @@ const PAL=['var(--sky)','var(--vio)','var(--teal)','var(--pink)','var(--at)','va
 function catTotals(){ const o={}; gastosMes().forEach(l=>{ const k=catVer(l.cat); o[k]=(o[k]||0)+l.valor; }); return Object.entries(o).sort((a,b)=>b[1]-a[1]); }
 function catBars(){ const t=catTotals(), tot=t.reduce((s,x)=>s+x[1],0)||1;
   return t.length ? t.map(([c,v])=>`<div style="margin-bottom:12px"><div class="row small"><span>${esc(c)}</span><span style="font-family:var(--fn)">${brl0(v)} · ${pc(v/tot,0)}</span></div><div class="bar" style="--h:var(--pink);margin:5px 0 0"><span style="width:${v/tot*100}%"></span></div></div>`).join('') : '<div class="mu">Sem gastos neste mês.</div>'; }
+const mesRotulo=mes=>{ const p=String(mes).split('-').map(Number), d=new Date(p[0],p[1]-1,1); return d.toLocaleDateString('pt-BR',{month:'short'}).replace('.','')+'/'+String(d.getFullYear()).slice(2); };   // 'AAAA-MM' no mesmo formato de mesNome
 const mesNome=k=>{ const d=new Date(hoje.getFullYear(),hoje.getMonth()+k,1); return d.toLocaleDateString('pt-BR',{month:'short'}).replace('.','')+'/'+String(d.getFullYear()).slice(2); };
 function calendario(l){
   const y=hoje.getFullYear(), m=hoje.getMonth(), off=new Date(y,m,1).getDay(), por={};
@@ -1425,14 +1428,14 @@ function confirmarReimportar(volta){
   fundo.onkeydown=e=>{ if(e.key==='Escape'){ e.stopPropagation(); fecha(); } else if(e.key==='Tab'){ e.preventDefault(); (document.activeElement===nao?sim:nao).focus(); } };
   nao.focus();
 }
-/* ===== Conexão bancária (em teste): só para o dono, ligada neste aparelho. Manual: nada roda sozinho, nada vai para o service worker. ===== */
+/* ===== Conexão bancária (em teste): só para o dono, ligada neste aparelho. Importar movimentos é manual; só os valores do banco atualizam sozinhos (bancoAuto). Nada vai para o service worker. ===== */
 const bancoLigado=()=>MODO==='real'&&load('tf_banco_on',false)===true;
 let bancoToques=[], bancoCsp=false;
 function bancoToque(){ const t=Date.now(); bancoToques=bancoToques.filter(x=>t-x<4000); bancoToques.push(t); if(bancoToques.length<7||MODO!=='real') return; bancoToques=[]; save0('tf_banco_on',true); ir('banco'); }
 document.addEventListener('securitypolicyviolation',e=>{ if(/script\.google(usercontent)?\.com/.test(e.blockedURI||'')) bancoCsp=true; });
 const bancoSessao=()=>Drive.conectado()?null:Drive.jaConectou()?'A sessão do Google expirou. Toque no ícone de nuvem, no topo, para reconectar.':'Para usar, conecte a sincronização: toque no ícone de nuvem, no topo.';
 const bancoAviso=(cls,txt)=>{ const m=$('#bc_msg'); if(m) m.innerHTML=txt?alerta(cls,esc(txt)):''; };
-T.banco = () => `<div class="head"><div><h1>Conexão bancária (em teste)</h1><div class="sub">Só neste aparelho. Só atualiza quando você pedir.</div></div></div>
+T.banco = () => `<div class="head"><div><h1>Conexão bancária (em teste)</h1><div class="sub">Só neste aparelho. Os valores do banco atualizam ao abrir o app. Importar movimentos, só quando você pedir.</div></div></div>
   ${pn('Ponte',`<div class="field"><label for="bc_url">Endereço da ponte</label><input id="bc_url" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(load('tf_banco_url',''))}"></div>
     <div class="bc-acoes"><button class="btn" id="bc_atu" type="button">Atualizar do banco</button><button class="btn ghost" id="bc_rem" type="button">Remover conexão</button></div><div id="bc_msg" style="margin-top:12px"></div>`,'teal')}
   ${pn('Diagnóstico (só para o dono)',`<div class="small mu">Pede os dados à ponte de novo. A estrutura mostra só contagens, idades e nomes de campos: nenhum valor, data, nome, descrição ou identificador. Conferir saldos e Categorias do banco mostram dados só nesta tela. Nada é guardado.</div>
@@ -1465,6 +1468,26 @@ async function bancoAtualizar(){
   if(!v2.dados.movs.length){ bancoAviso('ok',txt+'Nenhum movimento encontrado nesse período.'); return; }
   if(gravou) bancoAviso('ok',txt);
   bancoPrevia(v2.dados);
+}
+/* pluggy-8: ao abrir o app e ao voltar para ele, busca sozinho os valores do banco (só a foto: saldos, limite, fatura estimada).
+   Só roda com a conexão ligada, o endereço já guardado por um "Atualizar do banco" e a sessão do Google válida; no máximo uma vez a cada 5 minutos.
+   Importar movimentos continua manual, pela prévia. Falhou: fica calado; os últimos valores bons continuam na tela, com a idade deles. */
+const BANCO_AUTO_MS=300000;
+let bancoAutoT=0, bancoAutoOcupado=false;
+const bancoAutoPinta=()=>!['lancar','banco'].includes(atual)&&!document.querySelector('.conf,.bc-prev,#menutema')&&!/^(INPUT|SELECT|TEXTAREA)$/.test((document.activeElement||{}).tagName||'');
+async function bancoAuto(){
+  if(bancoAutoOcupado||!bancoLigado()||!Drive.conectado()) return;
+  const v=TFBanco.validarUrl(load('tf_banco_url','')); if(!v.ok) return;
+  if(Date.now()-bancoAutoT<BANCO_AUTO_MS) return;
+  bancoAutoOcupado=true; bancoAutoT=Date.now();
+  try{
+    const r=await TFBanco.pedir({url:v.url,token:Drive.token(),fetch:(u,o)=>fetch(u,o)});
+    if(r.ok&&TFBanco.validarResposta(r.j).ok&&bancoLigado()&&load('tf_banco_url','')===v.url){   // conexão removida no meio: a resposta é descartada
+      const sn=TFBanco.instantaneo(r.j,Date.now(),load('tf_banco_inv',[]));
+      if(sn.ok&&S.setBanco(sn.snap).ok&&bancoAutoPinta()){ const y=window.scrollY; ir(atual); window.scrollTo(0,y); }
+    }
+  }catch(e){}
+  bancoAutoOcupado=false;
 }
 /* diagnóstico (só estrutura) e conferência de saldos: pedem à ponte de novo, quando o dono toca. Nada é guardado nem registrado; sair da tela descarta tudo. */
 const bancoDiagMsg=(cls,txt)=>{ const m=$('#bc_diag_out'); if(m) m.innerHTML=txt?alerta(cls,esc(txt)):''; };
@@ -1649,6 +1672,7 @@ function ir(k){
 }
 if(MODO==='demo'){ const b=document.createElement('button'); b.type='button'; b.id='selo'; b.className='selo'; b.textContent='Exemplo · sair'; b.setAttribute('aria-label','Você está vendo dados de exemplo. Sair do exemplo'); b.onclick=sairExemplo; $('.topbar').prepend(b); }
 const h0=(location.hash||'#hoje').slice(1); ir(Object.hasOwn(T,h0) ? h0 : 'hoje');
+bancoAuto(); document.addEventListener('visibilitychange',()=>{ if(!document.hidden) bancoAuto(); });
 if('serviceWorker' in navigator && (location.protocol==='https:'||location.hostname==='localhost'||location.hostname==='127.0.0.1')) navigator.serviceWorker.register('sw.js').then(reg=>{
   // atualização: procura sw.js novo ao voltar para o app; quando a versão nova assume, avisa em vez de recarregar sozinho (não perde o que está sendo digitado)
   document.addEventListener('visibilitychange',()=>{ if(!document.hidden) reg.update().catch(()=>{}); });

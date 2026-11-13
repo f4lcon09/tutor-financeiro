@@ -357,5 +357,147 @@ const P = (n, de) => ({ n, de });
     t('Meus números: o texto de ajuda dos cartões do banco cita as parcelas lançadas no dia do fechamento', /pelas parcelas lançadas no dia do fechamento/.test(Am.d.body.textContent.replace(/\s+/g, ' ')));
   }
 
+  /* ===== 7. pluggy-8: parcelas do banco nas faturas seguintes à aberta ===== */
+  {
+    const PS = Real.parcelasSeguintes, JS = Real.juntarSerie, n = 'faturas seguintes: ';
+    /* fechamento dia 5, hoje 09/11 (desde 05/11), arquivo de 01/11 */
+    let p = PS([['2026-11-07', 100, 1, 3]], 5, '2026-11-09', '2026-11-01');
+    t(n + 'compra nova em 3x (1 de 3, datada na compra): 100 nas 2 faturas seguintes', eq(p.todas, [100, 100]) && eq(p.novas, [100, 100]) && p.n === 1);
+    p = PS([['2026-11-05', 50, 4, 6]], 5, '2026-11-09', '2026-11-01');
+    t(n + 'parcela antiga (4 de 6, começou antes do arquivo): está em todas, não em novas', eq(p.todas, [50, 50]) && eq(p.novas, [0, 0]));
+    p = PS([['2026-11-05', 50, 1, 2]], 5, '2026-11-09', '2026-11-01');
+    t(n + '1 de 2 datada no fechamento, depois do arquivo: nova, 1 fatura', eq(p.todas, [50]) && eq(p.novas, [50]));
+    p = PS([['2026-11-05', 50, 1, 2]], 5, '2026-11-09', '2026-11-05');
+    t(n + 'começou no dia do arquivo: não é nova', eq(p.novas, [0]));
+    p = PS([['2026-11-05', 50, 1, 2]], 5, '2026-11-09', '2026-11-04');
+    t(n + 'começou um dia depois do arquivo: nova', eq(p.novas, [50]));
+    p = PS([['2026-10-05', 80, 2, 5], ['2026-10-20', 80, 1, 5], ['2026-11-10', 80, 1, 5]], 5, '2026-11-09', '2026-01-01');
+    t(n + 'parcela de fatura já fechada ou com data futura fica fora', eq(p.todas, []) && p.n === 0);
+    p = PS([['2026-11-05', 70, 1, 3], ['2026-10-05', 40, 2, 4]], 5, '2026-11-05', '2026-01-01');
+    t(n + 'hoje é dia de fechamento: vale a datada no fechamento anterior, não a datada hoje', eq(p.todas, [40, 40]) && p.n === 1);
+    p = PS([['2026-11-07', -30, 1, 3]], 5, '2026-11-09', '2026-11-01');
+    t(n + 'estorno parcelado desconta', eq(p.todas, [-30, -30]) && eq(p.novas, [-30, -30]));
+    p = PS([['2026-11-07', 100, 1, 3], ['2026-11-05', 40, 2, 3], ['2026-11-06', 10.1, 1, 4], ['2026-11-06', 10.2, 1, 4]], 5, '2026-11-09', '2026-11-01');
+    t(n + 'várias parcelas somam por fatura, com centavos certos', eq(p.todas, [160.3, 120.3, 20.3]) && eq(p.novas, [120.3, 120.3, 20.3]) && p.n === 4);
+    t(n + 'sem dia de fechamento ou sem data de hoje: nada', PS([['2026-11-07', 100, 1, 3]], 0, '2026-11-09', '2026-11-01') === null && PS([['2026-11-07', 100, 1, 3]], 5, '', '2026-11-01') === null && PS([['2026-11-07', 100, 1, 3]], 32, '2026-11-09', '2026-11-01') === null);
+    t(n + 'sem lista: zero parcelas', eq(PS(undefined, 5, '2026-11-09', '2026-11-01'), { todas: [], novas: [], n: 0 }));
+    /* fechamento 31: a 1ª parcela de uma 2 de N datada em 31/03 é 28/02 */
+    t(n + 'início em mês curto: 31/03 menos 1 mês = 28/02 (arquivo de 28/02: não é nova)', eq(PS([['2026-03-31', 10, 2, 3]], 31, '2026-04-10', '2026-02-28').novas, [0]));
+    t(n + 'início em mês curto: arquivo de 27/02: é nova', eq(PS([['2026-03-31', 10, 2, 3]], 31, '2026-04-10', '2026-02-27').novas, [10]));
+    t(n + 'início atravessa o ano: 3 de 5 em 05/01/2027 começou em 05/11/2026', eq(PS([['2027-01-05', 10, 3, 5]], 5, '2027-01-20', '2026-11-04').novas, [10, 10]) && eq(PS([['2027-01-05', 10, 3, 5]], 5, '2027-01-20', '2026-11-05').novas, [0, 0]));
+    t(n + '120 de limite: 1 de 120 gera 119 faturas', PS([['2026-11-07', 1, 1, 120]], 5, '2026-11-09', '2026-11-01').todas.length === 119);
+
+    /* mesMais e mesAberta: o mês em que a fatura aberta vence */
+    const MA = Real.mesAberta, MM = Real.mesMais;
+    t(n + 'mesMais: vira o ano para a frente e para trás', MM('2026-12', 1) === '2027-01' && MM('2026-01', -1) === '2025-12' && MM('2026-11', 0) === '2026-11' && MM('2026-11', 14) === '2028-01');
+    t(n + 'aberta: fecha 5, vence 12, hoje 09/11: fecha em 05/12 e vence em dezembro', MA(5, 12, '2026-11-09') === '2026-12');
+    t(n + 'aberta: hoje 03/11, antes do fechamento: vence em novembro', MA(5, 12, '2026-11-03') === '2026-11');
+    t(n + 'aberta: hoje é o dia do fechamento: ainda é a que fecha hoje', MA(5, 12, '2026-11-05') === '2026-11' && MA(5, 12, '2026-11-06') === '2026-12');
+    t(n + 'aberta: vencimento antes do dia do fechamento cai no mês seguinte', MA(20, 5, '2026-11-25') === '2027-01' && MA(20, 5, '2026-11-10') === '2026-12');
+    t(n + 'aberta: vencimento no mesmo dia do fechamento: mês seguinte', MA(5, 5, '2026-11-09') === '2027-01');
+    t(n + 'aberta: dezembro vira janeiro', MA(5, 12, '2026-12-09') === '2027-01');
+    t(n + 'aberta: sem dia de vencimento, assume o mesmo mês do fechamento', MA(5, null, '2026-11-09') === '2026-12');
+    t(n + 'aberta: sem fechamento ou sem data: nada', MA(0, 12, '2026-11-09') === null && MA(5, 12, '') === null);
+
+    /* juntarSerie: por mês, só o que vem depois da fatura aberta */
+    const SER = () => [{ mes: '2026-12', fatura_total: 200, parte_mae: 10 }, { mes: '2027-01', fatura_total: 100, parte_mae: 0 }];
+    let s0 = SER(), s = JS(s0, { todas: [100, 100], novas: [100, 100] }, '2026-11');
+    t(n + 'série: parcelas novas entram ao lado das antigas, no mês de cada fatura', eq(s, [{ mes: '2026-12', fatura_total: 200, parte_mae: 10, novas: 100 }, { mes: '2027-01', fatura_total: 100, parte_mae: 0, novas: 100 }]));
+    t(n + 'série: a lista do arquivo não é alterada', eq(s0, SER()) && s[0] !== s0[0]);
+    s = JS(SER(), { todas: [100, 100], novas: [100, 100] }, '2026-12');
+    t(n + 'série: a linha do mês da fatura aberta sai (ela já é a fatura estimada); as parcelas vão para os meses depois dela', eq(s, [{ mes: '2027-01', fatura_total: 100, parte_mae: 0, novas: 100 }, { mes: '2027-02', fatura_total: 0, parte_mae: 0, novas: 100 }]));
+    s = JS([{ mes: '2026-10', fatura_total: 1, parte_mae: 0 }, { mes: '2026-11', fatura_total: 2, parte_mae: 0 }].concat(SER()), { todas: [], novas: [] }, '2026-11');
+    t(n + 'série: meses já passados do arquivo saem', eq(s, SER()));
+    s = JS(SER(), { todas: [100, 100, 100, 100], novas: [100, 100, 100, 100] }, '2026-11');
+    t(n + 'série: parcelas além do fim do arquivo ganham meses novos', s.length === 4 && eq(s.slice(2), [{ mes: '2027-02', fatura_total: 0, parte_mae: 0, novas: 100 }, { mes: '2027-03', fatura_total: 0, parte_mae: 0, novas: 100 }]));
+    s = JS([], { todas: [9, 9], novas: [9, 9] }, '2026-12');
+    t(n + 'série: arquivo sem faturas futuras: começa no mês depois da aberta, virando o ano', eq(s.map(f => f.mes), ['2027-01', '2027-02']) && s[0].novas === 9 && s[0].fatura_total === 0);
+    s = JS(SER(), { todas: [260, 50], novas: [0, 0] }, '2026-11');
+    t(n + 'série: o banco mostra mais que o arquivo: a diferença entra; menos que o arquivo: nada', s[0].novas === 60 && !('novas' in s[1]));
+    s = JS(SER(), { todas: [350, 100], novas: [100, 0] }, '2026-11');
+    t(n + 'série: vale o maior entre as novas e a diferença para o arquivo', s[0].novas === 150 && !('novas' in s[1]));
+    s = JS(SER(), { todas: [-50], novas: [-50] }, '2026-11');
+    t(n + 'série: nunca tira das parcelas antigas', eq(s, SER()));
+    t(n + 'série: sem parcelas do banco (lista vazia ou nada), igual ao arquivo depois da aberta', eq(JS(SER(), { todas: [], novas: [] }, '2026-11'), SER()) && eq(JS(SER(), null, '2026-11'), SER()) && eq(JS(SER(), null, '2026-12'), SER().slice(1)) && eq(JS(SER(), null, '2027-01'), []));
+    s = JS(SER(), { todas: [0, 0, 0, 7], novas: [0, 0, 0, 7] }, '2026-11');
+    t(n + 'série: parcela num mês que o arquivo não tem, com um mês vazio no meio: vai para o mês certo', eq(s, SER().concat([{ mes: '2027-03', fatura_total: 0, parte_mae: 0, novas: 7 }])));
+    s = JS([{ mes: '2027-01', fatura_total: 100, parte_mae: 0 }, { mes: '2026-12', fatura_total: 200, parte_mae: 10 }, { mes: '2027-01', fatura_total: 50.1, parte_mae: 5 }], { todas: [0, 10], novas: [0, 10] }, '2026-11');
+    t(n + 'série: arquivo fora de ordem ou com mês repetido: sai em ordem, com o mês somado', eq(s, [{ mes: '2026-12', fatura_total: 200, parte_mae: 10 }, { mes: '2027-01', fatura_total: 150.1, parte_mae: 5, novas: 10 }]));
+    s = JS([{ mes: '2026-12', fatura_total: 200, parte_mae: 0 }, { mes: '2027-02', fatura_total: 80, parte_mae: 0 }], { todas: [30, 30], novas: [30, 30] }, '2026-12');
+    t(n + 'série: arquivo com mês faltando: a parcela não escorrega para a linha seguinte', eq(s, [{ mes: '2027-01', fatura_total: 0, parte_mae: 0, novas: 30 }, { mes: '2027-02', fatura_total: 80, parte_mae: 0, novas: 30 }]));
+
+    /* instantaneo -> pn */
+    const ms = [mov('a', 'crA', '2026-11-07', 90, 'DEBIT', { parc: P(1, 3) }), mov('b', 'crA', '2026-11-06', 40), mov('c', 'crA', '2026-11-05', 30, 'DEBIT', { parc: P(3, 3) }),
+      mov('d', 'crA', '2026-11-06', 25, 'CREDIT', { parc: P(1, 2) }), mov('e', 'crB', '2026-11-06', 12, 'DEBIT', { parc: P(2, 10) }), mov('f', 'ccA', '2026-11-06', 12, 'DEBIT', { parc: P(2, 10) }),
+      mov('g', 'crA', '2026-11-06', 500, 'CREDIT', { parc: P(1, 2), cat: 'Credit card payment' })];
+    const foto = B.instantaneo(RESP(ms), AG, []).snap;
+    t(n + 'foto: pn guarda data, valor com sinal, n e N só de parcela com seguintes', eq(foto.pn, { crA: [['2026-11-07', 90, 1, 3], ['2026-11-06', -25, 1, 2]], crB: [['2026-11-06', 12, 2, 10]] }));
+    t(n + 'foto: a última parcela (3 de 3) fica em pm e fora de pn', foto.pm.crA.some(m => m[1] === 30) && !foto.pn.crA.some(m => m[1] === 30));
+    t(n + 'foto: movs e pm iguais aos de antes', eq(foto.movs.crA, [['2026-11-07', 90], ['2026-11-06', 40], ['2026-11-05', 30], ['2026-11-06', -25]]) && eq(foto.pm.crA, [['2026-11-07', 90], ['2026-11-05', 30], ['2026-11-06', -25]]));
+    t(n + 'foto: cartão com sinal invertido inverte pn', eq(B.instantaneo(RESP(ms), AG, ['crA']).snap.pn.crA, [['2026-11-07', -90, 1, 3], ['2026-11-06', 25, 1, 2]]));
+    t(n + 'foto: sem parcelas, pn vazio', eq(B.instantaneo(RESP([mov('b', 'crA', '2026-11-06', 40)]), AG, []).snap.pn, {}));
+    const muitos = []; for (let i = 0; i < 450; i++) muitos.push(mov('m' + i, 'crA', '2026-11-06', 1, 'DEBIT', { parc: P(1, 2) }));
+    t(n + 'foto: no máximo 400 por cartão', B.instantaneo(RESP(muitos), AG, []).snap.pn.crA.length === 400);
+
+    /* sanBanco */
+    t(n + 'sanBanco: ida e volta igual', eq(Seg.sanBanco(clone(foto)), foto));
+    const ruim = clone(foto); ruim.pn = { crA: [['2026-11-07', 90, 1, 3], ['2026-11-07', 90], ['2026-11-07', 90, 3, 3], ['2026-11-07', 90, 4, 3], ['2026-11-07', 90, 0, 3], ['2026-11-07', 90, 1.5, 3], ['2026-11-07', 90, 1, 121], ['2026-13-07', 90, 1, 3], ['2026-11-07', '90', 1, 3], ['2026-11-07', 90, 1, 3, 9], 'x', null, { 0: '2026-11-07' }], ccA: [['2026-11-07', 90, 1, 3]], zz: [['2026-11-07', 90, 1, 3]], crB: 'x' };
+    t(n + 'sanBanco: só fica a parcela bem formada de cartão', eq(Seg.sanBanco(ruim).pn, { crA: [['2026-11-07', 90, 1, 3]] }));
+    const semPn = clone(foto); delete semPn.pn;
+    t(n + 'sanBanco: foto de versão antiga (sem pn) vira pn vazio', eq(Seg.sanBanco(semPn).pn, {}));
+    const pnLista = clone(foto); pnLista.pn = [1, 2];
+    t(n + 'sanBanco: pn que não é objeto vira vazio', eq(Seg.sanBanco(pnLista).pn, {}));
+
+    /* derivar de ponta a ponta: arquivo de 01/11, fecha 5, vence 12, hoje 09/11 -> a fatura aberta vence em dezembro */
+    const real = REAL(); real.faturas_futuras_parcelas_antigas = [{ mes: '2026-12', fatura_total: 200, parte_mae: 0 }, { mes: '2027-01', fatura_total: 120, parte_mae: 0 }];
+    const antes = JSON.stringify(real), LG = { liga: { crA: 'c1', crB: 'nao' } };
+    const d = Real.derivar(real, {}, ctxB(foto, LG)), c = d.cartoes[0];
+    t(n + 'derivar: a série é o que vem depois da fatura aberta, com as parcelas do banco no mês certo (90 e -25 em janeiro; 90 em fevereiro)', c.mesAberta === '2026-12' && eq(c.serie, [{ mes: '2027-01', fatura_total: 120, parte_mae: 0, novas: 65 }, { mes: '2027-02', fatura_total: 0, parte_mae: 0, novas: 90 }]));
+    t(n + 'derivar: o arquivo não é alterado', JSON.stringify(real) === antes);
+    const dSem = Real.derivar(real, {}, ctxB(semPn, LG));
+    t(n + 'derivar: foto sem pn (versão antiga): só as linhas do arquivo depois da aberta, sem parcelas novas', dSem.cartoes[0].mesAberta === '2026-12' && eq(dSem.cartoes[0].serie, [{ mes: '2027-01', fatura_total: 120, parte_mae: 0 }]));
+    const dArq = Real.derivar(real, {}, ctxB(null));
+    t(n + 'derivar: sem banco: a série é a do arquivo, como antes', dArq.cartoes[0].serie === real.faturas_futuras_parcelas_antigas && dArq.cartoes[0].mesAberta === undefined);
+    t(n + 'derivar: cartão do banco não ligado: a série é a do arquivo', Real.derivar(real, {}, ctxB(foto, { liga: { crA: 'nao', crB: 'nao' } })).cartoes[0].serie === real.faturas_futuras_parcelas_antigas);
+    const dAntes = Real.derivar(real, {}, ctxB(foto, Object.assign({}, LG, { hojeISO: '2026-11-03' })));
+    t(n + 'derivar: antes do fechamento de novembro, a aberta vence em novembro e dezembro continua na série', dAntes.cartoes[0].mesAberta === '2026-11' && dAntes.cartoes[0].serie[0].mes === '2026-12' && dAntes.cartoes[0].serie[0].fatura_total === 200);
+    const pj = Real.projetar(real, {}, {}), pjN = Real.projetar(real, {}, { futuras: [real.faturas_futuras_parcelas_antigas[0]].concat(c.serie) });
+    const dif = i => Math.round((pj[i] - pjN[i]) * 100);
+    t(n + 'projeção: as parcelas novas saem do saldo previsto no mês de cada fatura (janeiro 65, fevereiro 90)', dif(0) === 0 && dif(1) === 0 && dif(2) === 6500 && dif(3) === 15500 && dif(11) === 15500);
+    const semDez = clone(real); semDez.faturas_futuras_parcelas_antigas[0].fatura_total = 0;
+    const dSemDez = Real.derivar(semDez, {}, ctxB(foto, LG));
+    t(n + 'projeção do app: a linha do arquivo do mês da fatura aberta continua contando no saldo previsto', eq(dSemDez.cartoes[0].serie, c.serie) && JSON.stringify(dSemDez) !== JSON.stringify(d));
+    t(n + 'projeção do app: muda com as parcelas novas', JSON.stringify(d) !== JSON.stringify(dSem));
+
+    /* tela do Cartão */
+    const relogio = iso => w => { const Rr = w.Date, alvo = new Rr(iso).getTime(), d0 = Rr.now(), ag = () => alvo + (Rr.now() - d0); class D extends Rr { constructor(...x) { if (x.length) super(...x); else super(ag()); } static now() { return ag(); } } w.Date = D; };
+    const RT = fut => { const r = clone(FICTICIO); r._meta.as_of = '2026-11-08'; r.faturas_futuras_parcelas_antigas = fut || [{ mes: '2026-12', fatura_total: 300, parte_mae: 0 }, { mes: '2027-01', fatura_total: 200, parte_mae: 0 }]; return r; };
+    const agoraT = new Date('2026-11-10T12:00:00').getTime(), hT = h => new Date(agoraT - h * 36e5).toISOString();
+    const SNAP = pn => ({ v: 1, em: agoraT, ip: true,
+      contas: [{ id: 'ccA', tipo: 'BANK', nome: 'Banco Alfa', saldo: 1200, atu: hT(5) }, { id: 'crA', tipo: 'CREDIT', nome: 'Cartão Alfa', saldo: 900, atu: hT(5), lim: 4000, disp: 3100 }],
+      inv: [{ nome: 'Reserva inventada', saldo: 5000, atu: hT(5) }], movs: { crA: [['2026-11-08', 100], ['2026-11-09', 60]] }, pm: { crA: [['2026-11-09', 60]] }, pn });
+    const abre = async (pn, larg, fut) => { const A = await abrir(Object.assign({ tf_modo: 'real', tf_real: RT(fut) }, pn ? { tf_bsnap: SNAP(pn) } : {}), { antes: relogio('2026-11-10T12:00:00'), largura: larg }); await A.ir('cartao'); return A; };
+    const barras = A => [...A.d.querySelectorAll('.vb em')].map(e => e.textContent.replace(/[^\d]/g, '')).join('|');
+    const meses = A => [...A.d.querySelectorAll('.vb small')].map(e => e.textContent.trim()).join('|');
+    const txt = A => A.$('main').textContent.replace(/\s+/g, ' ');
+    const col = (A, l) => [...A.d.querySelectorAll('td[data-l="' + l + '"]')].map(e => e.textContent.replace(/[^\d,—]/g, '')).join('|');
+    const linhas = A => [...A.d.querySelectorAll('table.rt td.tt')].map(e => e.textContent.trim()).join('|');
+    for (const larg of [390, 1024]) {
+      const A = await abre({ crA: [['2026-11-09', 60, 1, 3]] }, larg);
+      t(n + larg + ' px: gráfico por mês: a aberta (160) em dezembro, depois 200 + 60 em janeiro e 60 em fevereiro', barras(A) === '160|260|60|0|0|0' && meses(A) === 'dez/26|jan/27|fev/27|mar/27|abr/27|mai/27');
+      t(n + larg + ' px: o texto do gráfico explica a primeira barra e de onde vêm as parcelas', /A primeira barra é a fatura aberta \(estimada\), no mês em que ela vence\./.test(txt(A)) && /Inclui as parcelas novas vistas no banco \(A Confirmar\)\./.test(txt(A)) && !/Fatura do mês mais as parcelas/.test(txt(A)));
+      t(n + larg + ' px: a tabela mostra janeiro e fevereiro, com a coluna das parcelas novas', linhas(A) === '01/27|02/27' && [...A.d.querySelectorAll('table.rt th')].some(e => e.textContent === 'Parcelas novas (banco)') && col(A, 'Parcelas novas (banco)') === '60,00|60,00' && col(A, 'Parcelas antigas') === '200,00|0,00');
+      t(n + larg + ' px: sem erro de script', A.erros.length === 0);
+      const Z = await abre({}, larg);
+      t(n + larg + ' px: banco sem parcelas com seguintes: dezembro não aparece duas vezes, sem coluna nova', barras(Z) === '160|200|0|0|0|0' && meses(Z).startsWith('dez/26|jan/27') && linhas(Z) === '01/27' && !/Parcelas novas/.test(txt(Z)) && !/Inclui as parcelas novas/.test(txt(Z)));
+      const V = await abre({}, larg, [{ mes: '2026-12', fatura_total: 300, parte_mae: 0 }]);
+      t(n + larg + ' px: nada depois da fatura aberta: a tabela diz isso', /Nenhuma parcela depois da fatura aberta\./.test(txt(V)) && !V.d.querySelector('table.rt td.tt') && barras(V) === '160|0|0|0|0|0' && V.erros.length === 0);
+      const F = await abre(null, larg);
+      t(n + larg + ' px: sem banco: gráfico e tabela como antes (por posição, a partir do mês de hoje)', barras(F) === '300|300|200' && meses(F) === 'nov/26|dez/26|jan/27' && linhas(F) === '12/26|01/27' && /Fatura do mês mais as parcelas que ainda estão rodando\./.test(txt(F)) && !/A primeira barra/.test(txt(F)));
+    }
+    const Ad = await abrir({ tf_modo: 'demo' }, { largura: 390 }); await Ad.ir('cartao');
+    t(n + 'modo de exemplo: nada de parcelas novas nem de fatura aberta', !/Parcelas novas/.test(txt(Ad)) && !/Inclui as parcelas novas/.test(txt(Ad)) && !/A primeira barra/.test(txt(Ad)));
+  }
+
   process.exit(fim());
 })();
