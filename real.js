@@ -166,6 +166,7 @@
     });
     return Object.keys(mapa).sort().map(function (k) { return mapa[k]; });
   }
+  var isObjeto = function (x) { return !!x && typeof x === 'object' && !Array.isArray(x); };
   var somaV = function (l) { return r2(l.reduce(function (s, x) { return s + x.valor; }, 0)); };
 
   /* Objeto no formato que as telas esperam.
@@ -235,8 +236,15 @@
       /* pluggy-8: com o banco, a fatura aberta é a estimada; a série passa a ser só o que vem depois dela, por mês, com as parcelas do banco.
          Antes a linha do arquivo do mês da fatura aberta aparecia de novo como "mês seguinte" (parcelas antigas contadas duas vezes). */
       var ab = c.serie && est ? mesAberta(c.fecha, c.vence, ctx.hojeISO) : null;
+      var ps = est ? parcelasSeguintes((B.pn || {})[bc.id], c.fecha, ctx.hojeISO, real._meta.as_of) : null;
+      /* pluggy-9: segunda conta da fatura aberta, para comparar com a do banco (A Confirmar): o limite usado (saldo do cartão no banco) menos
+         as parcelas futuras que o banco mostra. Pega o que está na fatura e não chega como movimento; erra para mais se faltar parcela futura
+         na conexão, e entre o fechamento e o pagamento inclui a fatura fechada ainda não paga. Só quando a foto traz parcelas com seguintes
+         (foto de versão antiga chega sem pn e não dá para saber as parcelas futuras). */
+      if (est && ps && ps.n > 0 && isObjeto(B.pn)) c.origem.fatura.peloLimite = r2(Math.max(bc.saldo - ps.todas.reduce(function (s, x) { return s + x; }, 0), 0));
+      if (B.em > 0 && ag > 0) c.origem.buscadoMs = Math.max(ag - B.em, 0);   // há quanto tempo o app buscou os valores (a idade ao lado é a dos dados no banco)
       if (ab) {
-        var arqS = c.serie, ps = parcelasSeguintes((B.pn || {})[bc.id], c.fecha, ctx.hojeISO, real._meta.as_of);
+        var arqS = c.serie;
         c.mesAberta = ab; c.serie = juntarSerie(arqS, ps, ab);
         n2.futuras = arqS.filter(function (f) { return !(f.mes > ab); }).concat(c.serie);
       }

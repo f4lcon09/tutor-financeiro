@@ -527,6 +527,32 @@ const P = (n, de) => ({ n, de });
       const M = await abre({ crA: [['2026-11-09', 60, 1, 2]] }, 390, [{ mes: '2026-12', fatura_total: 300, parte_mae: 0 }, { mes: '2027-01', fatura_total: 200, parte_mae: 0 }, { mes: '2027-02', fatura_total: 100, parte_mae: 0 }]);
       t(g + 'tela: só um mês com parcela nova: a coluna aparece, o outro mês mostra traço, e o texto do gráfico avisa', col(M, 'Parcelas novas (banco)') === '60,00|—' && /Inclui as parcelas novas vistas no banco/.test(txt(M)) && barras(M) === '160|260|100|0|0|0');
     }
+    /* pluggy-9: segunda conta da fatura (limite usado menos as parcelas futuras do banco) e há quanto tempo o app buscou */
+    {
+      const g = 'pelo limite: ';
+      t(g + 'derivar: limite usado 900 menos as parcelas futuras do banco (65 + 90) = 745', c.origem.fatura.peloLimite === 745);
+      t(g + 'derivar: foto sem pn (versão antiga): sem a segunda conta', !('peloLimite' in dSem.cartoes[0].origem.fatura));
+      const fSo = B.instantaneo(RESP([mov('a', 'crA', '2026-11-07', 90)]), AG, []).snap;
+      t(g + 'derivar: sem nenhuma parcela com seguintes: sem a segunda conta', !('peloLimite' in Real.derivar(real, {}, ctxB(fSo, LG)).cartoes[0].origem.fatura));
+      const fGr = B.instantaneo(RESP([mov('a', 'crA', '2026-11-07', 400, 'DEBIT', { parc: P(1, 12) })]), AG, []).snap;
+      t(g + 'derivar: parcelas futuras maiores que o limite usado: mínimo 0', Real.derivar(real, {}, ctxB(fGr, LG)).cartoes[0].origem.fatura.peloLimite === 0);
+      const fCt = B.instantaneo(RESP([mov('a', 'crA', '2026-11-07', 10.1, 'DEBIT', { parc: P(1, 4) })]), AG, []).snap;
+      t(g + 'derivar: centavos certos (900 - 3 x 10,10 = 869,70)', Real.derivar(real, {}, ctxB(fCt, LG)).cartoes[0].origem.fatura.peloLimite === 869.7);
+      t(g + 'derivar: a fatura estimada e o compromisso futuro não mudam com a segunda conta', c.fatura === dSem.cartoes[0].fatura && c.parcelasFuturas === dSem.cartoes[0].parcelasFuturas);
+      t(g + 'derivar: há quanto tempo o app buscou = agora menos a hora da foto', c.origem.buscadoMs === 0 && Real.derivar(real, {}, ctxB(foto, Object.assign({}, LG, { agora: AG + 7 * 60000 }))).cartoes[0].origem.buscadoMs === 7 * 60000 && Real.derivar(real, {}, ctxB(foto, Object.assign({}, LG, { agora: AG - 5000 }))).cartoes[0].origem.buscadoMs === 0);
+      const semEm = clone(foto); delete semEm.em;
+      t(g + 'derivar: foto sem hora: sem essa informação', !('buscadoMs' in Real.derivar(real, {}, ctxB(semEm, LG)).cartoes[0].origem));
+      for (const larg of [360, 1024]) {
+        const A = await abre({ crA: [['2026-11-09', 60, 1, 3]] }, larg);
+        t(g + larg + ' px: o Cartão mostra a segunda conta (900 - 120 = 780,00) e quando o app buscou', /Outra conta, pelo limite usado menos as parcelas futuras que o banco mostra: R\$\s?780,00 \(A Confirmar\)\./.test(txt(A)) && /O app buscou estes valores agora há pouco\. A idade acima é a dos dados no banco/.test(txt(A)) && A.erros.length === 0);
+        const Z = await abre({}, larg);
+        t(g + larg + ' px: sem parcelas com seguintes: sem a segunda conta, com a hora da busca', !/Outra conta, pelo limite usado/.test(txt(Z)) && /O app buscou estes valores/.test(txt(Z)));
+        const F = await abre(null, larg);
+        t(g + larg + ' px: sem banco: nenhuma das duas linhas', !/Outra conta, pelo limite usado/.test(txt(F)) && !/O app buscou estes valores/.test(txt(F)));
+      }
+      const idadeMin = (await abre({}, 390)).w.eval('[idadeMin(0),idadeMin(59999),idadeMin(60000),idadeMin(59*60000+59999),idadeMin(3600000),idadeMin(13*3600000),idadeMin(49*3600000)].join("|")');
+      t(g + 'texto da idade da busca: agora há pouco, minutos, horas, dias', idadeMin === 'agora há pouco|agora há pouco|há 1 min|há 59 min|há 1 h|há 13 h|há 2 dias');
+    }
     const Ad = await abrir({ tf_modo: 'demo' }, { largura: 390 }); await Ad.ir('cartao');
     t(n + 'modo de exemplo: nada de parcelas novas nem de fatura aberta', !/Parcelas novas/.test(txt(Ad)) && !/Inclui as parcelas novas/.test(txt(Ad)) && !/A primeira barra/.test(txt(Ad)));
   }

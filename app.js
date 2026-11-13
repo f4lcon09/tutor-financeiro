@@ -229,6 +229,7 @@ function cartaoInfo(c){ const usado=usadoDe(c); return {usado, ...Calc.cartao(c.
 /* ===== pluggy-6: origem e idade de cada número (banco, arquivo, digitado, estimado) ===== */
 const dataBR=s=>String(s||'').slice(8,10)+'/'+String(s||'').slice(5,7);
 const idadeH=ms=>ms==null?'sem data':ms<0?'data futura':(h=>h<48?'há '+h+' h':'há '+Math.floor(h/24)+' dias')(Math.floor(ms/36e5));
+const idadeMin=ms=>ms<60000?'agora há pouco':ms<36e5?'há '+Math.floor(ms/60000)+' min':idadeH(ms);
 const origTxt=o=>!o?'':o.t==='banco'?'banco · '+idadeH(o.ms):o.t==='arquivo'?'arquivo · de '+dataBR(o.data):o.t==='digitado'?'digitado · de '+dataBR(o.data):o.t==='estimado'?'estimado':'';
 const origTag=o=>o?`<span class="orig">${esc(origTxt(o))}</span>${o.desat?' <span class="tag at">desatualizado</span>':''}`:'';
 /* várias linhas, uma etiqueta por origem: banco com a idade da mais velha, arquivo com a data, digitado com a data mais antiga */
@@ -248,7 +249,7 @@ const pnCaixa=(caixa,cob,extra)=>{ const d=DEMO, rl=!!d.real;
   const ver=rl?`<button class="btn ghost cx-ver" id="cx_ver" type="button" aria-expanded="false" aria-controls="cx_lista">Ver contas</button><div id="cx_lista" class="cx-lista" hidden>${cxLista()}</div>`:'';
   return pn('Caixa hoje'+info(inf),`<div class="big hero">${brl(caixa)}</div>${sub}${extra}${ver}`,'teal','','reserva '+num1(cob)+' m'); };
 const cartaoOrig=c=>{ if(!DEMO.real) return ''; if(!c.origem) return `<div class="mu small">${origTag(DEMO.origemArquivo)}</div>`;
-  const o=c.origem; return `<div class="mu small">limite e uso ${origTag(o.usado)}${o.fatura?' · fatura <span class="orig">estimada · compras depois de '+dataBR(o.fatura.desde)+(o.fatura.parcelas?'</span> <span class="orig">e '+o.fatura.parcelas+(o.fatura.parcelas===1?' parcela lançada':' parcelas lançadas')+' em '+dataBR(o.fatura.desde):'')+'</span>':''}</div>${o.fatura?'<div class="mu small">A fatura do banco pode ser um pouco maior: nem todo item da fatura chega pela conexão com o banco (A Confirmar).</div>':''}`; };
+  const o=c.origem; return `<div class="mu small">limite e uso ${origTag(o.usado)}${o.fatura?' · fatura <span class="orig">estimada · compras depois de '+dataBR(o.fatura.desde)+(o.fatura.parcelas?'</span> <span class="orig">e '+o.fatura.parcelas+(o.fatura.parcelas===1?' parcela lançada':' parcelas lançadas')+' em '+dataBR(o.fatura.desde):'')+'</span>':''}</div>${o.buscadoMs!=null?'<div class="mu small">O app buscou estes valores '+idadeMin(o.buscadoMs)+'. A idade acima é a dos dados no banco, que ele atualiza no ritmo dele.</div>':''}${o.fatura?'<div class="mu small">A fatura do banco pode ser um pouco maior: nem todo item da fatura chega pela conexão com o banco (A Confirmar).</div>':''}${o.fatura&&o.fatura.peloLimite!=null?'<div class="mu small">Outra conta, pelo limite usado menos as parcelas futuras que o banco mostra: <b>'+brl(o.fatura.peloLimite)+'</b> (A Confirmar).</div>':''}`; };
 const ligaCx=()=>{ const cv=$('#cx_ver'), l=$('#cx_lista'); if(!cv||!l) return; l.onclick=e=>e.stopPropagation();
   cv.onclick=e=>{ e.stopPropagation(); const ab=cv.getAttribute('aria-expanded')==='true'; cv.setAttribute('aria-expanded',String(!ab)); l.hidden=ab; cv.textContent=ab?'Ver contas':'Fechar contas'; }; };
 const blocoReal = () => { const d=DEMO;
