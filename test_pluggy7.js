@@ -538,7 +538,44 @@ const P = (n, de) => ({ n, de });
       t(g + 'derivar: parcelas futuras maiores que o limite usado: mínimo 0', Real.derivar(real, {}, ctxB(fGr, LG)).cartoes[0].origem.fatura.peloLimite === 0);
       const fCt = B.instantaneo(RESP([mov('a', 'crA', '2026-11-07', 10.1, 'DEBIT', { parc: P(1, 4) })]), AG, []).snap;
       t(g + 'derivar: centavos certos (900 - 3 x 10,10 = 869,70)', Real.derivar(real, {}, ctxB(fCt, LG)).cartoes[0].origem.fatura.peloLimite === 869.7);
-      t(g + 'derivar: a fatura estimada e o compromisso futuro não mudam com a segunda conta', c.fatura === dSem.cartoes[0].fatura && c.parcelasFuturas === dSem.cartoes[0].parcelasFuturas);
+      /* pluggy-10: com um pagamento de fatura depois do último fechamento, a conta pelo limite passa a ser a fatura estimada */
+      t(g + 'foto com pagamento depois do fechamento: a fatura estimada é a conta pelo limite (745), com a soma dos itens ao lado', eq(foto.pg, { crA: '2026-11-06' }) && c.fatura === 745 && c.origem.fatura.t === 'limite' && c.origem.fatura.porItens === dSem.cartoes[0].fatura && c.origem.fatura.pagoEm === '2026-11-06' && c.origem.fatura.peloLimite === 745);
+      t(g + 'nesse caso o compromisso futuro é a soma das parcelas futuras (155)', c.parcelasFuturas === 155 && Math.round((c.fatura + c.parcelasFuturas) * 100) === 90000);
+      t(g + 'foto sem pn (versão antiga), mesmo com pagamento: continua pela soma dos itens', dSem.cartoes[0].origem.fatura.t === 'estimado' && dSem.cartoes[0].parcelasFuturas === Math.round((900 - dSem.cartoes[0].fatura) * 100) / 100);
+      const semPg = clone(foto); semPg.pg = {};
+      const cSP = Real.derivar(real, {}, ctxB(semPg, LG)).cartoes[0];
+      t(g + 'sem pagamento visto: soma dos itens como principal, conta pelo limite só como segunda', cSP.origem.fatura.t === 'estimado' && cSP.fatura === dSem.cartoes[0].fatura && cSP.origem.fatura.peloLimite === 745 && !('porItens' in cSP.origem.fatura));
+      for (const [dia, vale] of [['2026-11-05', false], ['2026-11-04', false], ['2026-11-06', true], ['2026-11-09', true]]) {
+        const fp = clone(foto); fp.pg = { crA: dia };
+        t(g + 'pagamento em ' + dia + (vale ? ': depois do fechamento de 05/11, vale a conta pelo limite' : ': não é depois do fechamento de 05/11, vale a soma dos itens'), (Real.derivar(real, {}, ctxB(fp, LG)).cartoes[0].origem.fatura.t === 'limite') === vale);
+      }
+      const fpB = clone(foto); fpB.pg = { crB: '2026-11-08' };
+      t(g + 'pagamento de outro cartão não vale para este', Real.derivar(real, {}, ctxB(fpB, LG)).cartoes[0].origem.fatura.t === 'estimado');
+      const fpX = clone(foto); fpX.pg = ['2026-11-08'];
+      t(g + 'pg que não é objeto: soma dos itens', Real.derivar(real, {}, ctxB(fpX, LG)).cartoes[0].origem.fatura.t === 'estimado');
+      const fSemParc = B.instantaneo(RESP([mov('a', 'crA', '2026-11-07', 90), mov('p', 'crA', '2026-11-08', 300, 'CREDIT', { cat: 'Credit card payment' })]), AG, []).snap;
+      const cSemParc = Real.derivar(real, {}, ctxB(fSemParc, LG)).cartoes[0];
+      t(g + 'pago e sem nenhuma parcela futura: a fatura é o limite usado inteiro (900) e o compromisso futuro é 0', cSemParc.fatura === 900 && cSemParc.parcelasFuturas === 0 && cSemParc.origem.fatura.porItens === 90);
+      const fGr2 = B.instantaneo(RESP([mov('a', 'crA', '2026-11-07', 400, 'DEBIT', { parc: P(1, 12) }), mov('p', 'crA', '2026-11-08', 300, 'CREDIT', { cat: 'Credit card payment' })]), AG, []).snap;
+      t(g + 'pago e parcelas futuras maiores que o limite usado: fatura 0, compromisso futuro igual ao limite usado', (x => x.fatura === 0 && x.parcelasFuturas === 900)(Real.derivar(real, {}, ctxB(fGr2, LG)).cartoes[0]));
+      /* a foto: pg guarda só a data do último pagamento de cada cartão */
+      const fPg = B.instantaneo(RESP([mov('p1', 'crA', '2026-11-06', 300, 'CREDIT', { cat: 'Credit card payment' }), mov('p2', 'crA', '2026-11-08', 50, 'CREDIT', { cat: 'Credit card payment' }), mov('p3', 'crA', '2026-11-07', 10, 'CREDIT', { cat: 'Credit card payment' }), mov('p4', 'crB', '2026-10-30', 10, 'CREDIT', { cat: 'Credit card payment' }), mov('p5', 'ccA', '2026-11-09', 10, 'DEBIT', { cat: 'Credit card payment' }), mov('x', 'crA', '2026-11-07', 20)]), AG, []).snap;
+      t(g + 'foto: pg = a data mais nova de pagamento por cartão; pagamento continua fora de movs', eq(fPg.pg, { crA: '2026-11-08', crB: '2026-10-30' }) && eq(fPg.movs, { crA: [['2026-11-07', 20]] }));
+      t(g + 'foto sem pagamento: pg vazio', eq(B.instantaneo(RESP([mov('x', 'crA', '2026-11-07', 20)]), AG, []).snap.pg, {}));
+      t(g + 'sanBanco: pg vai e volta igual', eq(Seg.sanBanco(clone(fPg)), fPg));
+      const pgRuim = clone(fPg); pgRuim.pg = { crA: '2026-13-40', crB: 20261108, ccA: '2026-11-09', zz: '2026-11-09' };
+      t(g + 'sanBanco: data inválida, conta corrente e conta desconhecida caem de pg', eq(Seg.sanBanco(pgRuim).pg, {}));
+      const pgSem = clone(fPg); delete pgSem.pg;
+      t(g + 'sanBanco: foto sem pg (versão anterior) vira pg vazio', eq(Seg.sanBanco(pgSem).pg, {}));
+      /* tela do Cartão com a fatura anterior paga */
+      for (const larg of [360, 1024]) {
+        const P1 = await abrir({ tf_modo: 'real', tf_real: RT(), tf_bsnap: Object.assign(SNAP({ crA: [['2026-11-09', 60, 1, 3]] }), { pg: { crA: '2026-11-09' } }) }, { antes: relogio('2026-11-10T12:00:00'), largura: larg }); await P1.ir('cartao');
+        t(g + larg + ' px: fatura em destaque = 780,00 (900 - 120), com a explicação e a soma dos itens (160,00)', /780,00/.test(P1.d.querySelector('.big').textContent + txt(P1).slice(0, 2000)) && /estimada · limite usado/.test(txt(P1)) && /menos as parcelas futuras/.test(txt(P1)) && /Soma dos itens que chegaram pela conexão: R\$\s?160,00\./.test(txt(P1)) && !/A fatura do banco pode ser um pouco maior/.test(txt(P1)) && !/Outra conta/.test(txt(P1)) && P1.erros.length === 0);
+        t(g + larg + ' px: a primeira barra do gráfico é a fatura pelo limite (780) e as seguintes somam as parcelas', barras(P1) === '780|260|60|0|0|0');
+        t(g + larg + ' px: as duas partes da frase ficam em trechos próprios, para poder quebrar de linha', [...P1.d.querySelectorAll('.orig')].some(e => e.textContent.trim() === 'estimada · limite usado') && [...P1.d.querySelectorAll('.orig')].some(e => e.textContent.trim() === 'menos as parcelas futuras'));
+        const P0 = await abre({ crA: [['2026-11-09', 60, 1, 3]] }, larg);
+        t(g + larg + ' px: sem pagamento visto: destaque pela soma dos itens e a outra conta avisa quando vira a principal', barras(P0).startsWith('160|') && /Outra conta, pelo limite usado menos as parcelas futuras que o banco mostra: R\$\s?780,00 \(A Confirmar\)\. Ela só vira a principal depois do pagamento da fatura que fechou\./.test(txt(P0)));
+      }
       t(g + 'derivar: há quanto tempo o app buscou = agora menos a hora da foto', c.origem.buscadoMs === 0 && Real.derivar(real, {}, ctxB(foto, Object.assign({}, LG, { agora: AG + 7 * 60000 }))).cartoes[0].origem.buscadoMs === 7 * 60000 && Real.derivar(real, {}, ctxB(foto, Object.assign({}, LG, { agora: AG - 5000 }))).cartoes[0].origem.buscadoMs === 0);
       const semEm = clone(foto); delete semEm.em;
       t(g + 'derivar: foto sem hora: sem essa informação', !('buscadoMs' in Real.derivar(real, {}, ctxB(semEm, LG)).cartoes[0].origem));

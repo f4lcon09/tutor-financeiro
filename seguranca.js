@@ -154,7 +154,9 @@
       if (ids[k] !== 'CREDIT' || !Array.isArray(b.pn[k])) return;
       pn[k] = b.pn[k].slice(0, 400).filter(function (m) { return Array.isArray(m) && m.length === 4 && data(m[0]) && num(m[1]) && Number.isInteger(m[2]) && Number.isInteger(m[3]) && m[2] >= 1 && m[3] > m[2] && m[3] <= 120; }).map(function (m) { return [m[0], m[1], m[2], m[3]]; });
     });
-    return { v: 1, em: b.em, contas: contas, inv: inv, ip: b.ip === true, movs: movs, pm: pm, pn: pn };
+    var pg = {};   // pluggy-10: data do último pagamento de fatura, por cartão
+    if (isObj(b.pg)) Object.keys(b.pg).forEach(function (k) { if (ids[k] === 'CREDIT' && data(b.pg[k])) pg[k] = b.pg[k]; });
+    return { v: 1, em: b.em, contas: contas, inv: inv, ip: b.ip === true, movs: movs, pm: pm, pn: pn, pg: pg };
   }
   function sanReserva(r) {
     if (!isObj(r) || !idOk(r.id) || !nomeOk(r.nome) || !num(r.valor) || r.valor < 0 || !data(r.data)) return null;

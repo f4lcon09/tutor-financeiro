@@ -267,13 +267,20 @@
          na conexão, e entre o fechamento e o pagamento inclui a fatura fechada ainda não paga. Só quando a foto traz parcelas com seguintes
          (foto de versão antiga chega sem pn e não dá para saber as parcelas futuras). */
       if (est && ps && ps.n > 0 && isObjeto(B.pn)) c.origem.fatura.peloLimite = r2(Math.max(bc.saldo - ps.todas.reduce(function (s, x) { return s + x; }, 0), 0));
+      /* pluggy-10: conferido com o dono em 14/11/2026 (Nubank): essa conta deu a fatura do banco no centavo, e a soma dos itens ficou abaixo por três
+         motivos que ela não tem (compra em moeda estrangeira chega no valor da moeda de origem; a conexão data os itens um dia antes; item que já
+         está no saldo e ainda não está na lista). Então ela passa a ser a fatura estimada, quando dá para saber que a fatura que fechou já foi paga:
+         a foto traz um pagamento de fatura (pg) depois do último fechamento. Antes do pagamento o saldo ainda inclui a fatura fechada: vale a soma dos itens. */
+      var pagoEm = isObjeto(B.pg) && typeof B.pg[bc.id] === 'string' ? B.pg[bc.id] : null;
+      var peloSaldo = est && ps && isObjeto(B.pn) && pagoEm && pagoEm > est.desde ? r2(Math.max(bc.saldo - ps.todas.reduce(function (s, x) { return s + x; }, 0), 0)) : null;
+      if (peloSaldo !== null) { c.origem.fatura.t = 'limite'; c.origem.fatura.porItens = est.valor; c.origem.fatura.peloLimite = peloSaldo; c.origem.fatura.pagoEm = pagoEm; }
       if (B.em > 0 && ag > 0) c.origem.buscadoMs = Math.max(ag - B.em, 0);   // há quanto tempo o app buscou os valores (a idade ao lado é a dos dados no banco)
       if (ab) {
         var arqS = c.serie;
         c.mesAberta = ab; c.serie = juntarSerie(arqS, ps, ab);
         n2.futuras = arqS.filter(function (f) { return !(f.mes > ab); }).concat(c.serie);
       }
-      if (est) { c.fatura = est.valor; c.parcelasFuturas = r2(Math.max(bc.saldo - est.valor, 0)); }   // compromisso futuro estimado, mínimo 0
+      if (est) { c.fatura = peloSaldo !== null ? peloSaldo : est.valor; c.parcelasFuturas = r2(Math.max(bc.saldo - c.fatura, 0)); }   // compromisso futuro estimado, mínimo 0
     });
     var base = projetar(real, {}, n2), com = projetar(real, { repasseMae: true }, n2);
     var origemMercado = num.mercado > 0 ? 'informado' : (media > 0 ? 'média dos lançamentos' : 'ainda sem valor');
