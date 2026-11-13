@@ -166,6 +166,31 @@
     });
     return Object.keys(mapa).sort().map(function (k) { return mapa[k]; });
   }
+  /* pluggy-9 (diagnóstico do dono): os movimentos brutos de um cartão do banco, do último fechamento até hoje, cada um com o que a estimativa
+     faz com ele. Mesma regra de banco.js:instantaneo + estimarFatura: pagamento fica fora; compra depois do fechamento conta; parcela datada
+     no fechamento conta; compra comum no dia do fechamento fica na fatura que fechou; parcela datada hoje, em dia de fechamento, é da próxima.
+     ehPagamento(cat) vem de TFBanco.catDoBanco. Devolve { desde, itens (mais novo primeiro), total, conta } ou null. */
+  function itensFatura(movs, contaId, fecha, hojeISO, inverter, ehPagamento) {
+    if (!(fecha >= 1 && fecha <= 31) || !/^\d{4}-\d{2}-\d{2}$/.test(hojeISO || '') || !Array.isArray(movs)) return null;
+    var desde = fechamentoAnterior(fecha, hojeISO), hp = hojeISO.split('-').map(Number), fechaHoje = hp[2] === Math.min(fecha, new Date(Date.UTC(hp[0], hp[1], 0)).getUTCDate());
+    var itens = [], total = 0, conta = 0;
+    movs.forEach(function (m) {
+      if (!isObjeto(m) || m.conta !== contaId || typeof m.data !== 'string' || !/^\d{4}-\d{2}-\d{2}/.test(m.data) || typeof m.valor !== 'number' || !isFinite(m.valor) || (m.tipo !== 'DEBIT' && m.tipo !== 'CREDIT')) return;
+      var dia = m.data.slice(0, 10); if (dia < desde || dia > hojeISO) return;
+      var gasto = m.tipo === 'DEBIT'; if (inverter) gasto = !gasto;
+      var p = m.parc, parc = isObjeto(p) && Number.isInteger(p.n) && Number.isInteger(p.de) && p.n >= 1 && p.de >= p.n && p.de <= 120;
+      var pag = !!(ehPagamento && ehPagamento(m.cat)), entra, motivo;
+      if (pag) { entra = false; motivo = 'pagamento de fatura: fica fora'; }
+      else if (parc && fechaHoje && dia === hojeISO) { entra = false; motivo = 'parcela da próxima fatura'; }
+      else if (dia === desde) { entra = parc; motivo = parc ? 'parcela lançada no fechamento: conta' : 'dia do fechamento: fica na fatura que fechou'; }
+      else { entra = true; motivo = 'conta'; }
+      var v = r2((gasto ? 1 : -1) * Math.abs(m.valor));
+      if (entra) { total += v; conta++; }
+      itens.push({ data: dia, desc: typeof m.desc === 'string' ? m.desc.slice(0, 80) : '', valor: v, n: parc ? p.n : null, de: parc ? p.de : null, pendente: m.status === 'PENDING', entra: entra, motivo: motivo });
+    });
+    itens.sort(function (a, b) { return a.data < b.data ? 1 : a.data > b.data ? -1 : 0; });
+    return { desde: desde, itens: itens, total: r2(Math.max(total, 0)), conta: conta };
+  }
   var isObjeto = function (x) { return !!x && typeof x === 'object' && !Array.isArray(x); };
   var somaV = function (l) { return r2(l.reduce(function (s, x) { return s + x.valor; }, 0)); };
 
@@ -290,6 +315,6 @@
     };
   }
 
-  var api = { estimarFatura: estimarFatura, parcelasSeguintes: parcelasSeguintes, juntarSerie: juntarSerie, mesAberta: mesAberta, mesMais: mesMais, fechamentoAnterior: fechamentoAnterior, LIMITE_DESATUALIZADO_H: LIMITE_DESATUALIZADO_H, projetar: projetar, derivar: derivar, rotulosMeses: rotulosMeses, quintoDiaUtil: quintoDiaUtil, feriados: feriados, mediaMercado: mediaMercado, salarioEstimado: salarioEstimado, fmt: fmt };
+  var api = { estimarFatura: estimarFatura, parcelasSeguintes: parcelasSeguintes, juntarSerie: juntarSerie, itensFatura: itensFatura, mesAberta: mesAberta, mesMais: mesMais, fechamentoAnterior: fechamentoAnterior, LIMITE_DESATUALIZADO_H: LIMITE_DESATUALIZADO_H, projetar: projetar, derivar: derivar, rotulosMeses: rotulosMeses, quintoDiaUtil: quintoDiaUtil, feriados: feriados, mediaMercado: mediaMercado, salarioEstimado: salarioEstimado, fmt: fmt };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.Real = api;
 })(typeof window !== 'undefined' ? window : this);

@@ -553,6 +553,25 @@ const P = (n, de) => ({ n, de });
       const idadeMin = (await abre({}, 390)).w.eval('[idadeMin(0),idadeMin(59999),idadeMin(60000),idadeMin(59*60000+59999),idadeMin(3600000),idadeMin(13*3600000),idadeMin(49*3600000)].join("|")');
       t(g + 'texto da idade da busca: agora há pouco, minutos, horas, dias', idadeMin === 'agora há pouco|agora há pouco|há 1 min|há 59 min|há 1 h|há 13 h|há 2 dias');
     }
+    /* pluggy-9: itens da fatura estimada (diagnóstico do dono) */
+    {
+      const g = 'itens da fatura: ', IF = Real.itensFatura, pag = cat => B.catDoBanco(cat).pagamento;
+      const ms = [mov('a', 'crA', '2026-11-07', 90, 'DEBIT', { parc: P(1, 3) }), mov('b', 'crA', '2026-11-06', 40), mov('c', 'crA', '2026-11-05', 30, 'DEBIT', { parc: P(3, 3) }), mov('d', 'crA', '2026-11-05', 70),
+        mov('e', 'crA', '2026-11-08', 25, 'CREDIT', { status: 'PENDING' }), mov('f', 'crA', '2026-11-06', 500, 'CREDIT', { cat: 'Credit card payment' }), mov('g', 'crA', '2026-11-04', 11), mov('h', 'crA', '2026-11-10', 12),
+        mov('i', 'crB', '2026-11-06', 13), mov('j', 'crA', '2026-11-06T10:00:00.000Z', 5.05), { conta: 'crA', data: '2026-11-06', valor: '9', tipo: 'DEBIT' }, null, mov('k', 'crA', '2026-11-06', 1, 'OUTRO')];
+      const r = IF(ms, 'crA', 5, '2026-11-09', false, pag);
+      t(g + 'lista só o cartão pedido, do fechamento até hoje, mais novo primeiro', r.desde === '2026-11-05' && eq(r.itens.map(x => x.data), ['2026-11-08', '2026-11-07', '2026-11-06', '2026-11-06', '2026-11-06', '2026-11-05', '2026-11-05']));
+      const por = v => r.itens.find(x => Math.abs(x.valor) === v);
+      t(g + 'compra depois do fechamento conta; parcela no fechamento conta; compra comum no fechamento não; pagamento não', por(40).entra && por(90).entra && por(30).entra && por(30).motivo === 'parcela lançada no fechamento: conta' && !por(70).entra && por(70).motivo === 'dia do fechamento: fica na fatura que fechou' && !por(500).entra && por(500).motivo === 'pagamento de fatura: fica fora');
+      t(g + 'estorno entra negativo e marcado como pendente; parcela traz n e N', por(25).valor === -25 && por(25).pendente === true && por(90).n === 1 && por(90).de === 3 && por(40).n === null);
+      t(g + 'o total é igual ao da fatura estimada com a mesma resposta', r.total === 140.05 && r.conta === 5 && (() => { const f = B.instantaneo(RESP(ms.filter(m => m && typeof m.valor === 'number' && m.tipo !== 'OUTRO' && !/T/.test(m.data))), AG, []).snap; return Math.round((E(f.movs.crA, 5, '2026-11-09', f.pm.crA).valor + 5.05) * 100) === 14005; })());
+      t(g + 'sinal invertido neste aparelho inverte os valores', IF(ms, 'crA', 5, '2026-11-09', true, pag).itens.find(x => Math.abs(x.valor) === 40).valor === -40);
+      const rf = IF([mov('a', 'crA', '2026-11-05', 50, 'DEBIT', { parc: P(2, 4) }), mov('b', 'crA', '2026-10-05', 60, 'DEBIT', { parc: P(1, 4) }), mov('c', 'crA', '2026-11-05', 8)], 'crA', 5, '2026-11-05', false, pag);
+      t(g + 'hoje é dia de fechamento: a parcela datada hoje é da próxima fatura; a compra de hoje conta', rf.desde === '2026-10-05' && rf.total === 68 && rf.itens.find(x => x.valor === 50).motivo === 'parcela da próxima fatura');
+      t(g + 'descrição longa é cortada em 80 e a que não é texto vira vazia', IF([mov('a', 'crA', '2026-11-06', 1, 'DEBIT', { desc: 'x'.repeat(200) }), mov('b', 'crA', '2026-11-06', 2, 'DEBIT', { desc: 7 })], 'crA', 5, '2026-11-09', false, pag).itens.map(x => x.desc.length).join() === '80,0');
+      t(g + 'sem fechamento, sem data ou sem lista: nada', IF(ms, 'crA', 0, '2026-11-09', false, pag) === null && IF(ms, 'crA', 5, '', false, pag) === null && IF(null, 'crA', 5, '2026-11-09', false, pag) === null);
+      t(g + 'total nunca negativo; sem função de pagamento, nada é tratado como pagamento', IF([mov('a', 'crA', '2026-11-06', 30, 'CREDIT')], 'crA', 5, '2026-11-09', false, pag).total === 0 && IF(ms, 'crA', 5, '2026-11-09', false).itens.find(x => Math.abs(x.valor) === 500).entra === true);
+    }
     const Ad = await abrir({ tf_modo: 'demo' }, { largura: 390 }); await Ad.ir('cartao');
     t(n + 'modo de exemplo: nada de parcelas novas nem de fatura aberta', !/Parcelas novas/.test(txt(Ad)) && !/Inclui as parcelas novas/.test(txt(Ad)) && !/A primeira barra/.test(txt(Ad)));
   }

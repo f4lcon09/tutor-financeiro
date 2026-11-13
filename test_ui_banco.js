@@ -630,6 +630,27 @@ const foto = A => JSON.stringify(['tf_lanc3', 'tf_banco_ids', 'tf_banco_inv', 't
       D.w.localStorage.setItem('tf_banco_on', 'false'); solta2(); await tick(80);
       t(g + 'conexão desligada no meio (endereço mantido): a resposta é descartada', D.chamadas.length === 1 && JSON.parse(snap(D)).em === bom.em);
     }
+    /* pluggy-9: botão "Itens da fatura estimada" */
+    {
+      const g = 'itens da fatura (tela): ', HJ = A.w.eval('S.hojeISO()');
+      const C1 = { id: 'm1', conta: 'c2', data: HJ, desc: 'Loja <b>Inventada</b>', valor: 45.9, tipo: 'DEBIT', status: 'POSTED' }, C2 = { id: 'm2', conta: 'c2', data: HJ, desc: 'Pagamento recebido', valor: 500, tipo: 'CREDIT', status: 'POSTED', cat: 'Credit card payment' }, C3 = { id: 'm3', conta: 'c1', data: HJ, desc: 'Da conta corrente', valor: 9, tipo: 'DEBIT', status: 'POSTED' };
+      const F = await abre(RESP([C1, C2, C3])); await F.ir('banco');
+      const saida = X => X.$('#bc_diag_out').textContent.replace(/\s+/g, ' ');
+      t(g + 'o botão existe, com tipo button', F.$('#bc_fat') && F.$('#bc_fat').getAttribute('type') === 'button' && F.$('#bc_fat').textContent === 'Itens da fatura estimada');
+      const c0 = F.chamadas.length; F.click('#bc_fat'); await tick(120);
+      t(g + 'pede à ponte de novo, uma vez', F.chamadas.length === c0 + 1);
+      t(g + 'lista os dois movimentos do cartão ligado, sem o da conta corrente', F.d.querySelectorAll('table.bc-fat td.tt').length === 2 && /Loja/.test(saida(F)) && !/Da conta corrente/.test(saida(F)));
+      t(g + 'total e o que fica fora', /Contam na estimativa: 1 item, R\$\s?45,90\./.test(saida(F)) && /Ficam fora: 1 item\./.test(saida(F)) && /pagamento de fatura: fica fora/.test(saida(F)));
+      t(g + 'descrição do banco é escapada', !F.$('#bc_diag_out b.x') && F.$('#bc_diag_out').innerHTML.includes('Loja &lt;b&gt;Inventada&lt;/b&gt;'));
+      t(g + 'nada é guardado: lançamentos e ids como antes', F.w.eval('S.st.lanc').every(l => !l.idExterno) && F.w.localStorage.getItem('tf_banco_ids') === null && F.erros.length === 0);
+      F.w.eval('PRIV=true'); F.click('#bc_fat'); await tick(120);
+      t(g + 'com "esconder valores" ligado, nenhum valor aparece', !/45,90/.test(saida(F)) && /••••/.test(saida(F)));
+      const S0 = await abre(RESP([C1]), { tf_banco_url: null }); await S0.ir('banco'); S0.set('#bc_url', URLOK); S0.click('#bc_fat'); await tick(120);
+      t(g + 'sem cartão ligado ao banco (nunca atualizou): avisa e não lista', /Nenhum cartão do app está ligado/.test(saida(S0)) && !S0.$('table.bc-fat'));
+      const V = await abre({ ok: true, dados: { de: mes + '-01', ate: mes + '-05', contas: CONTAS } }); await V.ir('banco');
+      V.w.eval("S.setBanco({v:1,em:Date.now(),contas:[{id:'c2',tipo:'CREDIT',nome:'Cartão Teste',saldo:200,atu:null}],inv:[],movs:{},pm:{},pn:{}})"); V.click('#bc_fat'); await tick(120);
+      t(g + 'resposta sem a lista de movimentos: avisa', /não trouxe a lista de movimentos/.test(saida(V)) && !V.$('table.bc-fat'));
+    }
     /* texto da tela */
     await A.ir('banco');
     t(n + 'a tela diz o que roda sozinho', /Os valores do banco atualizam ao abrir o app\. Importar movimentos, só quando você pedir\./.test(A.texto()) && !/Só atualiza quando você pedir/.test(A.texto()));
