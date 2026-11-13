@@ -170,6 +170,7 @@
      faz com ele. Mesma regra de banco.js:instantaneo + estimarFatura: pagamento fica fora; compra depois do fechamento conta; parcela datada
      no fechamento conta; compra comum no dia do fechamento fica na fatura que fechou; parcela datada hoje, em dia de fechamento, é da próxima.
      ehPagamento(cat) vem de TFBanco.catDoBanco. Devolve { desde, itens (mais novo primeiro), total, conta } ou null. */
+  var txtCurto = function (x) { return typeof x === 'string' ? x.slice(0, 40) : ''; };
   function itensFatura(movs, contaId, fecha, hojeISO, inverter, ehPagamento) {
     if (!(fecha >= 1 && fecha <= 31) || !/^\d{4}-\d{2}-\d{2}$/.test(hojeISO || '') || !Array.isArray(movs)) return null;
     var desde = fechamentoAnterior(fecha, hojeISO), hp = hojeISO.split('-').map(Number), fechaHoje = hp[2] === Math.min(fecha, new Date(Date.UTC(hp[0], hp[1], 0)).getUTCDate());
@@ -186,7 +187,7 @@
       else { entra = true; motivo = 'conta'; }
       var v = r2((gasto ? 1 : -1) * Math.abs(m.valor));
       if (entra) { total += v; conta++; }
-      itens.push({ data: dia, desc: typeof m.desc === 'string' ? m.desc.slice(0, 80) : '', valor: v, n: parc ? p.n : null, de: parc ? p.de : null, pendente: m.status === 'PENDING', entra: entra, motivo: motivo });
+      itens.push({ data: dia, desc: typeof m.desc === 'string' ? m.desc.slice(0, 80) : '', valor: v, n: parc ? p.n : null, de: parc ? p.de : null, pendente: m.status === 'PENDING', entra: entra, motivo: motivo, dataHora: txtCurto(m.dataHora), compra: txtCurto(m.compra), moeda: txtCurto(m.moeda) });   // pluggy-13: campos brutos que a ponte v5 repassa, só para o diagnóstico
     });
     itens.sort(function (a, b) { return a.data < b.data ? 1 : a.data > b.data ? -1 : 0; });
     return { desde: desde, itens: itens, total: r2(Math.max(total, 0)), conta: conta };

@@ -673,6 +673,18 @@ const foto = A => JSON.stringify(['tf_lanc3', 'tf_banco_ids', 'tf_banco_inv', 't
       U.w.eval('S.importarBanco(' + JSON.stringify([it('u2', 'Supermercado Z')]) + ')'); U.w.eval('PRIV=true'); await U.ir('banco'); U.click('#bc_rec'); await tick(20);
       t(g + 'com "esconder valores" ligado, nenhum valor aparece', !/10,00/.test(saida(U)) && /••••/.test(saida(U)));
     }
+    /* pluggy-13: campos brutos da ponte versão 5 no diagnóstico dos itens da fatura */
+    {
+      const g = 'itens da fatura, campos brutos: ', HJ = A.w.eval('S.hojeISO()'), saida = X => X.$('#bc_diag_out').textContent.replace(/\s+/g, ' ');
+      const B1 = { id: 'b1', conta: 'c2', data: HJ, desc: 'Loja Um', valor: 45.9, tipo: 'DEBIT', status: 'POSTED', dataHora: HJ + 'T03:00:00.000Z', compra: HJ + 'T02:00:00.000Z', moeda: 'USD' }, B2 = { id: 'b2', conta: 'c2', data: HJ, desc: 'Loja Dois', valor: 5, tipo: 'DEBIT', status: 'POSTED', dataHora: '<i>x</i>' };
+      const N = await abre(RESP([B1, B2])); await N.ir('banco'); N.click('#bc_fat'); await tick(120);
+      t(g + 'com os campos: aparece a coluna, com a data bruta, a data da compra e a moeda', [...N.d.querySelectorAll('table.bc-fat th')].some(e => e.textContent === 'Como veio do banco') && saida(N).includes('data ' + HJ + 'T03:00:00.000Z · compra ' + HJ + 'T02:00:00.000Z · moeda USD'));
+      t(g + 'o campo bruto é escapado', N.$('#bc_diag_out').innerHTML.includes('data &lt;i&gt;x&lt;/i&gt;') && !N.$('#bc_diag_out td i'));
+      const V4 = await abre(RESP([{ id: 'b3', conta: 'c2', data: HJ, desc: 'Loja', valor: 5, tipo: 'DEBIT', status: 'POSTED' }])); await V4.ir('banco'); V4.click('#bc_fat'); await tick(120);
+      t(g + 'ponte antiga (sem os campos): sem a coluna', V4.d.querySelectorAll('table.bc-fat td.tt').length === 1 && !/Como veio do banco/.test(saida(V4)));
+      const IF2 = N.w.eval("JSON.stringify(Real.itensFatura([{conta:'c',data:'2026-11-06',valor:10,tipo:'DEBIT',desc:'a',dataHora:7,compra:null,moeda:'" + 'x'.repeat(99) + "'}],'c',5,'2026-11-09',false).itens.map(x=>[x.dataHora,x.compra,x.moeda.length]))");
+      t(g + 'valor que não é texto vira vazio e texto longo é cortado em 40', IF2 === '[["","",40]]');
+    }
     /* texto da tela */
     await A.ir('banco');
     t(n + 'a tela diz o que roda sozinho', /Os valores do banco atualizam ao abrir o app\. Importar movimentos, só quando você pedir\./.test(A.texto()) && !/Só atualiza quando você pedir/.test(A.texto()));
