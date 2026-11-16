@@ -685,6 +685,28 @@ const foto = A => JSON.stringify(['tf_lanc3', 'tf_banco_ids', 'tf_banco_inv', 't
       const IF2 = N.w.eval("JSON.stringify(Real.itensFatura([{conta:'c',data:'2026-11-06',valor:10,tipo:'DEBIT',desc:'a',dataHora:7,compra:null,moeda:'" + 'x'.repeat(99) + "'}],'c',5,'2026-11-09',false).itens.map(x=>[x.dataHora,x.compra,x.moeda.length]))");
       t(g + 'valor que não é texto vira vazio e texto longo é cortado em 40', IF2 === '[["","",40]]');
     }
+    /* noite-1: a sincronização não apaga o que está sendo digitado; o app recarrega quando o dia vira */
+    {
+      const g = 'noite-1: ', src = require('fs').readFileSync(require('path').join(__dirname, 'app.js'), 'utf8');
+      const Z = await abreCom(RESP([M1])); await Z.ir('cartao');
+      const campo = Z.$('#sim_v'); campo.value = '1234'; campo.dispatchEvent(new Z.w.Event('input', { bubbles: true }));
+      const rol = []; Object.defineProperty(Z.w, 'scrollY', { value: 222, configurable: true }); Z.w.scrollTo = (x, y) => rol.push(y);
+      Z.w.eval('redesenhar()'); await tick(10);
+      t(g + 'redesenhar guarda o valor digitado e a rolagem', Z.$('#sim_v').value === '1234' && rol[rol.length - 1] === 222 && Z.w.eval('atual') === 'cartao');
+      t(g + 'a sincronização redesenha por redesenhar(), não por ir(), e não com confirmação, prévia ou menu abertos', src.includes("if(mudouTela && !['lancar'].includes(atual) && !document.querySelector('.conf,.bc-prev,#menutema')) redesenhar();") && !src.includes("if(mudouTela && !['lancar'].includes(atual)) ir(atual);"));
+      await Z.ir('hoje');
+      t(g + 'mesmo dia: não recarrega', Z.w.eval('diaVirou()') === false);
+      Z.w.eval("S.hojeISO=()=>'2099-01-02'");
+      t(g + 'outro dia, no Hoje: recarrega', Z.w.eval('diaVirou()') === true);
+      await Z.ir('lancar');
+      t(g + 'outro dia, no Lançar: não recarrega (não perde o que está sendo lançado)', Z.w.eval('diaVirou()') === false);
+      await Z.ir('cartao'); Z.$('#sim_v').focus();
+      t(g + 'outro dia, com um campo em foco: não recarrega', Z.d.activeElement === Z.$('#sim_v') && Z.w.eval('diaVirou()') === false);
+      Z.$('#sim_v').blur(); const dlg = Z.d.createElement('div'); dlg.className = 'conf'; Z.d.body.appendChild(dlg);
+      t(g + 'outro dia, com uma confirmação aberta: não recarrega', Z.w.eval('diaVirou()') === false);
+      dlg.remove();
+      t(g + 'outro dia, nada em uso: recarrega ao voltar para o app', Z.w.eval('diaVirou()') === true && src.includes("if(!document.hidden&&diaVirou()) location.reload();"));
+    }
     /* texto da tela */
     await A.ir('banco');
     t(n + 'a tela diz o que roda sozinho', /Os valores do banco atualizam ao abrir o app\. Importar movimentos, só quando você pedir\./.test(A.texto()) && !/Só atualiza quando você pedir/.test(A.texto()));

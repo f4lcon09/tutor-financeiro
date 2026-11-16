@@ -1182,7 +1182,9 @@ async function sincronizar(){
     if(!TFSync.igual(junto,remoto) && !Drive.descartados) await Drive.escrever(id,TFSync.doc(junto));   // se o Drive trouxe itens recusados, não sobrescreve: nada é perdido em silêncio
     save0('tf_items',junto);
     sincStatus=Drive.descartados?{t:'at',msg:'O Drive tem '+Drive.descartados+' item(ns) que este app não aceita; nada foi apagado lá. Dados deste aparelho não foram enviados.'}:{t:'ok',h:new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),msg:'Dados iguais no Drive e neste aparelho.'};
-    if(mudouTela && !['lancar'].includes(atual)) ir(atual);
+    /* noite-1: a sincronização traz dados de outro aparelho a qualquer momento (e a cada atualização do banco lá). Redesenhar com ir() apagava o que estava
+       sendo digitado e levava a tela ao topo. Agora guarda e devolve campos, foco e rolagem; com uma confirmação ou prévia aberta, não redesenha (a tela se atualiza na próxima troca). */
+    if(mudouTela && !['lancar'].includes(atual) && !document.querySelector('.conf,.bc-prev,#menutema')) redesenhar();
   }catch(e){
     sincStatus = e.message==='sem-token' ? {t:'at',msg:'A sessão do Google expirou. Toque para reconectar.'} : {t:'ru',msg:'Falhou ('+e.message+'). Seus dados continuam salvos aqui; tentarei de novo.'};
   }
@@ -1701,6 +1703,11 @@ function ir(k){
 if(MODO==='demo'){ const b=document.createElement('button'); b.type='button'; b.id='selo'; b.className='selo'; b.textContent='Exemplo · sair'; b.setAttribute('aria-label','Você está vendo dados de exemplo. Sair do exemplo'); b.onclick=sairExemplo; $('.topbar').prepend(b); }
 const h0=(location.hash||'#hoje').slice(1); ir(Object.hasOwn(T,h0) ? h0 : 'hoje');
 bancoAuto(); document.addEventListener('visibilitychange',()=>{ if(!document.hidden) bancoAuto(); });
+/* noite-1: o dia de hoje (hoje, diaHoje, mesAtual, diasMes) é lido uma vez, ao abrir. App aberto de um dia para o outro mostrava "fecha em N dias", calendário e mês
+   do dia anterior. Ao voltar para o app num dia diferente do da abertura, recarrega; não recarrega com um campo em foco, no Lançar ou com uma confirmação aberta. */
+const DIA_CARGA=S.hojeISO();
+const diaVirou=()=>S.hojeISO()!==DIA_CARGA&&atual!=='lancar'&&!document.querySelector('.conf,.bc-prev')&&!/^(INPUT|SELECT|TEXTAREA)$/.test((document.activeElement||{}).tagName||'');
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden&&diaVirou()) location.reload(); });
 if('serviceWorker' in navigator && (location.protocol==='https:'||location.hostname==='localhost'||location.hostname==='127.0.0.1')) navigator.serviceWorker.register('sw.js').then(reg=>{
   // atualização: procura sw.js novo ao voltar para o app; quando a versão nova assume, avisa em vez de recarregar sozinho (não perde o que está sendo digitado)
   document.addEventListener('visibilitychange',()=>{ if(!document.hidden) reg.update().catch(()=>{}); });
