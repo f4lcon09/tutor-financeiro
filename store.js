@@ -221,7 +221,8 @@
           ext.add(x.idExterno);
           do { id = novoId(); } while (usados[String(id)]);
           usados[String(id)] = 1;
-          novos.push({ id: id, data: x.data, desc: String(x.desc || '').trim().slice(0, Seg.LIM.desc) || 'Outros', cat: CATEGORIAS.indexOf(x.cat) >= 0 ? x.cat : 'Outros', valor: r2(x.direcao === 'entrada' ? -v : v), forma: x.forma, essencial: false, lazer: false, origem: 'pluggy', idExterno: x.idExterno });
+          var catX = CATEGORIAS.indexOf(x.cat) >= 0 ? x.cat : 'Outros', sg = x.direcao === 'saida' && !x.neutro ? sugerir(catX, x.desc) : { essencial: false, lazer: false };   // noite-1: marcas pela categoria, como no lançamento manual
+          novos.push({ id: id, data: x.data, desc: String(x.desc || '').trim().slice(0, Seg.LIM.desc) || 'Outros', cat: CATEGORIAS.indexOf(x.cat) >= 0 ? x.cat : 'Outros', valor: r2(x.direcao === 'entrada' ? -v : v), forma: x.forma, essencial: sg.essencial, lazer: sg.lazer, origem: 'pluggy', idExterno: x.idExterno });
           if (x.contaId && x.contaNome) { novos[novos.length - 1].contaId = x.contaId; novos[novos.length - 1].contaNome = String(x.contaNome).slice(0, Seg.LIM.nome); }
           comNeutro(novos[novos.length - 1], x.neutro === true);
         }
@@ -255,9 +256,21 @@
         st.lanc = st.lanc.map(function (l) {
           var c = Object.prototype.hasOwnProperty.call(mapa, String(l.id)) ? mapa[String(l.id)] : null;
           if (!c || !l.idExterno || l.cat !== 'Outros' || !(l.valor > 0) || l.neutro) return l;
-          n++; return Object.assign({}, l, { cat: c });
+          var sg = sugerir(c, l.desc);   // noite-1: a categoria nova traz as marcas de essencial e lazer
+          n++; return Object.assign({}, l, { cat: c, essencial: sg.essencial, lazer: sg.lazer });
         });
         if (n) mudou({ lanc: 1 });
+        return { ok: true, n: n };
+      },
+      /* noite-1: importados antigos entraram sem as marcas de essencial e lazer. Aplica as da categoria a quem veio do banco, é gasto, não é
+         "não é gasto" e está sem nenhuma das duas marcas. so=true só conta. Devolve quantos mudam. */
+      marcarImportados: function (so) {
+        var n = 0, nova = st.lanc.map(function (l) {
+          if (!l.idExterno || !(l.valor > 0) || l.neutro || l.essencial || l.lazer) return l;
+          var sg = sugerir(l.cat, l.desc); if (!sg.essencial && !sg.lazer) return l;
+          n++; return Object.assign({}, l, { essencial: sg.essencial, lazer: sg.lazer });
+        });
+        if (n && !so) { st.lanc = nova; mudou({ lanc: 1 }); }
         return { ok: true, n: n };
       },
       editar: function (id, o) {

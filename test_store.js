@@ -350,13 +350,24 @@ t('categoria inválida é erro', S.validarLancamento({ ...base, cat: 'Xis' }).er
   t('recategorizar: importou os itens do teste', imp.ok && s.st.lanc.length === 7);
   const r = s.recategorizar([{ id: por('Supermercado X').id, cat: 'Mercado' }, { id: por('Uber').id, cat: 'Transporte' }]);
   t('recategorizar: muda só a categoria dos escolhidos e avisa uma vez', r.ok && r.n === 2 && por('Supermercado X').cat === 'Mercado' && por('Uber').cat === 'Transporte' && vezes === 1);
-  t('recategorizar: o resto do lançamento fica igual (valor, data, origem, forma, essencial, lazer)', (l => l.valor === 10 && l.data === '2026-11-04' && l.idExterno === 'e1' && l.origem === 'pluggy' && l.forma === 'Crédito' && l.essencial === false && l.lazer === false)(por('Supermercado X')) && por('Loja').cat === 'Outros');
+  t('recategorizar: valor, data, origem e forma ficam iguais; as marcas seguem a categoria nova (Mercado e Transporte: essencial)', (l => l.valor === 10 && l.data === '2026-11-04' && l.idExterno === 'e1' && l.origem === 'pluggy' && l.forma === 'Crédito' && l.essencial === true && l.lazer === false)(por('Supermercado X')) && por('Uber').essencial === true && por('Loja').cat === 'Outros' && por('Loja').essencial === false);
   const meio = JSON.stringify(s.st.lanc); vezes = 0;
   const r2 = s.recategorizar([{ id: por('Manual em Outros').id, cat: 'Mercado' }, { id: por('Estorno mercado').id, cat: 'Mercado' }, { id: por('Farmácia').id, cat: 'Mercado' }, { id: por('Pagamento').id, cat: 'Mercado' }, { id: por('Loja').id, cat: 'Outros' }, { id: por('Loja').id, cat: 'Inexistente' }, { id: 'nao-existe', cat: 'Mercado' }, null, { cat: 'Mercado' }]);
   t('recategorizar: não mexe em lançamento manual, entrada, quem já tem categoria, "não é gasto", categoria inválida ou id desconhecido', r2.ok && r2.n === 0 && JSON.stringify(s.st.lanc) === meio && vezes === 0);
   t('recategorizar: lista vazia ou que não é lista não faz nada', s.recategorizar([]).n === 0 && s.recategorizar(null).n === 0 && s.recategorizar('x').n === 0 && JSON.stringify(s.st.lanc) === meio);
   t('recategorizar: segunda vez no mesmo item não muda de novo (já não está em Outros)', s.recategorizar([{ id: por('Uber').id, cat: 'Lazer' }]).n === 0 && por('Uber').cat === 'Transporte');
-  t('recategorizar: o que mudou foi só a categoria de dois itens', antes !== meio && JSON.stringify(JSON.parse(meio).map(l => Object.assign(l, { cat: 'X' }))) === JSON.stringify(JSON.parse(antes).map(l => Object.assign(l, { cat: 'X' }))));
+  t('recategorizar: o que mudou foi só a categoria de dois itens', antes !== meio && JSON.stringify(JSON.parse(meio).map(l => Object.assign(l, { cat: 'X', essencial: 0, lazer: 0 }))) === JSON.stringify(JSON.parse(antes).map(l => Object.assign(l, { cat: 'X', essencial: 0, lazer: 0 }))));
+  /* noite-1: marcas de essencial e lazer nos importados, pela categoria */
+  {
+    const s2 = novo(), it2 = (id, desc, cat, extra) => Object.assign({ idExterno: id, data: '2026-11-04', desc, valor: 10, forma: 'Crédito', direcao: 'saida', cat }, extra || {});
+    s2.importarBanco([it2('f1', 'iFood', 'Comida'), it2('f2', 'Padaria da esquina', 'Comida'), it2('f3', 'Spotify', 'Lazer'), it2('f4', 'Jogo', 'Jogos'), it2('f5', 'Supermercado', 'Mercado'), it2('f6', 'Loja', 'Compras'), it2('f7', 'Coisa', 'Outros'), it2('f8', 'Estorno iFood', 'Comida', { direcao: 'entrada' }), it2('f9', 'Pagamento', 'Lazer', { neutro: true }), it2('f10', 'Uber', 'Outros')]);
+    const m = d => (l => [l.essencial, l.lazer].join())(s2.st.lanc.find(l => l.desc === d));
+    t('importado: comida fora e lazer contam no lazer; mercado e padaria são essenciais; compras e outros ficam sem marca', m('iFood') === 'false,true' && m('Padaria da esquina') === 'true,false' && m('Spotify') === 'false,true' && m('Jogo') === 'false,true' && m('Supermercado') === 'true,false' && m('Loja') === 'false,false' && m('Coisa') === 'false,false');
+    t('importado: entrada e "não é gasto" ficam sem marca', m('Estorno iFood') === 'false,false' && m('Pagamento') === 'false,false');
+    t('importado: o lazer importado entra no gasto de lazer do mês', s2.gastosMes('2026-11').filter(l => l.lazer).reduce((a, l) => a + l.valor, 0) === 30);
+    s2.recategorizar([{ id: s2.st.lanc.find(l => l.desc === 'Uber').id, cat: 'Lazer' }]);
+    t('recategorizar para Lazer liga a marca de lazer', m('Uber') === 'false,true');
+  }
 }
 
 console.log(f ? f + ' falha(s)' : 'Todos os ' + ok + ' testes da camada de dados passaram.'); process.exit(f ? 1 : 0);

@@ -707,6 +707,22 @@ const foto = A => JSON.stringify(['tf_lanc3', 'tf_banco_ids', 'tf_banco_inv', 't
       dlg.remove();
       t(g + 'outro dia, nada em uso: recarrega ao voltar para o app', Z.w.eval('diaVirou()') === true && src.includes("if(!document.hidden&&diaVirou()) location.reload();"));
     }
+    /* noite-1: marcas de essencial e lazer nos importados antigos, pelo mesmo botão */
+    {
+      const g = 'marcar importados (tela): ', saida = X => X.$('#bc_diag_out').textContent.replace(/\s+/g, ' ');
+      const velho = (i, desc, cat, extra) => Object.assign({ id: 8000000000000 + i, data: mes + '-02', desc, cat, valor: 10, forma: 'Crédito', essencial: false, lazer: false, origem: 'pluggy', idExterno: 'v' + i }, extra || {});
+      const LV = [velho(1, 'iFood', 'Comida'), velho(2, 'Supermercado', 'Mercado'), velho(3, 'Loja', 'Compras'), velho(4, 'Pagamento', 'Lazer', { neutro: true }), velho(5, 'Estorno', 'Comida', { valor: -10 }), velho(6, 'Cinema', 'Lazer', { essencial: true }), { id: 8000000000007, data: mes + '-02', desc: 'Manual', cat: 'Lazer', valor: 10, forma: 'Pix', essencial: false, lazer: false }];
+      const W = await abreCom(RESP([M1]), { tf_lanc3: LV }); await W.ir('banco');
+      t(g + 'contar não muda nada', W.w.eval('S.marcarImportados(true).n') === 2 && W.w.eval('S.st.lanc.filter(l=>l.lazer).length') === 0);
+      W.click('#bc_rec'); await tick(20);
+      t(g + 'sem categoria para mudar: oferece só as marcas, com a contagem', /Nenhuma categoria para mudar\. Também marca como essencial ou lazer, pela categoria, 2 lançamentos importados que estão sem marca\./.test(saida(W)) && W.$('#bc_rec_ok').textContent === 'Aplicar as marcas' && !W.$('#bc_diag_out table'));
+      W.click('#bc_rec_ok'); await tick(20);
+      const m = d => W.w.eval("(l=>[l.essencial,l.lazer].join())(S.st.lanc.find(l=>l.desc==='" + d + "'))");
+      t(g + 'Aplicar marca só gasto importado sem marca: comida fora no lazer, mercado essencial', m('iFood') === 'false,true' && m('Supermercado') === 'true,false' && /2 lançamentos marcados\./.test(saida(W)));
+      t(g + 'não mexe em compras, "não é gasto", entrada, quem já tinha marca nem lançamento manual', m('Loja') === 'false,false' && m('Pagamento') === 'false,false' && m('Estorno') === 'false,false' && m('Cinema') === 'true,false' && m('Manual') === 'false,false');
+      W.click('#bc_rec'); await tick(20);
+      t(g + 'de novo: nada a fazer', /Nenhum lançamento importado em Outros com descrição reconhecida\./.test(saida(W)) && W.w.eval('S.marcarImportados().n') === 0 && W.erros.length === 0);
+    }
     /* texto da tela */
     await A.ir('banco');
     t(n + 'a tela diz o que roda sozinho', /Os valores do banco atualizam ao abrir o app\. Importar movimentos, só quando você pedir\./.test(A.texto()) && !/Só atualiza quando você pedir/.test(A.texto()));
