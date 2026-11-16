@@ -689,5 +689,29 @@ const P = (n, de) => ({ n, de });
     t(g + 'em novembro (mês do arquivo): a Agenda continua com a conta do arquivo', /Conta de teste/.test(txtV(N)) && !/Ajuda em casa/.test(txtV(N)));
   }
 
+  /* ===== 10. noite-1: a reserva de hoje contra a meta de 17/01/2027 ===== */
+  {
+    const g = 'reserva e meta: ';
+    const relogioM = iso => w => { const Rr = w.Date, alvo = new Rr(iso).getTime(), d0 = Rr.now(), agr = () => alvo + (Rr.now() - d0); class Dt extends Rr { constructor(...x) { if (x.length) super(...x); else super(agr()); } static now() { return agr(); } } w.Date = Dt; };
+    const RM = liq => { const r = clone(FICTICIO); r._meta.as_of = '2026-11-08'; r.liquidez.total = liq; return r; };
+    const abreM = async (liq, quando, larg) => { const A = await abrir({ tf_modo: 'real', tf_real: RM(liq) }, { antes: relogioM(quando), largura: larg || 1024 }); await A.ir('hoje'); return A; };
+    const A = await abreM(2000, '2026-12-10T12:00:00');
+    const calc = (cx, hoje) => JSON.parse(A.w.eval('JSON.stringify(metaReserva({meta:5000,piso:3000,caixinha:' + cx + '},"' + hoje + '"))'));
+    t(g + 'conta: 38 dias até 17/01 são 6 semanas; faltam 3.000, 500 por semana; para o piso faltam 1.000', eq(calc(2000, '2026-12-10'), { dias: 38, semanas: 6, passou: false, falta: 3000, faltaPiso: 1000, porSemana: 500, pct: 0.4 }));
+    t(g + 'conta: 7 dias é 1 semana; 8 dias são 2; no dia 17/01 ainda vale (1 semana); no dia 18 passou', calc(2000, '2027-01-10').semanas === 1 && calc(2000, '2027-01-09').semanas === 2 && calc(2000, '2027-01-17').passou === false && calc(2000, '2027-01-17').semanas === 1 && calc(2000, '2027-01-18').passou === true);
+    t(g + 'conta: acima da meta não falta nada e a barra para em 100%', (m => m.falta === 0 && m.porSemana === 0 && m.pct === 1 && m.faltaPiso === 0)(calc(9000, '2026-12-10')) && calc(3000.005, '2026-12-10').faltaPiso === 0);
+    t(g + 'conta: centavos arredondados (falta 0,10 em 3 semanas = 0,03 por semana)', calc(4999.9, '2026-12-30').porSemana === 0.03 && calc(4999.9, '2026-12-30').falta === 0.1);
+    const tx = X => X.$('#mr_t').textContent.replace(/\s+/g, ' ');
+    t(g + 'tela, reserva abaixo do piso: valor de hoje, quanto falta, quanto por semana e quanto falta para o piso', /2\.000,00/.test(A.$('#mr_v').textContent) && /Faltam R\$\s?3\.000 para a meta: R\$\s?500 por semana até 17\/01 \(6 semanas\)\. Para o piso faltam R\$\s?1\.000\./.test(tx(A)) && A.erros.length === 0);
+    const B2 = await abreM(4000, '2026-12-10T12:00:00', 390);
+    t(g + 'tela no celular, entre o piso e a meta: diz que o piso já está coberto', /Faltam R\$\s?1\.000 para a meta: R\$\s?166,67|Faltam R\$\s?1\.000 para a meta: R\$\s?167 por semana/.test(tx(B2)) && /O piso de R\$\s?3\.000 já está coberto\./.test(tx(B2)));
+    const C2 = await abreM(9000, '2026-12-10T12:00:00');
+    t(g + 'tela, acima da meta: mostra a folga', /A reserva já está na meta\. Folga de R\$\s?4\.000\./.test(tx(C2)) && !/Faltam/.test(tx(C2)));
+    const D2 = await abreM(2000, '2027-01-20T12:00:00');
+    t(g + 'tela, depois de 17/01: diz que o prazo passou', /O prazo de 17\/01 já passou\./.test(tx(D2)) && !/por semana/.test(tx(D2)));
+    const E2 = await abrir({ tf_modo: 'demo' }, { largura: 1024 }); await E2.ir('hoje');
+    t(g + 'modo de exemplo: sem o painel', !E2.$('#mr_v') && E2.erros.length === 0);
+  }
+
   process.exit(fim());
 })();

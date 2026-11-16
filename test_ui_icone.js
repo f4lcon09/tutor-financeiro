@@ -41,7 +41,9 @@ const soltos = A => { const r = []; const w = A.d.createTreeWalker(A.d.querySele
     t('mensagem de salvo usa o ícone desenhado', !!L.$('#f_msg svg') && /Salvo\./.test(L.$('#f_msg').textContent) && !/&lt;|</.test(L.$('#f_msg').textContent));
     await L.ir('orcamento'); L.w.eval("orcSel='Mercado'"); await L.ir('orcamento'); t('etiqueta aberto com seta desenhada', L.$$('main .tag.ne svg').length >= 1);
   }
-  const A = await abrir({ tf_modo: 'demo' });
+  /* noite-1: relógio fixo. Este bloco depende de haver uma conta do exemplo vencendo em poucos dias; com o relógio real, passava num dia do mês e falhava no seguinte. */
+  const relogioFixo = iso => w => { const Rr = w.Date, alvo = new Rr(iso).getTime(), d0 = Rr.now(), agr = () => alvo + (Rr.now() - d0); class Dt extends Rr { constructor(...x) { if (x.length) super(...x); else super(agr()); } static now() { return agr(); } } w.Date = Dt; };
+  const A = await abrir({ tf_modo: 'demo' }, { antes: relogioFixo('2026-11-15T12:00:00') });
   A.w.innerWidth = 390; A.w.dispatchEvent(new A.w.Event('resize')); await tick(20);
   await A.ir('hoje');
   const al = A.$('.alerta.at');
