@@ -149,6 +149,34 @@
     if (!(fecha >= 1 && fecha <= 31) || !/^\d{4}-\d{2}-\d{2}$/.test(hojeISO || '')) return null;
     return mesMais(fechamentoAnterior(fecha, hojeISO).slice(0, 7), vence >= 1 && vence <= fecha ? 2 : 1);
   }
+  /* noite-1: compras parceladas em andamento, a partir dos lançamentos importados do cartão. A descrição que vem do banco termina em "n/N"
+     (visto no Nubank em 14/11/2026: "Mueller 6/10"). Agrupa por nome, valor e N; vale a parcela mais adiantada de cada compra.
+     A fatura de cada parcela: a que estava aberta no dia seguinte à data dela (a conexão data as parcelas no dia do fechamento anterior).
+     Só as que ainda têm parcelas depois da fatura aberta de hoje. Devolve, da que termina antes para a que termina depois:
+     { nome, valor, n, de, faltam, restante, termina: 'AAAA-MM' }, e { lista, porMes, total }. */
+  function comprasParceladas(lanc, contaId, fecha, vence, hojeISO) {
+    var aberta = mesAberta(fecha, vence, hojeISO); if (!aberta || !Array.isArray(lanc)) return null;
+    var diaMais = function (iso) { var d = new Date(Date.parse(iso + 'T12:00:00Z') + 864e5); return d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate()); };
+    var grupos = {};
+    lanc.forEach(function (l) {
+      if (!l || !l.idExterno || l.contaId !== contaId || !(l.valor > 0) || l.neutro || typeof l.desc !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(l.data || '')) return;
+      var m = /^(.*?)\s*(\d{1,3})\/(\d{1,3})$/.exec(l.desc.trim()); if (!m) return;
+      var n = +m[2], de = +m[3]; if (!(n >= 1 && de >= 2 && n <= de && de <= 120) || !m[1].trim()) return;
+      var fat = mesAberta(fecha, vence, diaMais(l.data)); if (!fat) return;
+      var k = m[1].trim().toLowerCase() + '|' + Math.round(l.valor * 100) + '|' + de, g = grupos[k];
+      if (!g || n > g.n) grupos[k] = { nome: m[1].trim(), valor: r2(l.valor), n: n, de: de, fat: fat };
+    });
+    var lista = [], porMes = {}, total = 0;
+    Object.keys(grupos).forEach(function (k) {
+      var g = grupos[k], fim = mesMais(g.fat, g.de - g.n); if (!(fim > aberta)) return;   // termina na fatura aberta ou antes: nada depois dela
+      var pri = g.fat > aberta ? g.fat : mesMais(aberta, 1), faltam = 0;
+      for (var mes = pri; mes <= fim; mes = mesMais(mes, 1)) { porMes[mes] = r2((porMes[mes] || 0) + g.valor); faltam++; }
+      total += g.valor * faltam;
+      lista.push({ nome: g.nome, valor: g.valor, n: g.n, de: g.de, faltam: faltam, restante: r2(g.valor * faltam), termina: fim });
+    });
+    lista.sort(function (a, b) { return a.termina < b.termina ? -1 : a.termina > b.termina ? 1 : b.restante - a.restante; });
+    return { aberta: aberta, lista: lista, porMes: porMes, total: r2(total) };
+  }
   /* série das faturas DEPOIS da aberta, por mês (nunca por posição): as linhas do arquivo (parcelas antigas) com mes > aberta, mais as do banco.
      Em cada mês, o que o banco acrescenta ("novas") é o maior entre: as parcelas que começaram depois da data do arquivo; e o que o banco mostra
      a mais que o arquivo naquele mês. Mínimo 0. Mês que o arquivo não tem ganha linha nova. O arquivo não é alterado; a saída vem em ordem de mês. */
@@ -362,6 +390,6 @@
     };
   }
 
-  var api = { estimarFatura: estimarFatura, parcelasSeguintes: parcelasSeguintes, juntarSerie: juntarSerie, itensFatura: itensFatura, mesAberta: mesAberta, mesMais: mesMais, fechamentoAnterior: fechamentoAnterior, LIMITE_DESATUALIZADO_H: LIMITE_DESATUALIZADO_H, projetar: projetar, derivar: derivar, rotulosMeses: rotulosMeses, quintoDiaUtil: quintoDiaUtil, feriados: feriados, mediaMercado: mediaMercado, salarioEstimado: salarioEstimado, fmt: fmt };
+  var api = { estimarFatura: estimarFatura, parcelasSeguintes: parcelasSeguintes, juntarSerie: juntarSerie, comprasParceladas: comprasParceladas, itensFatura: itensFatura, mesAberta: mesAberta, mesMais: mesMais, fechamentoAnterior: fechamentoAnterior, LIMITE_DESATUALIZADO_H: LIMITE_DESATUALIZADO_H, projetar: projetar, derivar: derivar, rotulosMeses: rotulosMeses, quintoDiaUtil: quintoDiaUtil, feriados: feriados, mediaMercado: mediaMercado, salarioEstimado: salarioEstimado, fmt: fmt };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.Real = api;
 })(typeof window !== 'undefined' ? window : this);
