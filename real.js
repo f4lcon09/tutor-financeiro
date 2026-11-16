@@ -221,6 +221,44 @@
     itens.sort(function (a, b) { return a.data < b.data ? 1 : a.data > b.data ? -1 : 0; });
     return { desde: desde, itens: itens, total: r2(Math.max(total, 0)), conta: conta };
   }
+  /* noite-2: gastos que se repetem todo mês (assinaturas, contas), vistos nos lançamentos. Mesmo nome (sem números, acentos e sinais) em pelo
+     menos 2 meses diferentes, com valor parecido (diferença de até 25% entre o menor e o maior). Parcela "n/N" fica fora (é compra parcelada).
+     Para cada um: valor do último, dia típico, se já apareceu este mês e, quando o último valor mudou mais de 5% contra o anterior, os dois valores.
+     Devolve { lista, total } (total = soma dos valores de referência, por mês); ordem pelo dia típico. */
+  function chaveRec(desc) { return String(desc || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[0-9]+/g, ' ').replace(/[^a-z]+/g, ' ').trim(); }
+  function recorrentes(lanc, hojeISO) {
+    if (!Array.isArray(lanc) || !/^\d{4}-\d{2}-\d{2}$/.test(hojeISO || '')) return { lista: [], total: 0 };
+    var mesH = hojeISO.slice(0, 7), g = {};
+    lanc.forEach(function (l) {
+      if (!l || !(l.valor > 0) || l.neutro || typeof l.desc !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(l.data || '') || l.data > hojeISO) return;
+      if (/\d{1,3}\/\d{1,3}\s*$/.test(l.desc.trim())) return;
+      var k = chaveRec(l.desc); if (k.length < 3) return;
+      (g[k] = g[k] || []).push(l);
+    });
+    var lista = [];
+    Object.keys(g).forEach(function (k) {
+      var ls = g[k].slice().sort(function (a, b) { return a.data < b.data ? -1 : a.data > b.data ? 1 : 0; });
+      var meses = {}; ls.forEach(function (l) { meses[l.data.slice(0, 7)] = true; });
+      if (Object.keys(meses).length < 2) return;
+      var vs = ls.map(function (l) { return l.valor; }), mn = Math.min.apply(null, vs), mx = Math.max.apply(null, vs);
+      if (mx > mn * 1.25) return;
+      var ult = ls[ls.length - 1], ant = ls.length > 1 ? ls[ls.length - 2] : null;
+      var dias = ls.map(function (l) { return +l.data.slice(8); }).sort(function (a, b) { return a - b; }), dia = dias[Math.floor((dias.length - 1) / 2)];
+      var mudou = ant && Math.abs(ult.valor - ant.valor) > ant.valor * 0.05 ? { de: ant.valor, para: ult.valor } : null;
+      lista.push({ nome: ult.desc.trim().slice(0, 60), valor: r2(ult.valor), dia: dia, meses: Object.keys(meses).length, esteMes: !!meses[mesH], cat: ult.cat || 'Outros', mudou: mudou });
+    });
+    lista.sort(function (a, b) { return a.dia - b.dia || b.valor - a.valor; });
+    return { lista: lista, total: r2(lista.reduce(function (s, x) { return s + x.valor; }, 0)) };
+  }
+  /* noite-2: resumo da semana: gasto dos últimos 7 dias (com hoje) contra os 7 anteriores, e o maior gasto da semana. "Não é gasto" e entradas ficam fora. */
+  function semana(lanc, hojeISO) {
+    if (!Array.isArray(lanc) || !/^\d{4}-\d{2}-\d{2}$/.test(hojeISO || '')) return null;
+    var h = Date.parse(hojeISO + 'T12:00:00Z'), dias = function (iso) { return Math.round((h - Date.parse(iso + 'T12:00:00Z')) / 864e5); };
+    var esta = [], antes = [];
+    lanc.forEach(function (l) { if (!l || !(l.valor > 0) || l.neutro || !/^\d{4}-\d{2}-\d{2}$/.test(l.data || '')) return; var d = dias(l.data); if (d >= 0 && d <= 6) esta.push(l); else if (d >= 7 && d <= 13) antes.push(l); });
+    var s = function (a) { return r2(a.reduce(function (x, l) { return x + l.valor; }, 0)); }, maior = esta.slice().sort(function (a, b) { return b.valor - a.valor; })[0] || null;
+    return { gasto: s(esta), anterior: s(antes), n: esta.length, maior: maior ? { desc: String(maior.desc || '').slice(0, 60), valor: r2(maior.valor), data: maior.data } : null };
+  }
   var isObjeto = function (x) { return !!x && typeof x === 'object' && !Array.isArray(x); };
   var somaV = function (l) { return r2(l.reduce(function (s, x) { return s + x.valor; }, 0)); };
 
@@ -418,6 +456,6 @@
     };
   }
 
-  var api = { estimarFatura: estimarFatura, parcelasSeguintes: parcelasSeguintes, juntarSerie: juntarSerie, comprasParceladas: comprasParceladas, itensFatura: itensFatura, mesAberta: mesAberta, mesMais: mesMais, fechamentoAnterior: fechamentoAnterior, LIMITE_DESATUALIZADO_H: LIMITE_DESATUALIZADO_H, projetar: projetar, derivar: derivar, rotulosMeses: rotulosMeses, quintoDiaUtil: quintoDiaUtil, feriados: feriados, mediaMercado: mediaMercado, salarioEstimado: salarioEstimado, fmt: fmt };
+  var api = { estimarFatura: estimarFatura, parcelasSeguintes: parcelasSeguintes, juntarSerie: juntarSerie, comprasParceladas: comprasParceladas, itensFatura: itensFatura, recorrentes: recorrentes, semana: semana, mesAberta: mesAberta, mesMais: mesMais, fechamentoAnterior: fechamentoAnterior, LIMITE_DESATUALIZADO_H: LIMITE_DESATUALIZADO_H, projetar: projetar, derivar: derivar, rotulosMeses: rotulosMeses, quintoDiaUtil: quintoDiaUtil, feriados: feriados, mediaMercado: mediaMercado, salarioEstimado: salarioEstimado, fmt: fmt };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.Real = api;
 })(typeof window !== 'undefined' ? window : this);

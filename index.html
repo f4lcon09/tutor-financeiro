@@ -275,6 +275,7 @@ tr.clk.sel td:first-child{box-shadow:inset 3px 0 0 var(--teal)}
 .flt-conta label{display:block;font-size:13px;color:var(--mu);margin-bottom:4px}
 table.lt .mu.small{overflow-wrap:anywhere}
 .nf-g{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0 14px} .nc-l{display:grid;grid-template-columns:minmax(0,1fr) 110px 70px;gap:0 10px;align-items:end} .nc-l .field,.nf-g .field{min-width:0} .nf-g input::placeholder{color:var(--mu);opacity:.75;font-style:italic} @media (max-width:480px){.nc-l{grid-template-columns:minmax(0,1fr) 96px} .nc-l .field:first-child{grid-column:1/-1}} .nc-l input,.nf-g input{width:100%;box-sizing:border-box}
+table.rc{table-layout:fixed;width:100%} table.rc td,table.rc th{overflow-wrap:anywhere;min-width:0} table.rc th:first-child{width:42%}
 table.cp{table-layout:fixed;width:100%} table.cp td,table.cp th{overflow-wrap:anywhere;min-width:0} table.cp th:first-child{width:34%}
 .orc-l .dt{white-space:nowrap;font-variant-numeric:tabular-nums} .orc-l .oq{overflow-wrap:anywhere} .orc-l td.n{white-space:nowrap}
 .bc-acoes .btn{min-height:44px}
@@ -390,6 +391,7 @@ table.cp{table-layout:fixed;width:100%} table.cp td,table.cp th{overflow-wrap:an
   table.rt td:not([data-l])::before{content:none}
   table.rt td.tt{justify-content:flex-start;text-align:left;font-size:15px}
   table.rt td.tt::before{content:none}
+  table.rc td.tt{display:block} table.rc td.tt .small{margin-top:6px}
   table.rt td .bar{width:100%}
   table.rt td.uso{display:block}table.rt td.uso::before{content:none}
   /* lista de lançamentos */

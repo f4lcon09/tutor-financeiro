@@ -973,5 +973,40 @@ const P = (n, de) => ({ n, de });
     t(g + 'modo de exemplo: continua falando de janeiro', /janeiro/i.test(tx(E)) && E.erros.length === 0);
   }
 
+  /* ===== 17. noite-2: gastos que se repetem e revisão da semana ===== */
+  {
+    const g = 'recorrentes: ', RC = Real.recorrentes, SM = Real.semana;
+    const L = (d, desc, v, extra) => Object.assign({ id: d + desc + v, data: d, desc, valor: v, cat: 'Outros' }, extra || {});
+    const base = [L('2026-10-11', 'Apple.Com/Bill', 19.9), L('2026-11-11', 'Apple.Com/Bill', 19.9), L('2026-10-07', 'Compra no débito via NuPay|EBW*Spotify', 12.9), L('2026-11-07', 'Compra no débito via NuPay|EBW*Spotify', 14.9), L('2026-10-03', 'Anthropic* Claude Sub', 110), L('2026-11-03', 'Anthropic* Claude Sub', 114.4), L('2026-11-03', 'Mueller 6/10', 168.4), L('2026-10-03', 'Mueller 5/10', 168.4), L('2026-11-06', 'Koch Supermercados', 15), L('2026-10-20', 'Koch Supermercados', 90), L('2026-12-02', 'Apple.Com/Bill', 19.9)];
+    const r = RC(base, '2026-12-05');
+    t(g + 'mesmo nome em 2 meses ou mais, valor parecido: entra; parcela e valor muito diferente ficam fora; ordem pelo dia', r.lista.map(x => x.nome).join('|') === 'Anthropic* Claude Sub|Compra no débito via NuPay|EBW*Spotify|Apple.Com/Bill' && r.total === 149.2);
+    t(g + 'valor da última vez, dia típico, quantos meses e se já veio este mês', eq(r.lista[2], { nome: 'Apple.Com/Bill', valor: 19.9, dia: 11, meses: 3, esteMes: true, cat: 'Outros', mudou: null }) && r.lista[0].esteMes === false);
+    t(g + 'mudança de preço acima de 5%: mostra de quanto para quanto; até 5% não', eq(r.lista[1].mudou, { de: 12.9, para: 14.9 }) && r.lista[0].mudou === null);
+    t(g + 'só um mês: não é repetido', RC([L('2026-11-01', 'Netflix', 30), L('2026-11-20', 'Netflix', 30)], '2026-11-25').lista.length === 0);
+    t(g + 'números, acentos e sinais no nome não separam o mesmo gasto', RC([L('2026-10-05', 'PAG*Academia 123', 90), L('2026-11-05', 'Pag academia 456', 90)], '2026-11-25').lista.length === 1);
+    t(g + 'limite de valor: 25% de diferença entra; acima, não', RC([L('2026-10-05', 'Plano', 100), L('2026-11-05', 'Plano', 125)], '2026-11-25').lista.length === 1 && RC([L('2026-10-05', 'Plano', 100), L('2026-11-05', 'Plano', 125.01)], '2026-11-25').lista.length === 0);
+    t(g + 'ficam fora: entrada, "não é gasto", data futura, data inválida, nome curto', RC([L('2026-10-05', 'Salario', -3000), L('2026-11-05', 'Salario', -3000), L('2026-10-05', 'Pix', 50, { neutro: true }), L('2026-11-05', 'Pix', 50, { neutro: true }), L('2026-10-05', 'Futuro', 9), L('2026-12-30', 'Futuro', 9), L('x', 'Ruim', 1), L('2026-11-01', 'Ruim', 1), L('2026-10-01', 'ab', 1), L('2026-11-01', 'ab', 1)], '2026-11-25').lista.length === 0);
+    t(g + 'sem lista ou sem data: vazio', eq(RC(null, '2026-11-25'), { lista: [], total: 0 }) && eq(RC(base, ''), { lista: [], total: 0 }));
+    t(g + 'dia típico: a mediana dos dias', RC([L('2026-09-05', 'Luz', 80), L('2026-10-09', 'Luz', 80), L('2026-11-07', 'Luz', 80)], '2026-11-25').lista[0].dia === 7);
+    /* semana */
+    const w = SM(base, '2026-11-12');
+    t('semana: últimos 7 dias (06 a 12/11) contra os 7 anteriores (30/10 a 05/11), com o maior gasto', eq(w, { gasto: 49.8, anterior: 282.8, n: 3, maior: { desc: 'Apple.Com/Bill', valor: 19.9, data: '2026-11-11' } }));
+    t('semana: entrada, "não é gasto" e data futura ficam fora; sem lista ou sem data, nada', eq(SM([L('2026-11-12', 'A', -5), L('2026-11-12', 'B', 5, { neutro: true }), L('2026-11-13', 'C', 5)], '2026-11-12'), { gasto: 0, anterior: 0, n: 0, maior: null }) && SM(null, '2026-11-12') === null && SM([], '') === null);
+    /* telas */
+    const relogioR = iso => w2 => { const Rr = w2.Date, alvo = new Rr(iso).getTime(), d0 = Rr.now(), agr = () => alvo + (Rr.now() - d0); class Dt extends Rr { constructor(...x) { if (x.length) super(...x); else super(agr()); } static now() { return agr(); } } w2.Date = Dt; };
+    const RR = () => { const x = clone(FICTICIO); x._meta.as_of = '2026-11-08'; return x; };
+    const LL = base.map((l, i) => Object.assign({}, l, { id: 4000000000000 + i, forma: 'Crédito', essencial: false, lazer: false }));
+    const tx = A => A.$('main').textContent.replace(/\s+/g, ' ');
+    for (const larg of [1024, 390]) {
+      const A = await abrir({ tf_modo: 'real', tf_real: RR(), tf_lanc3: LL }, { antes: relogioR('2026-12-05T12:00:00'), largura: larg }); await A.ir('agenda');
+      const id = 'recorrentes ' + larg + ' px: ';
+      t(id + 'a Agenda mostra os gastos que se repetem, com o aviso de preço e o total', /Gastos que se repetem/.test(tx(A)) && A.d.querySelectorAll('table.rc td.tt').length === 3 && /mudou de R\$\s?12,90 para R\$\s?14,90/.test(tx(A)) && /3 gastos que se repetem: R\$\s?149,20 por mês\. Ainda não vieram este mês: R\$\s?129,30\./.test(A.$('#rc_res').textContent) && A.erros.length === 0);
+      await A.ir('hoje'); if (larg < 900) A.$$('main details').forEach(d => { d.open = true; });
+      t(id + 'Hoje tem a revisão da semana com o gasto dos últimos 7 dias', /Revisão da semana/.test(tx(A)) && /Gasto nos últimos 7 dias: R\$\s?19,90/.test(tx(A)) && A.erros.length === 0);
+    }
+    const V = await abrir({ tf_modo: 'real', tf_real: RR() }, { antes: relogioR('2026-12-05T12:00:00'), largura: 1024 }); await V.ir('agenda');
+    t('recorrentes: sem lançamentos, nem o painel nem a revisão da semana aparecem', !/Gastos que se repetem/.test(tx(V)) && (await V.ir('hoje'), !/Revisão da semana/.test(tx(V))) && V.erros.length === 0);
+  }
+
   process.exit(fim());
 })();

@@ -273,8 +273,16 @@ const pnMetaReserva=d=>{ if(!(d.meta>0)) return ''; const m=metaReserva(d,S.hoje
 const salarioLinha=d=>{ const j=d.salarioJanela; if(!j||!j.naJanela) return '';
   const txt=j.visto?'Salário deste mês: já aparece nos lançamentos.':j.recebido?'Salário deste mês: marcado como recebido.':'Salário deste mês: ainda conto como a receber (cai até o dia '+j.dia+'). Se já entrou, o saldo previsto está contando duas vezes.';
   return `<div class="small" id="sal_l" style="margin-top:10px">${txt}${j.visto?'':` <button class="btn ghost" type="button" id="sal_b" data-sal="${j.recebido?'0':'1'}" style="margin-top:8px">${j.recebido?'Ainda não recebi':'Já recebi'}</button>`}</div>`; };
+/* noite-2: revisão da semana no Hoje: gasto dos últimos 7 dias contra os 7 anteriores, o maior gasto, contas dos próximos 7 dias e o que revisar. */
+const pnSemana=()=>{ const w=Real.semana(S.st.lanc,S.hojeISO()); if(!w||(!w.n&&!w.anterior)) return '';
+  const dif=w.gasto-w.anterior, prox=(DEMO.agenda||[]).filter(a=>!isPago(a)&&a.dia>=diaHoje&&a.dia<=diaHoje+6), proxV=prox.reduce((s,a)=>s+a.valor,0);
+  const outros=S.st.lanc.filter(l=>l.idExterno&&l.cat==='Outros'&&l.valor>0&&!l.neutro&&String(l.data).slice(0,7)===mesAtual).length, rep=TFBanco.repetidosImportados(S.st.lanc).reduce((s,x)=>s+x.extras.length,0);
+  const itens=[[dif>0?'at':'ok',dif>0?AV:IOK,`<b>Gasto nos últimos 7 dias: ${brl(w.gasto)}</b><div class="mu small">${w.anterior?(dif>0?brl(dif)+' a mais':brl(-dif)+' a menos')+' que nos 7 dias antes ('+brl(w.anterior)+').':'Sem gastos nos 7 dias antes.'}${w.maior?' Maior: '+esc(w.maior.desc)+', '+brl(w.maior.valor)+'.':''}</div>`]];
+  itens.push([prox.length?'at':'ok',prox.length?AV:IOK,prox.length?`<b>${prox.length} ${prox.length===1?'conta vence':'contas vencem'} nos próximos 7 dias: ${brl(proxV)}</b><div class="mu small">${prox.map(a=>esc(a.nome)+' (dia '+a.dia+')').join(', ')}.</div>`:'<b>Nenhuma conta vence nos próximos 7 dias.</b>']);
+  if(outros||rep) itens.push(['at',AV,`<b>Para revisar</b><div class="mu small">${[outros?outros+(outros===1?' lançamento importado em Outros':' lançamentos importados em Outros')+' este mês':'',rep?rep+(rep===1?' lançamento que parece repetido':' lançamentos que parecem repetidos'):''].filter(Boolean).join('; ')}. Veja em Mais, Conexão bancária.</div>`]);
+  return pn('Revisão da semana',itens.map(x=>`<div class="ins"><div class="d ${x[0]}">${x[1]}</div><div class="small">${x[2]}</div></div>`).join(''),'teal','margin-bottom:14px'); };
 const blocoReal = () => { const d=DEMO;
-  return `${pnMetaReserva(d)}<div class="grid g2" style="margin-bottom:14px">
+  return `${pnMetaReserva(d)}${pnSemana()}<div class="grid g2" style="margin-bottom:14px">
     ${d.virou?pn('Contas deste mês'+info('O arquivo de dados é de um mês anterior. Estas contas foram montadas a partir dos seus gastos fixos e do cartão. Marque as pagas na Agenda.'),(d.agenda.length?d.agenda.slice().sort((x,y)=>x.dia-y.dia).map(x=>`<div class="ins"><div class="d ${isPago(x)?'ok':'at'}" style="width:auto;min-width:52px;padding:0 6px">dia ${x.dia}</div><div class="small">${esc(x.nome)} · ${brl(x.valor)}${isPago(x)?' · paga':''}</div></div>`).join(''):'<div class="mu small">Nenhuma conta montada para este mês.</div>')+`<div class="kv" style="margin-top:12px"><span>Ainda a pagar neste mês</span><span>${brl(d.agenda.filter(x=>!isPago(x)).reduce((s,x)=>s+x.valor,0))}</span></div>${salarioLinha(d)}`,'teal'):pn('Plano de pagamento'+info('Montado a partir do que você informou. Os valores não foram confirmados pelo banco.'),d.plano.map(x=>`<div class="ins"><div class="d ok" style="width:auto;min-width:52px;padding:0 6px">${esc(String(x.data).slice(8))}/${esc(String(x.data).slice(5,7))}</div><div class="small">${esc(x.texto)}</div></div>`).join('')+`<div class="kv" style="margin-top:12px"><span>Sobra depois de pagar tudo</span><span>${brl(d.sobra)}</span></div>`,'teal')}
     ${pn('Falta informar',d.pendentes.length?d.pendentes.map(t=>`<div class="ins"><div class="d at">${AV}</div><div class="small" style="padding-top:5px">${esc(t)}</div></div>`).join('')+'<div class="disc">Enquanto isso, o app não estima esses valores.</div><div style="margin-top:12px"><button class="btn ghost" data-ir="numeros">Abrir Meus números</button></div>':'<div class="mu">Nada pendente.</div>','vio')}
   </div>
@@ -569,6 +577,10 @@ function comprasHtml(c){
 function serieTabela(c){ const nv=c.serie.some(f=>f.novas); if(!c.serie.length) return `<div class="mu small">Nenhuma parcela depois da fatura aberta.</div>`; return `<table class="rt"><tr><th>Fatura de</th><th class="n">Parcelas antigas</th>${nv?'<th class="n">Parcelas novas (banco)</th>':''}<th class="n">Parte da mãe</th></tr>${c.serie.map(f=>`<tr><td class="tt"><b>${esc(String(f.mes).slice(5))}/${esc(String(f.mes).slice(2,4))}</b></td><td class="n" data-l="Parcelas antigas">${brl(f.fatura_total)}</td>${nv?`<td class="n" data-l="Parcelas novas (banco)">${f.novas?brl(f.novas):'—'}</td>`:''}<td class="n" data-l="Parte da mãe">${f.parte_mae?brl(f.parte_mae):'—'}</td></tr>`).join('')}</table><div class="hint">Parcelas antigas já contratadas. A parte da mãe só conta quando ela repassa.${nv?' Parcelas novas: as que o banco mostra e o arquivo não tem (A Confirmar).':''}</div>`; }
 
 /* --- Agenda --- */
+/* noite-2: gastos que se repetem, vistos nos lançamentos (assinaturas e contas). Só aparece quando há algum. */
+const pnRecorrentes=()=>{ const r=Real.recorrentes(S.st.lanc,S.hojeISO()); if(!r.lista.length) return '';
+  const ainda=r.lista.filter(x=>!x.esteMes), aindaV=ainda.reduce((s,x)=>s+x.valor,0);
+  return pn('Gastos que se repetem'+info('Encontrados nos seus lançamentos: o mesmo nome em pelo menos dois meses, com valor parecido. Parcelas ficam fora. Valor: o da última vez; dia: o dia típico.'),`<table class="rt rc"><tr><th>Gasto</th><th class="n">Valor</th><th>Dia</th><th>Este mês</th></tr>${r.lista.map(x=>`<tr><td class="tt"><b>${esc(x.nome)}</b>${x.mudou?`<div class="small"><span class="tag at">${AV} mudou de ${brl(x.mudou.de)} para ${brl(x.mudou.para)}</span></div>`:''}</td><td class="n" data-l="Valor">${brl(x.valor)}</td><td data-l="Dia">dia ${x.dia}</td><td data-l="Este mês">${x.esteMes?'já veio':'ainda não'}</td></tr>`).join('')}</table><div class="hint" id="rc_res">${r.lista.length} ${r.lista.length===1?'gasto que se repete':'gastos que se repetem'}: ${brl(r.total)} por mês.${ainda.length?' Ainda não vieram este mês: '+brl(aindaV)+'.':''}</div>`,'vio','margin-top:14px'); };
 T.agenda = () => {
   const l=DEMO.agenda.map(a=>({...a,dias:Calc.diasAte(a.dia,diaHoje),pago:isPago(a)})).sort((x,y)=>x.dia-y.dia);
   const total=l.reduce((s,a)=>s+a.valor,0), aberto=l.filter(a=>!a.pago).reduce((s,a)=>s+a.valor,0), pagoV=total-aberto;
@@ -586,6 +598,7 @@ T.agenda = () => {
     ${alertas(al)}
     ${pn('Ainda a vencer',`<div class="big">${brl(aVencer)}</div><span class="tag ${caixa>=aVencer?'ok':'ru'}" style="margin-top:6px">${caixa>=aVencer?IOK+' O caixa cobre ('+brl0(caixa)+')':IX+' Falta caixa'}</span><div class="mu small" style="margin-top:8px">Total do mês ${brl0(total)} · já pago ${brl0(pagoV)}</div>`,'vio')}
     ${pn('Contas do mês',lista,'vio')}
+    ${pnRecorrentes()}
     ${det('agenda','det','Ver detalhes',pCal+pPesoAg,'vio')}`;
   }
   return `<div class="head"><div><h1>Agenda de contas</h1><div class="sub">O que vence e quando. Marque como pago.</div></div></div>
@@ -596,7 +609,8 @@ T.agenda = () => {
   </div>
   <div class="grid g32">${pn('Contas do mês',`<table class="rt"><tr><th>Conta</th><th>Vencimento</th><th class="n">Valor</th><th>Situação</th></tr>${l.map(a=>{const k=a.pago?'ok':a.dias<0?'ru':a.dias<=3?'at':'ne', t=a.pago?IOK+' Pago':a.dias<0?IX+' Atrasada '+(-a.dias)+'d':a.dias===0?AV+' Vence hoje':a.dias<=3?AV+' Em '+a.dias+' dias':'Em '+a.dias+' dias';
     return `<tr><td class="tt"><label class="linha-check" style="--h:var(--vio);color:var(--tx);font-size:inherit"><input type="checkbox" data-id="${esc(a.id)}" ${a.pago?'checked':''} aria-label="Marcar como pago: ${esc(a.nome)}"><b>${esc(a.nome)}</b></label></td><td data-l="Vencimento">dia ${esc(a.dia)}</td><td class="n" data-l="Valor">${brl(a.valor)}</td><td data-l="Situação"><span class="tag ${k}">${t}</span></td></tr>`}).join('')}</table>`,'vio')}${pCal}</div>
-  ${pPesoAg}`;
+  ${pPesoAg}
+  ${pnRecorrentes()}`;
 };
 function bindAgenda(){ $$('#main input[type=checkbox]').forEach(c=>c.onchange=()=>{ const a=DEMO.agenda.find(x=>x.id===c.dataset.id); S.marcarPago(a,c.checked,mesAtual); ir('agenda'); }); }
 
