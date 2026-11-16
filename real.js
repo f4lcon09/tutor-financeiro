@@ -67,10 +67,11 @@
     var periodicos = num.periodicos || real.gastos_periodicos || [];
     var pend = num.pend != null && isFinite(num.pend) ? +num.pend : real.pendencias_novembro.reduce(function (s, p) { return s + p.valor; }, 0);   // pluggy-6: num.pend = só as não pagas, quando o início vem do banco ou da reserva digitada
     var fut = {}; (num.futuras || real.faturas_futuras_parcelas_antigas).forEach(function (f) { fut[f.mes] = f; });   // pluggy-8: num.futuras = a série com as parcelas novas do banco
-    var p = real._meta.as_of.split('-'), y = +p[0], m = +p[1] - 1;
+    var p = (num.ancora || real._meta.as_of).split('-'), y = +p[0], m = +p[1] - 1;   // noite-1: num.ancora = mês de hoje ('AAAA-MM'), quando já passou do mês do arquivo
     var inicio = num.inicio != null && isFinite(num.inicio) ? +num.inicio : real.liquidez.total;   // pluggy-6: a reserva (banco e digitada) quando houver; senão, a liquidez do arquivo
     var lazer0 = num.lazer0 != null && isFinite(num.lazer0) ? +num.lazer0 : lazer, mercado0 = num.mercado0 != null && isFinite(num.mercado0) ? +num.mercado0 : mercado;   // pluggy-6: só o que falta do mês, no início do banco ou digitado
-    var saldo = r2(inicio - pend - lazer0 - mercado0), out = [saldo];
+    var salario0 = num.salario0 > 0 ? +num.salario0 : 0;   // noite-1: salário que ainda entra neste mês (só depois do mês do arquivo e antes do 5º dia útil)
+    var saldo = r2(inicio + salario0 - pend - lazer0 - mercado0), out = [saldo];
     for (var i = 1; i < 12; i++) {
       var mm = (m + i) % 12, yy = y + Math.floor((m + i) / 12);
       var chave = yy + '-' + pad(mm + 1);
@@ -211,6 +212,11 @@
       if (/friday/i.test(nota)) { var m = nota.match(/\d{4}-\d{2}-(\d{2})/); if (m) d = +m[1]; }
       return { id: 'a' + (i + 1), nome: p.descricao + (d !== ven(p.vence) ? ' (vence dia ' + ven(p.vence) + ')' : ''), dia: d, valor: p.valor };
     });
+    /* noite-1: mês âncora. O arquivo é de um mês (as_of); quando hoje já está num mês depois, a projeção e a agenda passam a começar no mês de hoje.
+       Antes, em dezembro o app continuava no mês do arquivo: descontava as contas de novembro de novo e mostrava a agenda de novembro. */
+    var asMes = real._meta.as_of.slice(0, 7), hojeMes = /^\d{4}-\d{2}-\d{2}$/.test(ctx.hojeISO || '') ? ctx.hojeISO.slice(0, 7) : asMes;
+    var virou = hojeMes > asMes, ancora = virou ? hojeMes : asMes;
+    if (virou) agenda = [];   // as contas do arquivo são do mês dele; as deste mês são montadas mais abaixo, depois dos cartões
     var lim = num.limites || {};
     var cartoes = [{ id: 'c1', nome: c.emissor, final: '', limite: +lim.c1 || c.limite || 0, fatura: c.fatura_atual.total, parcelasFuturas: r2(futuras.reduce(function (s, f) { return s + f.fatura_total; }, 0)), fecha: c.fechamento_dia, vence: ven(c.fatura_atual.vence_em), serie: futuras }];
     (real.cartoes_extra || []).forEach(function (x, i) {
@@ -233,14 +239,14 @@
     /* início do arquivo (liquidez.total, sem reserva digitada): tudo como antes. Início do banco ou digitado: o mês 0 desconta só as pendências
        não pagas, pela mesma regra de Hoje e Agenda (ctx.pago = S.estaPago: marca em tf_pagos; sem marca e já vencida conta como paga). */
     var inicioArquivo = !reservaBanco && !(ctx.reserva || []).length, pendNaoPagas = null;
-    if (!inicioArquivo && typeof ctx.pago === 'function') {
+    if (!virou && !inicioArquivo && typeof ctx.pago === 'function') {
       var np = agenda.filter(function (a) { return !ctx.pago(a); });
       pendNaoPagas = { n: np.length, valor: somaV(np) }; n2.pend = pendNaoPagas.valor;
     }
     /* lazer e mercado do mês 0: no início do banco ou digitado, o que já foi lançado neste mês já saiu da conta; desconta só o que falta
        (teto de lazer menos o lazer lançado; mercado do mês menos o mercado lançado; mínimo 0). Só quando hoje está no mês do arquivo. */
     var falta = null;
-    if (!inicioArquivo && ctx.lanc && ctx.hojeISO && ctx.hojeISO.slice(0, 7) === real._meta.as_of.slice(0, 7)) {
+    if (!inicioArquivo && ctx.lanc && ctx.hojeISO && ctx.hojeISO.slice(0, 7) === ancora) {
       var doMes = ctx.lanc.filter(function (l) { return String(l.data).slice(0, 7) === ctx.hojeISO.slice(0, 7) && l.valor > 0 && !l.neutro; });
       var gl = r2(doMes.filter(function (l) { return l.lazer; }).reduce(function (s, l) { return s + l.valor; }, 0));
       var gm = r2(doMes.filter(function (l) { return !l.lazer && l.cat === 'Mercado'; }).reduce(function (s, l) { return s + l.valor; }, 0));
@@ -283,9 +289,40 @@
       }
       if (est) { c.fatura = peloSaldo !== null ? peloSaldo : est.valor; c.parcelasFuturas = r2(Math.max(bc.saldo - c.fatura, 0)); }   // compromisso futuro estimado, mínimo 0
     });
+    /* noite-1: contas do mês de hoje, quando ele já é depois do mês do arquivo. Vêm dos gastos fixos do arquivo e do cartão:
+       - fatura do cartão que vence neste mês: a fatura fechada que o banco informa (foto: fat); senão a fatura aberta estimada, se ela vence neste mês;
+         senão as parcelas antigas do arquivo para este mês mais as assinaturas (estimada);
+       - ajuda em casa e faculdade, no dia em que a conta parecida vencia no arquivo (na falta dela: 10 e 15, A Confirmar com o dono);
+       - gastos periódicos que caem neste mês, no último dia (o arquivo não diz o dia).
+       O mês 0 da projeção desconta só as não pagas (mesma regra de Hoje e Agenda) e soma o salário do mês se hoje é antes do 5º dia útil. */
+    if (virou) {
+      var aY = +ancora.slice(0, 4), aM = +ancora.slice(5, 7), c1 = cartoes[0], assin = soma(fx.assinaturas_no_cartao);
+      var diaDe = function (re, padrao) { var px = real.pendencias_novembro.filter(function (x) { return re.test(x.descricao || ''); })[0]; return px ? ven(px.vence) : padrao; };
+      var fb = c1.banco && B && isObjeto(B.fat) && Array.isArray(B.fat[c1.banco.id]) ? B.fat[c1.banco.id].filter(function (f) { return String(f[0]).slice(0, 7) === ancora; })[0] : null;
+      var arqF = futuras.filter(function (f) { return f.mes === ancora; })[0];
+      var oF = fb ? 'banco' : c1.mesAberta === ancora ? 'estimada' : 'arquivo';
+      var vF = fb ? fb[1] : c1.mesAberta === ancora ? c1.fatura : r2((arqF ? arqF.fatura_total : 0) + assin);
+      if (vF > 0) agenda.push({ id: 'g:fatura', nome: 'Fatura ' + c.emissor + (oF === 'banco' ? '' : ' (estimada)'), dia: c1.vence || 10, valor: r2(vF), origem: oF });
+      if (fx.ajuda_em_casa_a_partir_de_dezembro > 0) agenda.push({ id: 'g:ajuda', nome: 'Ajuda em casa', dia: diaDe(/ajuda/i, 10), valor: fx.ajuda_em_casa_a_partir_de_dezembro, origem: 'arquivo' });
+      var facM = aY >= 2027 ? fx.faculdade_2027_estimado : fx.faculdade_2026;
+      if (facM > 0) agenda.push({ id: 'g:faculdade', nome: 'Faculdade', dia: diaDe(/faculdade/i, 15), valor: facM, origem: 'arquivo' });
+      (num.periodicos || real.gastos_periodicos || []).forEach(function (g, i) {
+        var q = String(g.primeiro || '').split('-'), idx = (aY - +q[0]) * 12 + (aM - +q[1]);
+        if (idx >= 0 && idx % g.a_cada_meses === 0 && g.valor > 0) agenda.push({ id: 'g:per:' + i, nome: g.nome, dia: new Date(Date.UTC(aY, aM, 0)).getUTCDate(), valor: g.valor, origem: 'arquivo' });
+      });
+      n2.ancora = ancora;
+      if (!inicioArquivo && typeof ctx.pago === 'function') {
+        var npV = agenda.filter(function (a) { return !ctx.pago(a); });
+        pendNaoPagas = { n: npV.length, valor: somaV(npV) }; n2.pend = pendNaoPagas.valor;
+      } else n2.pend = somaV(agenda);
+      var d5 = quintoDiaUtil(aY, aM);
+      if (d5 && +ctx.hojeISO.slice(8) < d5) n2.salario0 = salario;
+    }
+    var mesesEntre = function (a, b) { return (+b.slice(0, 4) - +a.slice(0, 4)) * 12 + (+b.slice(5, 7) - +a.slice(5, 7)); };
+    var limitar = function (i) { return Math.min(Math.max(i, 0), 11); };
     var base = projetar(real, {}, n2), com = projetar(real, { repasseMae: true }, n2);
     var origemMercado = num.mercado > 0 ? 'informado' : (media > 0 ? 'média dos lançamentos' : 'ainda sem valor');
-    var ano = +real._meta.as_of.slice(0, 4), mes = +real._meta.as_of.slice(5, 7);
+    var ano = +ancora.slice(0, 4), mes = +ancora.slice(5, 7);
     var prox = mes === 12 ? [ano + 1, 1] : [ano, mes + 1];
     var salarioDia = quintoDiaUtil(prox[0], prox[1]);
     var sup = [
@@ -303,7 +340,9 @@
       salarioEstimado: !(num.salario > 0), salarioDiaProximo: salarioDia,
       meta: rg.meta_17_01_2027, piso: rg.piso_17_01_2027, alerta: rg.alerta_dezembro, tetoLazer: fx.teto_lazer_mes,
       pisoNovo: num.piso > 0 ? +num.piso : null,
-      meses: rotulosMeses(real._meta.as_of),
+      meses: rotulosMeses(ancora + '-01'),
+      ancora: ancora, virou: virou, salarioMes0: n2.salario0 > 0,   // noite-1: mês 0 da projeção; se já passou do mês do arquivo; se o salário deste mês ainda entra
+      iMeta: limitar(mesesEntre(ancora, '2027-01')), iAlerta: limitar(mesesEntre(ancora, '2026-12')),   // posição, na projeção, do mês da meta (17/01/2027) e do alerta de dezembro
       cenarios: { 'Base': base, 'Com repasse da mãe': com },
       carteira: reservaLinhas.map(function (x, i) { return { nome: x.o.t === 'arquivo' && i === 0 ? x.nome + ' (liquidez diária)' : x.nome, classe: 'Renda fixa', valor: x.valor, liquidez: 'diaria', o: x.o }; }),
       cartoes: cartoes,
@@ -315,7 +354,7 @@
         if (num.piso > 0 && /piso/i.test(t)) return false;
         return true;
       }),
-      plano: (real.plano_de_pagamento || []).map(function (a) { return { data: a.data, texto: planoTexto(a) }; }),
+      plano: virou ? [] : (real.plano_de_pagamento || []).map(function (a) { return { data: a.data, texto: planoTexto(a) }; }),
       sobra: real.sobra_apos_pagar_tudo,
       pisoDefinido: !/NOT yet defined/i.test(rg.piso_absoluto_status || '') || num.piso > 0,
       mercadoOrigem: origemMercado, mercadoMedia: media,

@@ -257,7 +257,7 @@ const ligaCx=()=>{ const cv=$('#cx_ver'), l=$('#cx_lista'); if(!cv||!l) return; 
   cv.onclick=e=>{ e.stopPropagation(); const ab=cv.getAttribute('aria-expanded')==='true'; cv.setAttribute('aria-expanded',String(!ab)); l.hidden=ab; cv.textContent=ab?'Ver contas':'Fechar contas'; }; };
 const blocoReal = () => { const d=DEMO;
   return `<div class="grid g2" style="margin-bottom:14px">
-    ${pn('Plano de pagamento'+info('Montado a partir do que você informou. Os valores não foram confirmados pelo banco.'),d.plano.map(x=>`<div class="ins"><div class="d ok" style="width:auto;min-width:52px;padding:0 6px">${esc(String(x.data).slice(8))}/${esc(String(x.data).slice(5,7))}</div><div class="small">${esc(x.texto)}</div></div>`).join('')+`<div class="kv" style="margin-top:12px"><span>Sobra depois de pagar tudo</span><span>${brl(d.sobra)}</span></div>`,'teal')}
+    ${d.virou?pn('Contas deste mês'+info('O arquivo de dados é de um mês anterior. Estas contas foram montadas a partir dos seus gastos fixos e do cartão. Marque as pagas na Agenda.'),(d.agenda.length?d.agenda.slice().sort((x,y)=>x.dia-y.dia).map(x=>`<div class="ins"><div class="d ${isPago(x)?'ok':'at'}" style="width:auto;min-width:52px;padding:0 6px">dia ${x.dia}</div><div class="small">${esc(x.nome)} · ${brl(x.valor)}${isPago(x)?' · paga':''}</div></div>`).join(''):'<div class="mu small">Nenhuma conta montada para este mês.</div>')+`<div class="kv" style="margin-top:12px"><span>Ainda a pagar neste mês</span><span>${brl(d.agenda.filter(x=>!isPago(x)).reduce((s,x)=>s+x.valor,0))}</span></div>`,'teal'):pn('Plano de pagamento'+info('Montado a partir do que você informou. Os valores não foram confirmados pelo banco.'),d.plano.map(x=>`<div class="ins"><div class="d ok" style="width:auto;min-width:52px;padding:0 6px">${esc(String(x.data).slice(8))}/${esc(String(x.data).slice(5,7))}</div><div class="small">${esc(x.texto)}</div></div>`).join('')+`<div class="kv" style="margin-top:12px"><span>Sobra depois de pagar tudo</span><span>${brl(d.sobra)}</span></div>`,'teal')}
     ${pn('Falta informar',d.pendentes.length?d.pendentes.map(t=>`<div class="ins"><div class="d at">${AV}</div><div class="small" style="padding-top:5px">${esc(t)}</div></div>`).join('')+'<div class="disc">Enquanto isso, o app não estima esses valores.</div><div style="margin-top:12px"><button class="btn ghost" data-ir="numeros">Abrir Meus números</button></div>':'<div class="mu">Nada pendente.</div>','vio')}
   </div>
   ${pn('Como a projeção é feita',d.suposicoes.map(x=>`<div class="ins"><div class="d ne">·</div><div class="small" style="padding-top:5px">${esc(x)}</div></div>`).join(''),'sky','margin-bottom:14px')}`; };
@@ -267,7 +267,7 @@ function proximasContas(){
 
 T.hoje = () => {
   if(SIMPLES()) return hojeSimples();
-  const d=DEMO, base=d.cenarios['Base'], jan=base[2], [cls,icn,txt]=status(jan,d.meta,d.piso);
+  const d=DEMO, base=d.cenarios['Base'], jan=base[iMetaDe(d)], [cls,icn,txt]=status(jan,d.meta,d.piso);
   const gasto=lazerGasto(), restante=d.tetoLazer-gasto, pct=gasto/d.tetoLazer;
   const lzCls = pct<=.75?'ok':pct<=1?'at':'ru';
   const rtz = TFStore.ritmoMes(gasto,diaHoje,diasMes), ritmo = rtz.projetado, semLanc = !doMes().length;
@@ -682,9 +682,9 @@ T.futuro = () => `
 const futOrig=()=>DEMO.real?`<div class="mu small fut-orig">A previsão começa da reserva de ${brl0(DEMO.caixinha)} ${origsTag(DEMO.reservaLinhas)}${DEMO.pendNaoPagas?` <span class="orig">· pendências não pagas: ${esc(DEMO.pendNaoPagas.n)}, ${esc(brl0(DEMO.pendNaoPagas.valor))}</span>`:''}${DEMO.faltaMes0?` <span class="orig">· ainda a gastar no mês: lazer ${esc(brl0(DEMO.faltaMes0.lazer))}, mercado ${esc(brl0(DEMO.faltaMes0.mercado))}</span>`:''}</div>`:'';
 function drawFuturo(){
   const cmpOn = cmpAll && !MOB();
-  const d=DEMO, v=d.cenarios[cenSel], jan=v[2], dez=v[1], [cls,icn,txt]=status(jan,d.meta,d.piso);
+  const d=DEMO, v=d.cenarios[cenSel], iM=iMetaDe(d), iA=iAlertaDe(d), jan=v[iM], dez=v[iA], [cls,icn,txt]=status(jan,d.meta,d.piso);
   const alvo=v.findIndex(x=>x>=d.meta), todos=Object.keys(d.cenarios);
-  const minV=Math.min(...v), minI=v.indexOf(minV), cresc=(v[11]-v[2])/9;
+  const minV=Math.min(...v), minI=v.indexOf(minV), cresc=(v[11]-v[iM])/Math.max(11-iM,1);
   const series = cmpOn
     ? [...todos.filter(c=>c!==cenSel).map(c=>({name:c,values:d.cenarios[c],c:d.cores[c],w:2})),{name:cenSel,values:v,c:d.cores[cenSel],w:3.5,area:true}]
     : [{name:cenSel,values:v,c:d.cores[cenSel],w:3.5,area:true}];
@@ -693,14 +693,14 @@ function drawFuturo(){
   const refs=[{v:d.meta,t:'Meta (17/01)',c:'var(--ok)'},{v:d.piso,t:'Piso (17/01)',c:'var(--at)'},{v:d.alerta,t:'Alerta (fim de dez)',c:'var(--ru)'}];
   const dfa=minV-d.alerta;
   const pSim = pn('E se...? Simulador'+info('Teste o efeito de gastar mais, economizar, ter uma entrada extra ou fazer uma compra grande. O gráfico mostra o cenário original e o novo.'),'<div id="sim">'+simHtml()+'</div>','teal','margin-bottom:14px');
-  const pCen = pn('Cenários lado a lado',`<table class="rt"><tr><th>Cenário</th><th class="n">Dez</th><th class="n">Jan</th><th>Faixa de janeiro</th><th>Mês mais apertado</th><th class="n">Fim de ${d.meses[11]}</th></tr>
-   ${todos.map(c=>{const s=d.cenarios[c],[k,i,t]=status(s[2],d.meta,d.piso), mi=s.indexOf(Math.min(...s));return `<tr><td class="tt"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${d.cores[c]};margin-right:8px"></span><b>${c}</b></td><td class="n" data-l="Dez">${brl0(s[1])}</td><td class="n" data-l="Jan">${brl0(s[2])}</td><td data-l="Faixa de janeiro"><span class="tag ${k}">${i} ${t}</span></td><td data-l="Mais apertado">${d.meses[mi]} · ${brl0(s[mi])}</td><td class="n" data-l="Fim de ${d.meses[11]}">${brl0(s[11])}</td></tr>`}).join('')}</table>`,'sky');
+  const pCen = pn('Cenários lado a lado',`<table class="rt"><tr><th>Cenário</th><th class="n">${mesCurto(d,iA,'Dez')}</th><th class="n">${mesCurto(d,iM,'Jan')}</th><th>Faixa de janeiro</th><th>Mês mais apertado</th><th class="n">Fim de ${d.meses[11]}</th></tr>
+   ${todos.map(c=>{const s=d.cenarios[c],[k,i,t]=status(s[iM],d.meta,d.piso), mi=s.indexOf(Math.min(...s));return `<tr><td class="tt"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${d.cores[c]};margin-right:8px"></span><b>${c}</b></td><td class="n" data-l="${mesCurto(d,iA,'Dez')}">${brl0(s[iA])}</td><td class="n" data-l="${mesCurto(d,iM,'Jan')}">${brl0(s[iM])}</td><td data-l="Faixa de janeiro"><span class="tag ${k}">${i} ${t}</span></td><td data-l="Mais apertado">${d.meses[mi]} · ${brl0(s[mi])}</td><td class="n" data-l="Fim de ${d.meses[11]}">${brl0(s[11])}</td></tr>`}).join('')}</table>`,'sky');
   const mobHtml = MOB() ? (()=>{
     const al=[]; if(cls==='ru') al.push([3, alerta('ru','Em janeiro o saldo fica abaixo do piso.')]); else if(cls==='at') al.push([1, alerta('at','Em janeiro o saldo fica entre o piso e a meta.')]);
     if(dez<d.alerta) al.push([2, alerta('ru','Dezembro fica abaixo do alerta ('+brl0(d.alerta)+').')]);
     
     return `${futOrig()}${alertas(al)}
-    ${pn('Saldo no fim de janeiro',`<div class="big" style="color:${COR[cls]}">${aprox(jan)}</div><span class="tag ${cls}" style="margin-top:6px">${icn} ${txt}</span><div class="mu small" style="margin-top:8px">Fim de dez ${brl0(dez)} · ${jan-d.meta>=0?'folga de '+brl0(jan-d.meta)+' sobre a meta':'faltam '+brl0(d.meta-jan)+' para a meta'}${alvo<0?'':' · passa da meta em '+d.meses[alvo]}</div>`,'sky')}
+    ${pn('Saldo no fim de janeiro',`<div class="big" style="color:${COR[cls]}">${aprox(jan)}</div><span class="tag ${cls}" style="margin-top:6px">${icn} ${txt}</span><div class="mu small" style="margin-top:8px">Fim de ${mesCurto(d,iA,'Dez').toLowerCase()} ${brl0(dez)} · ${jan-d.meta>=0?'folga de '+brl0(jan-d.meta)+' sobre a meta':'faltam '+brl0(d.meta-jan)+' para a meta'}${alvo<0?'':' · passa da meta em '+d.meses[alvo]}</div>`,'sky')}
     ${pn('Saldo previsto',pvHtml(),'sky')}
     ${pn('Leitura do cenário',`<div class="ins"><div class="d ${cls}">${icn}</div><div class="small"><b>Janeiro termina ${jan>=d.meta?'acima da meta':jan>=d.piso?'entre o piso e a meta':'abaixo do piso'}</b></div></div><div class="ins"><div class="d ${dfa>=0?'ok':'ru'}">${dfa>=0?IOK:IX}</div><div class="small"><b>Mês mais apertado: ${d.meses[minI]}</b><div class="mu">Saldo de ${brl0(minV)}, ${dfa>=0?brl0(dfa)+' acima':brl0(-dfa)+' abaixo'} do alerta.</div></div></div>`,'sky')}
     ${det('futuro','det','Ver detalhes',pSim+pCen,'sky')}`; })() : null;
@@ -716,7 +716,7 @@ function drawFuturo(){
     ${pn('Leitura do cenário'+info('Meta e piso vêm dos seus números: a meta é o saldo que você quer ter em 17/01 e o piso é o mínimo aceitável. O alerta é o saldo mínimo de segurança em dezembro.',true),`
       <div class="ins"><div class="d ${cls}">${icn}</div><div class="small"><b>Janeiro termina ${jan>=d.meta?'acima da meta':jan>=d.piso?'entre o piso e a meta':'abaixo do piso'}</b><div class="mu">${jan-d.meta>=0?'Sobram '+brl0(jan-d.meta)+' além da meta.':'Faltam '+brl0(d.meta-jan)+' para a meta e '+(jan>=d.piso?'você está '+brl0(jan-d.piso)+' acima do piso.':brl0(d.piso-jan)+' para o piso.')}</div></div></div>
       <div class="ins"><div class="d ${dfa>=0?'ok':'ru'}">${dfa>=0?IOK:IX}</div><div class="small"><b>Mês mais apertado: ${d.meses[minI]}</b><div class="mu">Saldo de ${brl0(minV)}, ${dfa>=0?brl0(dfa)+' acima':brl0(-dfa)+' abaixo'} do alerta. Evite compras grandes nesse mês.</div></div></div>
-      <div class="ins"><div class="d ne">${ISOBE}</div><div class="small"><b>Depois de janeiro o saldo cresce ${brl0(cresc)} por mês</b><div class="mu">Em média, de jan/27 até ${d.meses[11]}. Chega a ${brl0(v[11])} no fim.</div></div></div>
+      <div class="ins"><div class="d ne">${ISOBE}</div><div class="small"><b>Depois de janeiro o saldo cresce ${brl0(cresc)} por mês</b><div class="mu">Em média, de ${d.iMeta==null?'jan/27':d.meses[iM]} até ${d.meses[11]}. Chega a ${brl0(v[11])} no fim.</div></div></div>
       <div class="disc">Previsão do app com as premissas de cada cenário. Não é promessa.</div>`,'sky')}
   </div>
   ${pSim}
@@ -848,7 +848,7 @@ T.saude = () => {
   const d=DEMO, base=d.cenarios['Base'];
   const ct=Calc.carteira(d.carteira,d.essencial), divida=d.cartoes.reduce((s,c)=>s+usadoDe(c),0);
   const ativos=ct.total+d.conta, liquido=ativos-divida;
-  const s=Calc.saude({cobertura:d.caixinha/d.essencial,folgaMeta:base[2]-d.meta,meta:d.meta,dividaCartao:divida,renda:d.renda,lazerGasto:lazerGasto(),lazerTeto:d.tetoLazer,mesesComRegistro:2});
+  const s=Calc.saude({cobertura:d.caixinha/d.essencial,folgaMeta:base[iMetaDe(d)]-d.meta,meta:d.meta,dividaCartao:divida,renda:d.renda,lazerGasto:lazerGasto(),lazerTeto:d.tetoLazer,mesesComRegistro:2});
   const cor=s.nota>=75?'ok':s.nota>=50?'at':'ru';
   const dicas={
     'Reserva de emergência':()=>'Cada mês de essencial na reserva ('+brl0(d.essencial)+') soma 5 pontos. Faltam '+brl0(Math.max(d.essencial*6-d.caixinha,0))+' para os 6 meses.',
@@ -910,6 +910,9 @@ function catTotals(){ const o={}; gastosMes().forEach(l=>{ const k=catVer(l.cat)
 function catBars(){ const t=catTotals(), tot=t.reduce((s,x)=>s+x[1],0)||1;
   return t.length ? t.map(([c,v])=>`<div style="margin-bottom:12px"><div class="row small"><span>${esc(c)}</span><span style="font-family:var(--fn)">${brl0(v)} · ${pc(v/tot,0)}</span></div><div class="bar" style="--h:var(--pink);margin:5px 0 0"><span style="width:${v/tot*100}%"></span></div></div>`).join('') : '<div class="mu">Sem gastos neste mês.</div>'; }
 const mesRotulo=mes=>{ const p=String(mes).split('-').map(Number), d=new Date(p[0],p[1]-1,1); return d.toLocaleDateString('pt-BR',{month:'short'}).replace('.','')+'/'+String(d.getFullYear()).slice(2); };   // 'AAAA-MM' no mesmo formato de mesNome
+/* noite-1: posição, na projeção, do mês da meta (janeiro/27) e do alerta (dezembro/26). No exemplo e no mês do arquivo: 2 e 1, como antes. */
+const iMetaDe=d=>d.iMeta??2, iAlertaDe=d=>d.iAlerta??1;
+const mesCurto=(d,i,padrao)=>d.iMeta==null?padrao:(s=>s.charAt(0).toUpperCase()+s.slice(1))(String(d.meses[i]).split('/')[0]);
 const mesNome=k=>{ const d=new Date(hoje.getFullYear(),hoje.getMonth()+k,1); return d.toLocaleDateString('pt-BR',{month:'short'}).replace('.','')+'/'+String(d.getFullYear()).slice(2); };
 function calendario(l){
   const y=hoje.getFullYear(), m=hoje.getMonth(), off=new Date(y,m,1).getDay(), por={};
@@ -1001,7 +1004,7 @@ const pvCurto=v=>PRIV?'••••':pvNum(v);
 const pvDifTxt=v=>PRIV?MASK:(v>0?'+':v<0?'−':'')+'R$ '+pvNum(v);
 const pvFixo=v=>PRIV?MASK:'R$ '+pvNum(v);
 const pvAplicado=v=>{ let cum=0; return v.map((x,t)=>{ cum+=simS.entrada-simS.gasto; return x+cum-(t>=simS.mes?simS.compra:0); }); };
-function pvInicio(d){ if(!d.asOf) return 0; const a=d.asOf.split('-'); return Math.max(0,(hoje.getFullYear()-(+a[0]))*12+(hoje.getMonth()+1-(+a[1]))); }
+function pvInicio(d){ if(!d.asOf) return 0; const a=(d.ancora?d.ancora+'-01':d.asOf).split('-'); return Math.max(0,(hoje.getFullYear()-(+a[0]))*12+(hoje.getMonth()+1-(+a[1]))); }
 function pvMonta(){
   const d=DEMO, v=d.cenarios[cenSel], adj=pvAplicado(v), mudou=adj.some((x,i)=>x!==v[i]), se=pvModo==='se'&&mudou, j=TFGrafico.janela(d.meses,pvInicio(d)), corta=a=>a.slice(j.ini,j.ini+j.n), el=$('#pv_area');
   const W=Math.max((el&&el.clientWidth)||(MOB()?CW(1):CW(.66)),240), base=corta(v);
@@ -1094,7 +1097,7 @@ function bindSim(){
   const draw=()=>{
     $('#v_g').textContent=(simS.gasto>0?'+':'')+brl0(simS.gasto); $('#v_e').textContent=brl0(simS.entrada); $('#v_c').textContent=brl0(simS.compra);
     const adj=pvAplicado(v);
-    const jan=adj[2], [cls,icn,txt]=status(jan,d.meta,d.piso), dj=jan-v[2], mn=Math.min(...adj), mi=adj.indexOf(mn);
+    const jan=adj[iMetaDe(d)], [cls,icn,txt]=status(jan,d.meta,d.piso), dj=jan-v[iMetaDe(d)], mn=Math.min(...adj), mi=adj.indexOf(mn);
     const mudou=simS.gasto||simS.entrada||simS.compra;
     $('#simout').innerHTML=`<div style="margin-top:6px">
       <div><div class="kv"><span>Janeiro com a mudança</span><span style="color:${COR[cls]}">${brl0(jan)}</span><span>Diferença contra o original</span><span style="color:${dj>=0?COR.ok:COR.ru}">${dj>=0?'+':''}${brl0(dj)}</span><span>Contra a meta</span><span>${jan-d.meta>=0?'+':''}${brl0(jan-d.meta)}</span><span>Mês mais apertado</span><span>${d.meses[mi]} · ${brl0(mn)}</span></div>

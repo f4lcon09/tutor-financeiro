@@ -156,7 +156,12 @@
     });
     var pg = {};   // pluggy-10: data do último pagamento de fatura, por cartão
     if (isObj(b.pg)) Object.keys(b.pg).forEach(function (k) { if (ids[k] === 'CREDIT' && data(b.pg[k])) pg[k] = b.pg[k]; });
-    return { v: 1, em: b.em, contas: contas, inv: inv, ip: b.ip === true, movs: movs, pm: pm, pn: pn, pg: pg };
+    var fat = {};   // noite-1: faturas fechadas por cartão: [vencimento, total]
+    if (isObj(b.fat)) Object.keys(b.fat).forEach(function (k) {
+      if (ids[k] !== 'CREDIT' || !Array.isArray(b.fat[k])) return;
+      fat[k] = b.fat[k].slice(0, 12).filter(function (m) { return Array.isArray(m) && m.length === 2 && data(m[0]) && num(m[1]) && m[1] >= 0; }).map(function (m) { return [m[0], m[1]]; });
+    });
+    return { v: 1, em: b.em, contas: contas, inv: inv, ip: b.ip === true, movs: movs, pm: pm, pn: pn, pg: pg, fat: fat };
   }
   function sanReserva(r) {
     if (!isObj(r) || !idOk(r.id) || !nomeOk(r.nome) || !num(r.valor) || r.valor < 0 || !data(r.data)) return null;

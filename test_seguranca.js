@@ -176,7 +176,7 @@ t('esc não escapa duas vezes o que já é texto', Seg.esc('&lt;') === '&amp;lt;
     t('sw: arquivo do casco é guardado', guardados.length === 1 && guardados[0] === '/app/index.html');
     await pedir('https://exemplo.github.io/app/dados.json'); await pedir('https://exemplo.github.io/app/dados_reais_2026-11-04.json'); await pedir('https://exemplo.github.io/app/qualquer.txt?token=1');
     t('sw: arquivo fora da lista do casco (dados, json, qualquer outro) nunca é guardado', guardados.length === 1);
-    t('sw: lista do casco inclui os arquivos novos', /'app\.js'/.test(fs.readFileSync('sw.js', 'utf8')) && /'seguranca\.js'/.test(fs.readFileSync('sw.js', 'utf8')) && /'tema\.js'/.test(fs.readFileSync('sw.js', 'utf8')) && /'tokens\.css'/.test(fs.readFileSync('sw.js', 'utf8')) && /const V = 'tf-v35'/.test(fs.readFileSync('sw.js', 'utf8')));
+    t('sw: lista do casco inclui os arquivos novos', /'app\.js'/.test(fs.readFileSync('sw.js', 'utf8')) && /'seguranca\.js'/.test(fs.readFileSync('sw.js', 'utf8')) && /'tema\.js'/.test(fs.readFileSync('sw.js', 'utf8')) && /'tokens\.css'/.test(fs.readFileSync('sw.js', 'utf8')) && /const V = 'tf-v36'/.test(fs.readFileSync('sw.js', 'utf8')));
     const casco = (fs.readFileSync('sw.js', 'utf8').match(/const CASCO = \[([^\]]+)\]/) || [])[1].match(/'([^']+)'/g).map(x => x.slice(1, -1)).filter(x => x !== './');
     t('sw: todo arquivo do casco existe no repositório', casco.every(a => fs.existsSync(a)), casco.filter(a => !fs.existsSync(a)).join());
     await fimInterface();
@@ -270,8 +270,12 @@ async function fimInterface() {
     t('importado: nenhuma tela injeta HTML nem executa script', injetado(B).length === 0 && B.w.__xss === undefined && B.erros.length === 0, injetado(B).join() + ' ' + B.erros.slice(0, 2).join(' | '));
     await B.ir('hoje');
     t('importado: pendências em texto literal em Falta informar', B.texto().includes(P[5]) && B.texto().includes('algo'));
+    /* noite-1: a Agenda só mostra as contas do arquivo no mês dele; depois, monta as do mês de hoje (com o nome do cartão, também hostil aqui) */
+    const JM = JSON.parse(JSON.stringify(J)); JM._meta.as_of = B.w.eval('S.hojeISO()').slice(0, 8) + '01';
+    const BM = await abrir({ tf_modo: 'real', tf_real: JM }); await BM.ir('agenda');
+    t('importado: nome de conta hostil aparece literal na Agenda', BM.texto().includes(P[1]) && injetado(BM).length === 0 && BM.w.__xss === undefined);
     await B.ir('agenda');
-    t('importado: nome de conta hostil aparece literal na Agenda', B.texto().includes(P[1]));
+    t('importado, mês depois do arquivo: a Agenda montada não injeta HTML', injetado(B).length === 0 && B.w.__xss === undefined && B.erros.length === 0);
     await B.ir('cartao');
     t('importado: nome de cartão hostil aparece literal', B.texto().includes(P[4]) || B.$$('#cts .chip').some(c => c.textContent.includes(P[4])));
     // arquivo hostil pela tela: erro em pt-BR, estado intacto

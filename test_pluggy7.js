@@ -613,5 +613,81 @@ const P = (n, de) => ({ n, de });
     t(n + 'modo de exemplo: nada de parcelas novas nem de fatura aberta', !/Parcelas novas/.test(txt(Ad)) && !/Inclui as parcelas novas/.test(txt(Ad)) && !/A primeira barra/.test(txt(Ad)));
   }
 
+  /* ===== 9. noite-1: virada do mês. A projeção e a agenda passam a começar no mês de hoje quando ele é depois do mês do arquivo ===== */
+  {
+    const g = 'virada do mês: ';
+    const RV = () => { const r = REAL(); r.faturas_futuras_parcelas_antigas = [{ mes: '2026-12', fatura_total: 200, parte_mae: 0 }, { mes: '2027-01', fatura_total: 120, parte_mae: 0 }]; return r; };
+    const D = (hoje, extra, real) => Real.derivar(real || RV(), {}, Object.assign({ hojeISO: hoje, lanc: [] }, extra || {}));
+    const ag = d => d.agenda.map(a => a.id + '|' + a.nome + '|' + a.dia + '|' + a.valor).join(' ; ');
+    /* A. ainda no mês do arquivo (novembro): nada muda */
+    const a = D('2026-11-09');
+    t(g + 'no mês do arquivo: âncora no mês do arquivo, agenda do arquivo, posições 2 (meta) e 1 (alerta)', a.virou === false && a.ancora === '2026-11' && ag(a) === 'a1|Conta de teste|12|100' && a.iMeta === 2 && a.iAlerta === 1 && a.meses[0] === 'nov/26' && a.salarioMes0 === false);
+    t(g + 'no mês do arquivo: a projeção é idêntica à de antes', eq(a.cenarios.Base, Real.projetar(RV(), {}, { mercadoMedia: null })));
+    /* B. dezembro, depois do 5º dia útil (07/12/2026): começa em dezembro, sem salário no mês 0 */
+    const b = D('2026-12-10');
+    t(g + 'em dezembro: âncora em dezembro e rótulos a partir de dez/26', b.virou === true && b.ancora === '2026-12' && b.meses[0] === 'dez/26' && b.meses[1] === 'jan/27' && b.iMeta === 1 && b.iAlerta === 0);
+    t(g + 'em dezembro: agenda montada com a fatura do arquivo (200 + 10 de assinaturas, estimada, dia do vencimento), ajuda em casa (dia 10) e faculdade (dia 15)', ag(b) === 'g:fatura|Fatura Cartão Teste (estimada)|12|210 ; g:ajuda|Ajuda em casa|10|200 ; g:faculdade|Faculdade|15|100');
+    t(g + 'em dezembro: as contas de novembro do arquivo e o plano de pagamento não aparecem mais', !/Conta de teste/.test(ag(b)) && eq(b.plano, []));
+    t(g + 'em dezembro: mês 0 = início (9.000) menos as contas do mês (510) e o teto de lazer (300) = 8.190; sem salário depois do 5º dia útil', b.cenarios.Base[0] === 8190 && b.salarioMes0 === false);
+    t(g + 'em dezembro: janeiro = 8.190 + 5.000 - (200 ajuda + 120 parcelas + 10 assinaturas + 120 faculdade de 2027 + 300 lazer) = 12.440', b.cenarios.Base[1] === 12440);
+    t(g + 'em dezembro: as contas de novembro não são descontadas de novo (antes: mês do arquivo com 100 de pendência e depois dezembro inteiro)', b.cenarios.Base.length === 12 && b.cenarios.Base[1] - b.cenarios.Base[0] === 4250);
+    /* C. dezembro antes do 5º dia útil: o salário do mês ainda entra */
+    const c2 = D('2026-12-03');
+    t(g + 'antes do 5º dia útil (07/12): o salário do mês entra no mês 0 (8.190 + 5.000)', c2.cenarios.Base[0] === 13190 && c2.salarioMes0 === true && D('2026-12-06').salarioMes0 === true && D('2026-12-07').salarioMes0 === false);
+    /* D. início digitado: desconta só as contas não pagas e só o lazer que falta */
+    const d2 = D('2026-12-10', { reserva: [{ nome: 'Cofre', valor: 1000, data: '2026-12-01' }], pago: x => x.id === 'g:ajuda', lanc: [{ id: 1, data: '2026-12-04', cat: 'Lazer', valor: 50, lazer: true }, { id: 2, data: '2026-11-20', cat: 'Lazer', valor: 999, lazer: true }] });
+    t(g + 'com reserva digitada: 10.000 menos as não pagas (210 + 100) e o lazer que falta (300 - 50) = 9.440', d2.cenarios.Base[0] === 9440 && eq(d2.pendNaoPagas, { n: 2, valor: 310 }) && d2.faltaMes0.lazer === 250);
+    /* E. fatura fechada informada pelo banco */
+    const resp = RESP([mov('a', 'crA', '2026-12-06', 40)]);
+    resp.dados.faturas = [{ id: 'f1', conta: 'crA', vence: '2026-12-12', fecha: '2026-12-05', total: 777.7 }, { id: 'f0', conta: 'crA', vence: '2026-11-12', total: 1 }, { conta: 'ccA', vence: '2026-12-12', total: 5 }, { conta: 'crA', vence: 'ruim', total: 3 }, { conta: 'crA', vence: '2026-10-12', total: -1 }, { conta: 'crA', vence: '2026-09-12', total: '9' }, null];
+    const fotoF = B.instantaneo(resp, AG, []).snap;
+    t(g + 'foto: guarda as faturas fechadas válidas do cartão, da mais nova para a mais antiga', eq(fotoF.fat, { crA: [['2026-12-12', 777.7], ['2026-11-12', 1]] }));
+    const muitas = RESP([]); muitas.dados.faturas = []; for (let i = 1; i <= 9; i++) muitas.dados.faturas.push({ conta: 'crA', vence: '2026-0' + i + '-12', total: i });
+    t(g + 'foto: no máximo as 6 faturas de vencimento mais novo', eq(B.instantaneo(muitas, AG, []).snap.fat.crA.map(f => f[0].slice(5, 7)), ['09', '08', '07', '06', '05', '04']));
+    t(g + 'sanBanco: faturas vão e voltam iguais; malformadas, de conta corrente e negativas caem; sem o campo vira vazio', eq(Seg.sanBanco(clone(fotoF)), fotoF) && (() => { const r = clone(fotoF); r.fat = { crA: [['2026-12-12', 5], ['2026-12-12'], ['x', 5], ['2026-12-12', -1], ['2026-12-12', '5'], 'y'], ccA: [['2026-12-12', 5]], zz: [['2026-12-12', 5]] }; const s = clone(fotoF); delete s.fat; return eq(Seg.sanBanco(r).fat, { crA: [['2026-12-12', 5]] }) && eq(Seg.sanBanco(s).fat, {}); })());
+    const LGv = { liga: { crA: 'c1', crB: 'nao' } };
+    const e2 = Real.derivar(RV(), {}, ctxB(fotoF, Object.assign({}, LGv, { hojeISO: '2026-12-10', lanc: [] })));
+    t(g + 'com a fatura fechada do banco para o mês: a conta do cartão usa o total do banco (777,70), sem "estimada"', ag(e2).startsWith('g:fatura|Fatura Cartão Teste|12|777.7 ;') && e2.agenda[0].origem === 'banco');
+    const semFat = clone(fotoF); semFat.fat = { crA: [['2026-11-12', 1]] };
+    const e3 = Real.derivar(RV(), {}, ctxB(semFat, Object.assign({}, LGv, { hojeISO: '2026-12-10', lanc: [] })));
+    t(g + 'banco sem a fatura deste mês e a aberta já é a de janeiro: cai nas parcelas do arquivo mais assinaturas (estimada)', e3.cartoes[0].mesAberta === '2027-01' && e3.agenda[0].valor === 210 && e3.agenda[0].origem === 'arquivo');
+    const fotoAb = B.instantaneo(RESP([mov('a', 'crA', '2026-11-20', 300), mov('b', 'crA', '2026-12-01', 45.5)]), AG, []).snap;
+    const e4 = Real.derivar(RV(), {}, ctxB(fotoAb, Object.assign({}, LGv, { hojeISO: '2026-12-03', lanc: [] })));
+    t(g + 'antes do fechamento (03/12, fecha dia 5): a fatura aberta vence neste mês e é a conta do cartão (345,50, estimada)', e4.cartoes[0].mesAberta === '2026-12' && e4.agenda[0].valor === 345.5 && e4.agenda[0].origem === 'estimada' && /\(estimada\)/.test(e4.agenda[0].nome));
+    /* G. janeiro de 2027 e depois */
+    const j = D('2027-01-20'), f = D('2027-02-10');
+    t(g + 'em janeiro/27: faculdade de 2027 (120), posição da meta 0, fatura do arquivo de janeiro (120 + 10)', j.ancora === '2027-01' && j.iMeta === 0 && j.iAlerta === 0 && ag(j) === 'g:fatura|Fatura Cartão Teste (estimada)|12|130 ; g:ajuda|Ajuda em casa|10|200 ; g:faculdade|Faculdade|15|120');
+    t(g + 'em fevereiro/27, sem linha no arquivo para o mês: só as assinaturas viram a fatura estimada (10)', f.ancora === '2027-02' && f.agenda[0].valor === 10 && f.iMeta === 0);
+    /* H. gasto periódico que cai no mês */
+    const rp = RV(); rp.gastos_periodicos = [{ nome: 'Periódico', valor: 50, a_cada_meses: 3, primeiro: '2026-12' }];
+    t(g + 'gasto periódico: entra na agenda do mês em que cai, no último dia; fora dele, não', /g:per:0\|Periódico\|31\|50/.test(ag(D('2026-12-10', {}, rp))) && !/Periódico/.test(ag(D('2027-01-10', {}, rp))) && /g:per:0\|Periódico\|31\|50/.test(ag(D('2027-03-10', {}, rp))));
+    t(g + 'gasto periódico do mês 0 entra nas contas do mês (8.190 - 50)', D('2026-12-10', {}, rp).cenarios.Base[0] === 8140);
+    /* J. dia das contas vindo do arquivo */
+    const rd = RV(); rd.pendencias_novembro = [{ descricao: 'Conta de água (ajuda ao pai)', valor: 1, vence: '2026-11-08' }, { descricao: 'Faculdade X', valor: 1, vence: '2026-11-20' }];
+    t(g + 'ajuda em casa e faculdade usam o dia da conta parecida do arquivo (8 e 20)', /g:ajuda\|Ajuda em casa\|8\|200/.test(ag(D('2026-12-10', {}, rd))) && /g:faculdade\|Faculdade\|20\|100/.test(ag(D('2026-12-10', {}, rd))));
+    const rz = RV(); rz.gastos_fixos_mensais.ajuda_em_casa_a_partir_de_dezembro = 0; rz.gastos_fixos_mensais.faculdade_2026 = 0; rz.faturas_futuras_parcelas_antigas = []; rz.gastos_fixos_mensais.assinaturas_no_cartao = {};
+    t(g + 'sem gastos fixos nem fatura: agenda vazia, sem erro', eq(D('2026-12-10', {}, rz).agenda, []) && D('2026-12-10', {}, rz).cenarios.Base[0] === 8700);
+    t(g + 'sem data de hoje: fica no mês do arquivo', Real.derivar(RV(), {}, {}).virou === false && Real.derivar(RV(), {}, { hojeISO: 'x' }).ancora === '2026-11');
+    t(g + 'data de hoje antes do mês do arquivo: fica no mês do arquivo', D('2026-10-20').virou === false && D('2026-10-20').ancora === '2026-11');
+    t(g + 'o arquivo não é alterado', (() => { const r = RV(), s = JSON.stringify(r); Real.derivar(r, {}, { hojeISO: '2026-12-10', lanc: [] }); return JSON.stringify(r) === s; })());
+    /* K. telas em dezembro e em janeiro */
+    const relogioV = iso => w => { const Rr = w.Date, alvo = new Rr(iso).getTime(), d0 = Rr.now(), agr = () => alvo + (Rr.now() - d0); class Dt extends Rr { constructor(...x) { if (x.length) super(...x); else super(agr()); } static now() { return agr(); } } w.Date = Dt; };
+    const RTV = () => { const r = clone(FICTICIO); r._meta.as_of = '2026-11-08'; r.faturas_futuras_parcelas_antigas = [{ mes: '2026-12', fatura_total: 300, parte_mae: 0 }, { mes: '2027-01', fatura_total: 200, parte_mae: 0 }]; return r; };
+    const txtV = A => A.$('main').textContent.replace(/\s+/g, ' ');
+    for (const [quando, larg] of [['2026-12-10T12:00:00', 390], ['2026-12-10T12:00:00', 1024], ['2027-01-10T12:00:00', 390]]) {
+      const A = await abrir({ tf_modo: 'real', tf_real: RTV() }, { antes: relogioV(quando), largura: larg }), id = g + quando.slice(0, 7) + ' ' + larg + ' px: ';
+      await A.ir('agenda');
+      t(id + 'Agenda mostra as contas montadas para o mês, não as do arquivo', /Fatura Cartão Teste \(estimada\)/.test(txtV(A)) && /Ajuda em casa/.test(txtV(A)) && /Faculdade/.test(txtV(A)) && !/Conta de teste/.test(txtV(A)));
+      await A.ir('hoje');
+      t(id + 'Hoje: sem erro e com o veredito do mês da meta', A.erros.length === 0 && /janeiro/.test(txtV(A)));
+      await A.ir('futuro');
+      t(id + 'Futuro: cabeçalhos pelos meses reais da projeção', larg < 900 || [...A.d.querySelectorAll('table.rt th')].map(e => e.textContent).join('|').includes(quando.startsWith('2026-12') ? 'Dez|Jan' : 'Jan|Jan'));
+      for (const k of ['hoje', 'lancar', 'cartao', 'orcamento', 'agenda', 'metas', 'futuro', 'decidir', 'saude', 'numeros']) { if (A.w.eval('Object.hasOwn(T,"' + k + '")')) await A.ir(k); }
+      t(id + 'todas as telas abrem sem erro de script', A.erros.length === 0, A.erros.slice(0, 2).join(' | '));
+    }
+    const N = await abrir({ tf_modo: 'real', tf_real: RTV() }, { antes: relogioV('2026-11-20T12:00:00'), largura: 390 }); await N.ir('agenda');
+    t(g + 'em novembro (mês do arquivo): a Agenda continua com a conta do arquivo', /Conta de teste/.test(txtV(N)) && !/Ajuda em casa/.test(txtV(N)));
+  }
+
   process.exit(fim());
 })();

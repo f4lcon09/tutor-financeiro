@@ -503,7 +503,14 @@
       if (ehParc(m.parc)) { var lp = pm[m.conta] = pm[m.conta] || []; if (lp.length < MAX_MOV_CARTAO) lp.push([m.data, r2((gasto ? 1 : -1) * Math.abs(m.valor))]);
         if (m.parc.n < m.parc.de) { var ln = pn[m.conta] = pn[m.conta] || []; if (ln.length < MAX_MOV_CARTAO) ln.push([m.data, r2((gasto ? 1 : -1) * Math.abs(m.valor)), m.parc.n, m.parc.de]); } }   // pluggy-8: parcelas que ainda têm seguintes, com n e N, para as faturas futuras
     });
-    return { ok: true, snap: { v: 1, em: agoraDe(agora), contas: contas, inv: invs, ip: Array.isArray(d.investimentos), movs: movs, pm: pm, pn: pn, pg: pg } };   // ip: a ponte mandou a lista de investimentos
+    /* noite-1: faturas fechadas que a ponte informa, por cartão: [vencimento, total], as 6 de vencimento mais novo. Para a conta "fatura do cartão" do mês. */
+    var fat = {};
+    (Array.isArray(d.faturas) ? d.faturas.slice(0, 200) : []).forEach(function (f) {
+      if (!isObj(f) || !cred.has(f.conta) || !dataOk(f.vence) || !num(f.total) || !(f.total >= 0)) return;
+      (fat[f.conta] = fat[f.conta] || []).push([String(f.vence).slice(0, 10), r2(f.total)]);
+    });
+    Object.keys(fat).forEach(function (k) { fat[k] = fat[k].sort(function (a, b) { return a[0] < b[0] ? 1 : a[0] > b[0] ? -1 : 0; }).slice(0, 6); });
+    return { ok: true, snap: { v: 1, em: agoraDe(agora), contas: contas, inv: invs, ip: Array.isArray(d.investimentos), movs: movs, pm: pm, pn: pn, pg: pg, fat: fat } };   // ip: a ponte mandou a lista de investimentos
   }
 
   var api = { catDoBanco: catDoBanco, catPorDescricao: catPorDescricao, CAT_BANCO: CAT_BANCO, CAT_NEUTRA: CAT_NEUTRA, instantaneo: instantaneo, idadeMs: idadeMs, rotulos: rotulos, padraoConta: padraoConta, limparNome: limparNome, marcarPares: marcarPares, PADROES: PADROES, RAZOES: RAZOES, validarUrl: validarUrl, validarResposta: validarResposta, mensagem: mensagem, consultar: consultar, pedir: pedir, estrutura: estrutura, estruturaLinhas: estruturaLinhas, saldos: saldos, categorias: categorias, idade: idade, mapear: mapear, normalizar: normalizar, chave: chave, montarPrevia: montarPrevia, MAX_MOVS: MAX_MOVS, DIAS: DIAS };

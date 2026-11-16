@@ -363,7 +363,10 @@ const RESP = () => ({ ok: true, dados: { de: '2026-10-05', ate: '2026-11-09',
     const arq = (num, lanc) => Real.derivar(RP(), num, { agora: AG, idadeMs: B.idadeMs, hojeISO: '2026-11-10', pago, lanc });
     t('falta do mês: início do arquivo ignora os gastos lançados (7.200) e não tem o campo', arq({}, gastos).cenarios.Base[0] === 7200 && arq({}, gastos).faltaMes0 === null && JSON.stringify(arq({ mercado: 400 }, gastos).cenarios) === JSON.stringify(arq({ mercado: 400 }, []).cenarios));
     t('falta do mês: início do arquivo idêntico ao projetar antigo', JSON.stringify(arq({ mercado: 400 }, gastos).cenarios.Base) === JSON.stringify(Real.projetar(RP(), {}, { mercado: 400, mercadoMedia: null })));
-    t('falta do mês: hoje em outro mês que não o do arquivo: desconta o mês inteiro', d({}, [G(1, '2026-12-04', 'Lazer', 200, { lazer: true })], { hojeISO: '2026-12-10' }).faltaMes0 === null);
+    /* noite-1: mudou de propósito. Antes, com hoje num mês depois do arquivo, a projeção continuava no mês do arquivo e descontava o mês inteiro (faltaMes0 nulo).
+       Agora a projeção começa no mês de hoje e desconta só o que falta dele. */
+    { const dz = d({}, [G(1, '2026-12-04', 'Lazer', 50, { lazer: true }), G(2, '2026-11-20', 'Lazer', 999, { lazer: true })], { hojeISO: '2026-12-10' }), teto = RP().gastos_fixos_mensais.teto_lazer_mes;
+      t('falta do mês: hoje num mês depois do arquivo: a projeção começa nesse mês e desconta só o lazer que falta dele', dz.virou === true && dz.ancora === '2026-12' && dz.faltaMes0 !== null && dz.faltaMes0.lazer === Math.max(teto - 50, 0)); }
     t('falta do mês: reserva digitada, sem banco, também desconta só o que falta', Real.derivar(RP(), {}, { reserva: [{ id: 1, nome: 'Cofrinho', valor: 100, data: '2026-11-05' }], agora: AG, idadeMs: B.idadeMs, hojeISO: '2026-11-10', pago, lanc: gastos }).cenarios.Base[0] === 8300);
     const relogio = iso => w => { const Rr = w.Date, alvo = new Rr(iso).getTime(), d0 = Rr.now(), ag = () => alvo + (Rr.now() - d0); class D extends Rr { constructor(...x) { if (x.length) super(...x); else super(ag()); } static now() { return ag(); } } w.Date = D; };
     const snTela = clone(SN); snTela.contas[0].atu = '2026-11-10T07:00:00'; snTela.inv[0].atu = '2026-11-10T07:00:00';
