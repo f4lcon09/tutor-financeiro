@@ -369,6 +369,7 @@
       var janela = { dia: d5, naJanela: !!d5 && diaH <= d5, recebido: !d5 || diaH > d5 || entrou || marcou, visto: entrou, marcado: marcou };
       if (!janela.recebido && salario > 0) n2.salario0 = salario;
     }
+    var metaData = typeof nf.metaData === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(nf.metaData) ? nf.metaData : '2027-01-17';   // noite-2: a do arquivo era fixa no código
     var mesesEntre = function (a, b) { return (+b.slice(0, 4) - +a.slice(0, 4)) * 12 + (+b.slice(5, 7) - +a.slice(5, 7)); };
     var limitar = function (i) { return Math.min(Math.max(i, 0), 11); };
     var base = projetar(real, {}, n2), com = projetar(real, { repasseMae: true }, n2);
@@ -396,7 +397,8 @@
       meses: rotulosMeses(ancora + '-01'),
       salarioJanela: virou ? janela : null,   // noite-2: a janela do salário do mês corrente (dia do 5º dia útil; se ainda está nela; se conta como recebido e por quê)
       ancora: ancora, virou: virou, salarioMes0: n2.salario0 > 0,   // noite-1: mês 0 da projeção; se já passou do mês do arquivo; se o salário deste mês ainda entra
-      iMeta: limitar(mesesEntre(ancora, '2027-01')), iAlerta: limitar(mesesEntre(ancora, '2026-12')),   // posição, na projeção, do mês da meta (17/01/2027) e do alerta de dezembro
+      iMeta: limitar(mesesEntre(ancora, metaData.slice(0, 7))), iAlerta: limitar(mesesEntre(ancora, '2026-12')),
+      metaData: metaData, metaPassou: /^\d{4}-\d{2}-\d{2}$/.test(ctx.hojeISO || '') && ctx.hojeISO > metaData,   // noite-2: data da meta (editável) e se o prazo já passou   // posição, na projeção, do mês da meta (17/01/2027) e do alerta de dezembro
       cenarios: { 'Base': base, 'Com repasse da mãe': com },
       carteira: reservaLinhas.map(function (x, i) { return { nome: x.o.t === 'arquivo' && i === 0 ? x.nome + ' (liquidez diária)' : x.nome, classe: 'Renda fixa', valor: x.valor, liquidez: 'diaria', o: x.o }; }),
       cartoes: cartoes,

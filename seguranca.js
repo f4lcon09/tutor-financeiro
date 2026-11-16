@@ -114,6 +114,7 @@
       ['ajuda', 'faculdade', 'assinaturas'].forEach(function (k) { if (num(x[k]) && x[k] >= 0 && x[k] <= 1e7) f[k] = x[k]; });
       ['lazer', 'meta', 'alerta'].forEach(function (k) { if (num(x[k]) && x[k] > 0 && x[k] <= 1e9) f[k] = x[k]; });
       ['ajudaDia', 'faculdadeDia'].forEach(function (k) { if (inteiro(x[k]) && x[k] >= 1 && x[k] <= 31) f[k] = x[k]; });
+      if (data(x.metaData)) f.metaData = x.metaData;   // noite-2: data da meta da reserva (AAAA-MM-DD)
       if (Object.keys(f).length) o.fixos = f;
     }
     if (Array.isArray(n.contas)) {

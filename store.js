@@ -343,6 +343,7 @@
           ['ajuda', 'faculdade', 'assinaturas'].forEach(function (k) { if (!(k in pf)) return; var t = pf[k]; if (t === '' || t == null) { delete fx[k]; return; } var v = lerNumero(t); if (!(v >= 0)) erros['fixo_' + k] = 'Informe um valor igual ou maior que zero.'; else fx[k] = r2(v); });
           ['lazer', 'meta', 'alerta'].forEach(function (k) { if (!(k in pf)) return; var t = pf[k]; if (t === '' || t == null) { delete fx[k]; return; } var v = lerNumero(t); if (!(v > 0)) erros['fixo_' + k] = 'Informe um valor maior que zero.'; else fx[k] = r2(v); });
           ['ajudaDia', 'faculdadeDia'].forEach(function (k) { if (!(k in pf)) return; var t = pf[k]; if (t === '' || t == null) { delete fx[k]; return; } var v = +t; if (!(Math.floor(v) === v && v >= 1 && v <= 31)) erros['fixo_' + k] = 'Informe um dia de 1 a 31.'; else fx[k] = v; });
+          if ('metaData' in pf) { var md = String(pf.metaData || '').trim(); if (!md) delete fx.metaData; else if (!dataValida(md)) erros.fixo_metaData = 'Informe uma data válida para a meta.'; else fx.metaData = md; }   // noite-2
           if (Object.keys(fx).length) novo.fixos = fx; else delete novo.fixos;
         }
         /* contas fixas extras: linha toda em branco é ignorada (é assim que se apaga); linha pela metade é erro */

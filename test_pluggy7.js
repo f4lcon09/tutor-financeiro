@@ -706,13 +706,13 @@ const P = (n, de) => ({ n, de });
     t(g + 'conta: acima da meta não falta nada e a barra para em 100%', (m => m.falta === 0 && m.porSemana === 0 && m.pct === 1 && m.faltaPiso === 0)(calc(9000, '2026-12-10')) && calc(3000.005, '2026-12-10').faltaPiso === 0);
     t(g + 'conta: centavos arredondados (falta 0,10 em 3 semanas = 0,03 por semana)', calc(4999.9, '2026-12-30').porSemana === 0.03 && calc(4999.9, '2026-12-30').falta === 0.1);
     const tx = X => X.$('#mr_t').textContent.replace(/\s+/g, ' ');
-    t(g + 'tela, reserva abaixo do piso: valor de hoje, quanto falta, quanto por semana e quanto falta para o piso', /2\.000,00/.test(A.$('#mr_v').textContent) && /Faltam R\$\s?3\.000 para a meta: R\$\s?500 por semana até 17\/01 \(6 semanas\)\. Para o piso faltam R\$\s?1\.000\./.test(tx(A)) && A.erros.length === 0);
+    t(g + 'tela, reserva abaixo do piso: valor de hoje, quanto falta, quanto por semana e quanto falta para o piso', /2\.000,00/.test(A.$('#mr_v').textContent) && /Faltam R\$\s?3\.000 para a meta: R\$\s?500 por semana até 17\/01\/2027 \(6 semanas\)\. Para o piso faltam R\$\s?1\.000\./.test(tx(A)) && A.erros.length === 0);
     const B2 = await abreM(4000, '2026-12-10T12:00:00', 390);
     t(g + 'tela no celular, entre o piso e a meta: diz que o piso já está coberto', /Faltam R\$\s?1\.000 para a meta: R\$\s?166,67|Faltam R\$\s?1\.000 para a meta: R\$\s?167 por semana/.test(tx(B2)) && /O piso de R\$\s?3\.000 já está coberto\./.test(tx(B2)));
     const C2 = await abreM(9000, '2026-12-10T12:00:00');
     t(g + 'tela, acima da meta: mostra a folga', /A reserva já está na meta\. Folga de R\$\s?4\.000\./.test(tx(C2)) && !/Faltam/.test(tx(C2)));
     const D2 = await abreM(2000, '2027-01-20T12:00:00');
-    t(g + 'tela, depois de 17/01: diz que o prazo passou', /O prazo de 17\/01 já passou\./.test(tx(D2)) && !/por semana/.test(tx(D2)));
+    t(g + 'tela, depois de 17/01: diz que o prazo passou', /O prazo de 17\/01\/2027 já passou\. Defina uma nova data em Meus números\./.test(tx(D2)) && !/por semana/.test(tx(D2)));
     const E2 = await abrir({ tf_modo: 'demo' }, { largura: 1024 }); await E2.ir('hoje');
     t(g + 'modo de exemplo: sem o painel', !E2.$('#mr_v') && E2.erros.length === 0);
   }
@@ -940,6 +940,37 @@ const P = (n, de) => ({ n, de });
     const M = await abrir({ tf_modo: 'real', tf_real: RT0(), tf_tetos: { Mercado: 100, Transporte: 0, Outros: 0, Estudos: 0, 'Saúde': 0 }, tf_lanc3: [LT(0, 'Mercado', 50), LT(1, 'Transporte', 30)] }, { antes: relogioT('2026-11-10T12:00:00'), largura: 390 }); await M.ir('orcamento');
     const sitM = nome => { const r = [...M.d.querySelectorAll('.orcl[data-cat]')].find(x => x.dataset.cat === nome); return r ? r.querySelector('.orcl2').textContent.replace(/\s+/g, ' ').trim() : null; };
     t(g + 'celular: Transporte diz "Sem teto"; Saúde, traço; Mercado, "No ritmo"', sitM('Transporte') === 'Sem teto' && sitM('Saúde') === '—' && /No ritmo/.test(sitM('Mercado')) && M.erros.length === 0);
+  }
+
+  /* ===== 16. noite-2: mês e data da meta (antes: "janeiro" e 17/01 fixos) ===== */
+  {
+    const g = 'data da meta: ';
+    const D = (hoje, num) => Real.derivar(REAL(), num || {}, { hojeISO: hoje, lanc: [] });
+    t(g + 'sem data definida: 17/01/2027, mês da meta na posição de janeiro', D('2026-12-10').metaData === '2027-01-17' && D('2026-12-10').iMeta === 1 && D('2026-11-10').iMeta === 2 && D('2026-12-10').metaPassou === false);
+    t(g + 'prazo: ainda vale em 17/01; passou em 18/01', D('2027-01-17').metaPassou === false && D('2027-01-18').metaPassou === true);
+    const N = { fixos: { metaData: '2027-06-30' } };
+    t(g + 'data nova (30/06/2027): o mês da meta passa a ser junho', D('2026-12-10', N).metaData === '2027-06-30' && D('2026-12-10', N).iMeta === 6 && D('2026-12-10', N).meses[6] === 'jun/27' && D('2027-02-10', N).metaPassou === false && D('2027-07-01', N).metaPassou === true);
+    t(g + 'data inválida é ignorada', D('2026-12-10', { fixos: { metaData: '30/06/2027' } }).metaData === '2027-01-17' && D('2026-12-10', { fixos: { metaData: 5 } }).metaData === '2027-01-17');
+    t(g + 'sanNumeros guarda a data válida e descarta a inválida', Seg.sanNumeros({ fixos: { metaData: '2027-06-30' } }).fixos.metaData === '2027-06-30' && !('fixos' in Seg.sanNumeros({ fixos: { metaData: '2027-02-30' } })) && !('fixos' in Seg.sanNumeros({ fixos: { metaData: 'x' } })));
+    const S8 = require('./store.js'), mem = () => { const o = {}; return { getItem: k => (k in o ? o[k] : null), setItem: (k, v) => { o[k] = String(v); } }; };
+    const s = S8.criarStore(mem(), () => new Date(2026, 11, 10));
+    t(g + 'salvar: data válida grava; inválida dá erro e não grava; vazia volta para 17/01/2027', s.setNumeros({ fixos: { metaData: '2027-06-30' } }).ok && s.st.numeros.fixos.metaData === '2027-06-30' && (r => !r.ok && !!r.erros.fixo_metaData)(s.setNumeros({ fixos: { metaData: '2027-13-01' } })) && s.st.numeros.fixos.metaData === '2027-06-30' && s.setNumeros({ fixos: { metaData: '' } }).ok && !('fixos' in s.st.numeros));
+    /* telas */
+    const relogioD = iso => w => { const Rr = w.Date, alvo = new Rr(iso).getTime(), d0 = Rr.now(), agr = () => alvo + (Rr.now() - d0); class Dt extends Rr { constructor(...x) { if (x.length) super(...x); else super(agr()); } static now() { return agr(); } } w.Date = Dt; };
+    const RD = () => { const x = clone(FICTICIO); x._meta.as_of = '2026-11-08'; return x; };
+    const tx = A => A.$('main').textContent.replace(/\s+/g, ' ');
+    const A = await abrir({ tf_modo: 'real', tf_real: RD(), tf_numeros: { fixos: { metaData: '2027-06-30' } } }, { antes: relogioD('2026-12-10T12:00:00'), largura: 1024 }); await A.ir('hoje');
+    t(g + 'Hoje, meta em 30/06/2027: o saldo e o veredito falam de junho; o painel da meta mostra a data nova', /Saldo em junho/.test(tx(A)) && /em junho você fica|Em junho você fica/.test(tx(A)) && /Reserva e a meta de 30\/06\/2027/.test(tx(A)) && A.w.eval("metaReserva(DEMO,'2026-12-10').semanas") === 29 && !/janeiro/i.test(tx(A).replace(/jan\/27/g, '')));
+    await A.ir('futuro');
+    t(g + 'Futuro, meta em junho: textos de junho, sem "janeiro"', /Junho termina/.test(tx(A)) && /Faixa de junho/.test(tx(A)) && /Junho com a mudança/.test(tx(A)) && /Depois de junho o saldo cresce/.test(tx(A)) && !/janeiro/i.test(tx(A).replace(/jan\/27/g, '')) && A.erros.length === 0);
+    const P = await abrir({ tf_modo: 'real', tf_real: RD() }, { antes: relogioD('2027-02-10T12:00:00'), largura: 1024 }); await P.ir('hoje');
+    t(g + 'depois do prazo (10/02/2027 com a meta de 17/01): o veredito diz que o prazo passou e pede a próxima meta; o painel também', /O prazo da meta \(17\/01\/2027\) passou/.test(tx(P)) && /Defina a próxima meta em Meus números\./.test(tx(P)) && /O prazo de 17\/01\/2027 já passou\. Defina uma nova data em Meus números\./.test(tx(P)) && /Saldo em fevereiro/.test(tx(P)) && P.erros.length === 0);
+    await P.ir('numeros');
+    t(g + 'Meus números tem o campo de data da meta, com rótulo', !!P.$('#nf_metaData') && P.$('#nf_metaData').getAttribute('type') === 'date' && !!P.d.querySelector('label[for="nf_metaData"]'));
+    P.set('#nf_metaData', '2027-12-31'); P.click('#n_ok'); await tick(20);
+    t(g + 'salvar a data nova tira o aviso de prazo vencido', P.ls('tf_numeros').fixos.metaData === '2027-12-31' && (await P.ir('hoje'), !/prazo da meta/.test(tx(P)) && /Saldo em dezembro/.test(tx(P))));
+    const E = await abrir({ tf_modo: 'demo' }, { largura: 1024 }); await E.ir('hoje'); await E.ir('futuro');
+    t(g + 'modo de exemplo: continua falando de janeiro', /janeiro/i.test(tx(E)) && E.erros.length === 0);
   }
 
   process.exit(fim());

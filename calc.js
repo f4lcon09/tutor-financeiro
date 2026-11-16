@@ -117,7 +117,7 @@
     var f = [];
     function add(nome, peso, ponto, explicacao) { f.push({ nome: nome, peso: peso, ponto: Math.max(0, Math.min(1, ponto)), explicacao: explicacao }); }
     add('Reserva de emergência', 30, d.cobertura / 6, 'A reserva cobre ' + d.cobertura.toFixed(1).replace('.', ',') + ' meses do essencial (ideal: 6).');
-    add('Meta de janeiro', 25, d.meta > 0 ? 0.5 + d.folgaMeta / d.meta : 0, d.folgaMeta >= 0 ? 'Você termina acima da meta.' : 'Você termina abaixo da meta.');
+    add('Meta da reserva', 25, d.meta > 0 ? 0.5 + d.folgaMeta / d.meta : 0, d.folgaMeta >= 0 ? 'Você termina acima da meta.' : 'Você termina abaixo da meta.');
     add('Dívida do cartão', 20, 1 - d.dividaCartao / Math.max(d.renda * 1.5, 1), 'A dívida do cartão equivale a ' + (d.dividaCartao / Math.max(d.renda, 1)).toFixed(1).replace('.', ',') + ' mês de renda.');
     add('Lazer dentro do teto', 15, d.lazerTeto > 0 ? 1 - Math.max(d.lazerGasto - d.lazerTeto, 0) / d.lazerTeto : 1, d.lazerGasto <= d.lazerTeto ? 'Lazer dentro do teto do mês.' : 'Lazer passou do teto do mês.');
     add('Hábito de registrar', 10, d.mesesComRegistro / 3, 'Você registrou gastos em ' + d.mesesComRegistro + ' dos últimos 3 meses.');

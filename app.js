@@ -259,16 +259,15 @@ const cartaoOrig=c=>{ if(!DEMO.real) return ''; if(!c.origem) return `<div class
 const ligaCx=()=>{ const cv=$('#cx_ver'), l=$('#cx_lista'); if(!cv||!l) return; l.onclick=e=>e.stopPropagation();
   cv.onclick=e=>{ e.stopPropagation(); const ab=cv.getAttribute('aria-expanded')==='true'; cv.setAttribute('aria-expanded',String(!ab)); l.hidden=ab; cv.textContent=ab?'Ver contas':'Fechar contas'; }; };
 /* noite-1: a reserva de hoje contra a meta e o piso de 17/01/2027 (do arquivo), com quanto falta e quanto por semana. Antes a meta só aparecia como saldo projetado. */
-const META_DATA='2027-01-17';
 function metaReserva(d,hojeISO){
-  const dias=Math.round((Date.parse(META_DATA+'T12:00:00Z')-Date.parse(hojeISO+'T12:00:00Z'))/864e5), semanas=Math.max(Math.ceil(dias/7),1);
+  const dias=Math.round((Date.parse(dMeta(d)+'T12:00:00Z')-Date.parse(hojeISO+'T12:00:00Z'))/864e5), semanas=Math.max(Math.ceil(dias/7),1);
   const falta=Math.max(d.meta-d.caixinha,0), faltaPiso=Math.max(d.piso-d.caixinha,0);
   return { dias, semanas, passou:dias<0, falta:Math.round(falta*100)/100, faltaPiso:Math.round(faltaPiso*100)/100, porSemana:Math.round(falta/semanas*100)/100, pct:d.meta>0?Math.min(d.caixinha/d.meta,1):0 };
 }
 const pnMetaReserva=d=>{ if(!(d.meta>0)) return ''; const m=metaReserva(d,S.hojeISO()), cls=d.caixinha>=d.meta?'ok':d.caixinha>=d.piso?'at':'ru';
-  const linha=m.passou?'O prazo de 17/01 já passou.':m.falta<=0?'A reserva já está na meta. Folga de '+brl0(d.caixinha-d.meta)+'.':'Faltam '+brl0(m.falta)+' para a meta: '+brl0(m.porSemana)+' por semana até 17/01 ('+m.semanas+(m.semanas===1?' semana':' semanas')+').';
+  const linha=m.passou?'O prazo de '+dMetaBR(d)+' já passou. Defina uma nova data em Meus números.':m.falta<=0?'A reserva já está na meta. Folga de '+brl0(d.caixinha-d.meta)+'.':'Faltam '+brl0(m.falta)+' para a meta: '+brl0(m.porSemana)+' por semana até '+dMetaBR(d)+' ('+m.semanas+(m.semanas===1?' semana':' semanas')+').';
   const piso=m.passou||m.falta<=0?'':m.faltaPiso>0?' Para o piso faltam '+brl0(m.faltaPiso)+'.':' O piso de '+brl0(d.piso)+' já está coberto.';
-  return pn('Reserva e a meta de 17/01'+info('Compara a reserva de hoje com a meta e o piso dos seus números. O "Saldo em janeiro" é outra conta: a projeção de quanto a reserva terá no fim de janeiro se o plano seguir.'),`<div class="big" id="mr_v">${brl(d.caixinha)}</div><div class="mu small">de ${brl0(d.meta)} · piso ${brl0(d.piso)} ${origsTag(d.reservaLinhas)}</div><div class="bar" style="--h:${COR[cls]}"><span style="width:${m.pct*100}%"></span></div><div class="small" id="mr_t" style="margin-top:6px">${esc(linha+piso)}</div>`,'sky','margin-bottom:14px'); };
+  return pn('Reserva e a meta de '+dMetaBR(d)+info('Compara a reserva de hoje com a meta e o piso dos seus números. O "Saldo em '+mMeta(d)+'" é outra conta: a projeção de quanto a reserva terá no fim de '+mMeta(d)+' se o plano seguir.'),`<div class="big" id="mr_v">${brl(d.caixinha)}</div><div class="mu small">de ${brl0(d.meta)} · piso ${brl0(d.piso)} ${origsTag(d.reservaLinhas)}</div><div class="bar" style="--h:${COR[cls]}"><span style="width:${m.pct*100}%"></span></div><div class="small" id="mr_t" style="margin-top:6px">${esc(linha+piso)}</div>`,'sky','margin-bottom:14px'); };
 /* noite-2: o salário cai até o 5º dia útil, em qualquer dia da janela. Dentro dela o app diz como está contando e deixa o dono dizer "já recebi".
    Se uma entrada do tamanho do salário já está lançada no mês, não pergunta. */
 const salarioLinha=d=>{ const j=d.salarioJanela; if(!j||!j.naJanela) return '';
@@ -294,7 +293,8 @@ T.hoje = () => {
   const c1 = cartaoInfo(d.cartoes[0]), semLim=!d.cartoes[0].limite, c1cls=semLim?'ne':stCls(c1.status);
   const aPagar = DEMO.agenda.filter(a=>!isPago(a)&&a.dia>=diaHoje).reduce((s,a)=>s+a.valor,0);
   const caixa=caixaHoje();
-  const frases = {ok:'Se o plano seguir, em janeiro você fica '+brl0(jan-d.meta)+' acima da meta.',at:'Em janeiro você fica entre o piso e a meta: faltam '+brl0(d.meta-jan)+' para a meta.',ru:'Em janeiro você fica abaixo do piso. Vale rever os gastos.'};
+  const frases = d.metaPassou?{ok:'O prazo da meta ('+dMetaBR(d)+') passou e a reserva está '+brl0(d.caixinha-d.meta)+' acima dela. Defina a próxima meta em Meus números.',at:'O prazo da meta ('+dMetaBR(d)+') passou com a reserva entre o piso e a meta. Defina a próxima meta em Meus números.',ru:'O prazo da meta ('+dMetaBR(d)+') passou com a reserva abaixo do piso. Defina a próxima meta em Meus números.'}
+    :{ok:'Se o plano seguir, em '+mMeta(d)+' você fica '+brl0(jan-d.meta)+' acima da meta.',at:'Em '+mMeta(d)+' você fica entre o piso e a meta: faltam '+brl0(d.meta-jan)+' para a meta.',ru:'Em '+mMeta(d)+' você fica abaixo do piso. Vale rever os gastos.'};
   const mesesMax = base.indexOf(Math.min(...base));
   const porDia={}; gastosMes().forEach(l=>{const dd=+l.data.slice(8); porDia[dd]=(porDia[dd]||0)+l.valor;});
   const maxDia=Math.max(...Object.values(porDia),1);
@@ -307,7 +307,7 @@ T.hoje = () => {
   const pCaixa = pnCaixa(caixa,cob,'');
   const pCart = semLim?pn('Fatura do cartão'+info('Fatura fechada em ' + d.cartoes[0].fecha + '. Informe o limite na tela Cartão para ver o quanto dele você usa.'),`<div class="big">${brl(d.cartoes[0].fatura)}</div><div class="mu small">vence dia ${d.cartoes[0].vence} · parcelas que ainda vêm ${brl0(d.cartoes[0].parcelasFuturas)}</div><span class="tag ne" style="margin-top:6px">Limite a informar</span>`,'vio'):pn('Limite do cartão usado'+info('Quanto do limite total você já comprometeu: fatura atual mais parcelas que ainda vêm. Até 30% é considerado saudável; acima de 60%, risco.'),`<div class="big">${pc(c1.utilizacao,0)}</div><div class="bar uso" style="--h:${COR[c1cls]}"><span style="width:${Math.min(c1.utilizacao,1)*100}%"></span><i style="left:30%"></i></div><div class="mu small">disponível ${brl0(c1.disponivel)} · ideal até 30%</div>${cartaoOrig(d.cartoes[0])}`,'vio');
   const pLazer = pn('Lazer restante'+info('Teto de lazer do mês menos o que você já gastou em lançamentos marcados como lazer.'),`<div class="big">${brl0(Math.max(restante,0))}</div><div class="bar" style="--h:${COR[lzCls]}"><span style="width:${Math.min(pct,1)*100}%"></span></div><div class="mu small">gasto ${brl0(gasto)} de ${brl0(d.tetoLazer)}</div>`,'pink');
-  const pJan = pn('Saldo em janeiro',`<div class="big">${brl0(jan)}</div><div class="mu small">meta ${brl0(d.meta)}</div><span class="tag ${cls}" style="margin-top:6px">${icn} ${txt}</span>`,'sky');
+  const pJan = pn('Saldo em '+mMeta(d),`<div class="big">${brl0(jan)}</div><div class="mu small">meta ${brl0(d.meta)}</div><span class="tag ${cls}" style="margin-top:6px">${icn} ${txt}</span>`,'sky');
   const pFaixa = pn('Faixa do mês'+info('Um quadrado por dia. Quanto mais forte o rosa, mais você gastou naquele dia. O ponto violeta marca conta que vence.'),`<div class="strip" style="grid-template-columns:repeat(${diasMes},1fr)">${faixa}</div><div class="legend"><span><i style="background:var(--pink)"></i>dia com gasto (quanto mais forte, mais gasto)</span><span><i style="background:var(--vio);height:7px;width:7px;border-radius:50%"></i>conta vence</span><span><i style="background:transparent;border:1px dashed var(--ln2);height:9px;width:14px"></i>dias que vêm</span><span>clique num dia para ver o que houve</span></div><div id="diadet" style="margin-top:14px"></div>`,'pink','margin-bottom:14px',hoje.toLocaleDateString('pt-BR',{month:'long'}));
   const pGraf = pn('Saldo previsto (cenário Base)',hjHtml(),'sky');
   const pProxF = prox => pn('Próximas contas',prox.length?`<table>${prox.map(a=>`<tr><td><b>${esc(a.nome)}</b><div class="mu small">${a.dias<0?'venceu há '+(-a.dias)+' dias':a.dias===0?'vence hoje':'em '+a.dias+' dias, dia '+a.dia}</div></td><td class="n">${brl0(a.valor)}</td></tr>`).join('')}</table>`:'<div class="mu">Tudo pago neste mês.</div>','vio');
@@ -322,7 +322,7 @@ T.hoje = () => {
     if(caixa<aPagar) al.push([3, alerta('ru','O caixa não cobre as contas até o fim do mês.')]);
     if(!semLanc && restante<0) al.push([2, alerta('ru','O lazer passou do teto em '+brl0(-restante)+'.')]);
     else if(!semLanc && !rtz.poucos && ritmo>d.tetoLazer) al.push([1, alerta('at','Neste ritmo o lazer passa do teto.')]);
-    if(cls==='ru') al.push([2, alerta('ru','Em janeiro o saldo fica abaixo do piso.')]);
+    if(cls==='ru') al.push([2, alerta('ru','Em '+mMeta(d)+' o saldo fica abaixo do piso.')]);
     const vazio = semLanc ? pn('Nada lançado este mês ainda','<div class="small mu">Com o primeiro gasto, o lazer, o ritmo e as categorias começam a aparecer.</div><button class="btn" data-ir="lancar" style="margin-top:12px;width:100%">Lançar gasto</button>','teal','margin-bottom:14px') : '';
     const mini = `<div class="mini3"><div class="mini"><div class="mu small">Cartão usado</div><b>${semLim?'—':pc(c1.utilizacao,0)}</b>${d.real&&!semLim?origTag(d.cartoes[0].origem?d.cartoes[0].origem.usado:d.origemArquivo):''}</div><div class="mini"><div class="mu small">Lazer restante</div><b>${brl0(Math.max(restante,0))}</b></div><div class="mini"><div class="mu small">Saldo em jan (previsto)</div><b>${aprox(jan)}</b></div></div>`;
     return `
@@ -717,19 +717,19 @@ function drawFuturo(){
     : [{name:cenSel,values:v,c:d.cores[cenSel],w:3.5,area:true}];
   const marks=[{i:2,v:jan,t:'jan '+brl0(jan),c:COR[cls],pos:'t'}];
   if(minI!==2) marks.push({i:minI,v:minV,t:'mais apertado '+brl0(minV),c:COR.at,pos:'b'});
-  const refs=[{v:d.meta,t:'Meta (17/01)',c:'var(--ok)'},{v:d.piso,t:'Piso (17/01)',c:'var(--at)'},{v:d.alerta,t:'Alerta (fim de dez)',c:'var(--ru)'}];
+  const refs=[{v:d.meta,t:'Meta ('+dMetaBR(d).slice(0,5)+')',c:'var(--ok)'},{v:d.piso,t:'Piso ('+dMetaBR(d).slice(0,5)+')',c:'var(--at)'},{v:d.alerta,t:'Alerta (fim de dez)',c:'var(--ru)'}];
   const dfa=minV-d.alerta;
   const pSim = pn('E se...? Simulador'+info('Teste o efeito de gastar mais, economizar, ter uma entrada extra ou fazer uma compra grande. O gráfico mostra o cenário original e o novo.'),'<div id="sim">'+simHtml()+'</div>','teal','margin-bottom:14px');
-  const pCen = pn('Cenários lado a lado',`<table class="rt"><tr><th>Cenário</th><th class="n">${mesCurto(d,iA,'Dez')}</th><th class="n">${mesCurto(d,iM,'Jan')}</th><th>Faixa de janeiro</th><th>Mês mais apertado</th><th class="n">Fim de ${d.meses[11]}</th></tr>
-   ${todos.map(c=>{const s=d.cenarios[c],[k,i,t]=status(s[iM],d.meta,d.piso), mi=s.indexOf(Math.min(...s));return `<tr><td class="tt"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${d.cores[c]};margin-right:8px"></span><b>${c}</b></td><td class="n" data-l="${mesCurto(d,iA,'Dez')}">${brl0(s[iA])}</td><td class="n" data-l="${mesCurto(d,iM,'Jan')}">${brl0(s[iM])}</td><td data-l="Faixa de janeiro"><span class="tag ${k}">${i} ${t}</span></td><td data-l="Mais apertado">${d.meses[mi]} · ${brl0(s[mi])}</td><td class="n" data-l="Fim de ${d.meses[11]}">${brl0(s[11])}</td></tr>`}).join('')}</table>`,'sky');
+  const pCen = pn('Cenários lado a lado',`<table class="rt"><tr><th>Cenário</th><th class="n">${mesCurto(d,iA,'Dez')}</th><th class="n">${mesCurto(d,iM,'Jan')}</th><th>Faixa de ${mMeta(d)}</th><th>Mês mais apertado</th><th class="n">Fim de ${d.meses[11]}</th></tr>
+   ${todos.map(c=>{const s=d.cenarios[c],[k,i,t]=status(s[iM],d.meta,d.piso), mi=s.indexOf(Math.min(...s));return `<tr><td class="tt"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${d.cores[c]};margin-right:8px"></span><b>${c}</b></td><td class="n" data-l="${mesCurto(d,iA,'Dez')}">${brl0(s[iA])}</td><td class="n" data-l="${mesCurto(d,iM,'Jan')}">${brl0(s[iM])}</td><td data-l="Faixa de ${mMeta(d)}"><span class="tag ${k}">${i} ${t}</span></td><td data-l="Mais apertado">${d.meses[mi]} · ${brl0(s[mi])}</td><td class="n" data-l="Fim de ${d.meses[11]}">${brl0(s[11])}</td></tr>`}).join('')}</table>`,'sky');
   const mobHtml = MOB() ? (()=>{
-    const al=[]; if(cls==='ru') al.push([3, alerta('ru','Em janeiro o saldo fica abaixo do piso.')]); else if(cls==='at') al.push([1, alerta('at','Em janeiro o saldo fica entre o piso e a meta.')]);
+    const al=[]; if(cls==='ru') al.push([3, alerta('ru','Em '+mMeta(d)+' o saldo fica abaixo do piso.')]); else if(cls==='at') al.push([1, alerta('at','Em '+mMeta(d)+' o saldo fica entre o piso e a meta.')]);
     if(dez<d.alerta) al.push([2, alerta('ru','Dezembro fica abaixo do alerta ('+brl0(d.alerta)+').')]);
     
     return `${futOrig()}${alertas(al)}
-    ${pn('Saldo no fim de janeiro',`<div class="big" style="color:${COR[cls]}">${aprox(jan)}</div><span class="tag ${cls}" style="margin-top:6px">${icn} ${txt}</span><div class="mu small" style="margin-top:8px">Fim de ${mesCurto(d,iA,'Dez').toLowerCase()} ${brl0(dez)} · ${jan-d.meta>=0?'folga de '+brl0(jan-d.meta)+' sobre a meta':'faltam '+brl0(d.meta-jan)+' para a meta'}${alvo<0?'':' · passa da meta em '+d.meses[alvo]}</div>`,'sky')}
+    ${pn('Saldo no fim de '+mMeta(d),`<div class="big" style="color:${COR[cls]}">${aprox(jan)}</div><span class="tag ${cls}" style="margin-top:6px">${icn} ${txt}</span><div class="mu small" style="margin-top:8px">Fim de ${mesCurto(d,iA,'Dez').toLowerCase()} ${brl0(dez)} · ${jan-d.meta>=0?'folga de '+brl0(jan-d.meta)+' sobre a meta':'faltam '+brl0(d.meta-jan)+' para a meta'}${alvo<0?'':' · passa da meta em '+d.meses[alvo]}</div>`,'sky')}
     ${pn('Saldo previsto',pvHtml(),'sky')}
-    ${pn('Leitura do cenário',`<div class="ins"><div class="d ${cls}">${icn}</div><div class="small"><b>Janeiro termina ${jan>=d.meta?'acima da meta':jan>=d.piso?'entre o piso e a meta':'abaixo do piso'}</b></div></div><div class="ins"><div class="d ${dfa>=0?'ok':'ru'}">${dfa>=0?IOK:IX}</div><div class="small"><b>Mês mais apertado: ${d.meses[minI]}</b><div class="mu">Saldo de ${brl0(minV)}, ${dfa>=0?brl0(dfa)+' acima':brl0(-dfa)+' abaixo'} do alerta.</div></div></div>`,'sky')}
+    ${pn('Leitura do cenário',`<div class="ins"><div class="d ${cls}">${icn}</div><div class="small"><b>${MMeta(d)} termina ${jan>=d.meta?'acima da meta':jan>=d.piso?'entre o piso e a meta':'abaixo do piso'}</b></div></div><div class="ins"><div class="d ${dfa>=0?'ok':'ru'}">${dfa>=0?IOK:IX}</div><div class="small"><b>Mês mais apertado: ${d.meses[minI]}</b><div class="mu">Saldo de ${brl0(minV)}, ${dfa>=0?brl0(dfa)+' acima':brl0(-dfa)+' abaixo'} do alerta.</div></div></div>`,'sky')}
     ${det('futuro','det','Ver detalhes',pSim+pCen,'sky')}`; })() : null;
   $('#fut').innerHTML=mobHtml||`${futOrig()}
   <div class="grid g4" style="margin-bottom:14px">
@@ -740,10 +740,10 @@ function drawFuturo(){
   </div>
   <div class="grid g32" style="margin-bottom:14px">
     ${!cmpOn?pn('Saldo previsto',pvHtml(),'sky'):pn('Todos os cenários',lineChart(d.meses,series,refs,360,CW(.66),{zones:zonesFut(),marks})+`<div class="legend"><span><i style="background:var(--ok);height:10px;opacity:.5"></i>acima da meta</span><span><i style="background:var(--at);height:10px;opacity:.5"></i>entre piso e meta</span><span><i style="background:var(--ru);height:10px;opacity:.5"></i>abaixo do piso</span>${todos.map(c=>`<span><i style="background:${d.cores[c]}"></i>${esc(c)}</span>`).join('')}</div>`,'sky')}
-    ${pn('Leitura do cenário'+info('Meta e piso vêm dos seus números: a meta é o saldo que você quer ter em 17/01 e o piso é o mínimo aceitável. O alerta é o saldo mínimo de segurança em dezembro.',true),`
-      <div class="ins"><div class="d ${cls}">${icn}</div><div class="small"><b>Janeiro termina ${jan>=d.meta?'acima da meta':jan>=d.piso?'entre o piso e a meta':'abaixo do piso'}</b><div class="mu">${jan-d.meta>=0?'Sobram '+brl0(jan-d.meta)+' além da meta.':'Faltam '+brl0(d.meta-jan)+' para a meta e '+(jan>=d.piso?'você está '+brl0(jan-d.piso)+' acima do piso.':brl0(d.piso-jan)+' para o piso.')}</div></div></div>
+    ${pn('Leitura do cenário'+info('Meta e piso vêm dos seus números: a meta é o saldo que você quer ter em '+dMetaBR(d)+' e o piso é o mínimo aceitável. O alerta é o saldo mínimo de segurança em dezembro.',true),`
+      <div class="ins"><div class="d ${cls}">${icn}</div><div class="small"><b>${MMeta(d)} termina ${jan>=d.meta?'acima da meta':jan>=d.piso?'entre o piso e a meta':'abaixo do piso'}</b><div class="mu">${jan-d.meta>=0?'Sobram '+brl0(jan-d.meta)+' além da meta.':'Faltam '+brl0(d.meta-jan)+' para a meta e '+(jan>=d.piso?'você está '+brl0(jan-d.piso)+' acima do piso.':brl0(d.piso-jan)+' para o piso.')}</div></div></div>
       <div class="ins"><div class="d ${dfa>=0?'ok':'ru'}">${dfa>=0?IOK:IX}</div><div class="small"><b>Mês mais apertado: ${d.meses[minI]}</b><div class="mu">Saldo de ${brl0(minV)}, ${dfa>=0?brl0(dfa)+' acima':brl0(-dfa)+' abaixo'} do alerta. Evite compras grandes nesse mês.</div></div></div>
-      <div class="ins"><div class="d ne">${ISOBE}</div><div class="small"><b>Depois de janeiro o saldo cresce ${brl0(cresc)} por mês</b><div class="mu">Em média, de ${d.iMeta==null?'jan/27':d.meses[iM]} até ${d.meses[11]}. Chega a ${brl0(v[11])} no fim.</div></div></div>
+      <div class="ins"><div class="d ne">${ISOBE}</div><div class="small"><b>Depois de ${mMeta(d)} o saldo cresce ${brl0(cresc)} por mês</b><div class="mu">Em média, de ${d.iMeta==null?'jan/27':d.meses[iM]} até ${d.meses[11]}. Chega a ${brl0(v[11])} no fim.</div></div></div>
       <div class="disc">Previsão do app com as premissas de cada cenário. Não é promessa.</div>`,'sky')}
   </div>
   ${pSim}
@@ -879,7 +879,7 @@ T.saude = () => {
   const cor=s.nota>=75?'ok':s.nota>=50?'at':'ru';
   const dicas={
     'Reserva de emergência':()=>'Cada mês de essencial na reserva ('+brl0(d.essencial)+') soma 5 pontos. Faltam '+brl0(Math.max(d.essencial*6-d.caixinha,0))+' para os 6 meses.',
-    'Meta de janeiro':()=>'Cada '+brl0(d.meta*0.1)+' acima da meta soma cerca de 2,5 pontos.',
+    'Meta da reserva':()=>'Cada '+brl0(d.meta*0.1)+' acima da meta soma cerca de 2,5 pontos.',
     'Dívida do cartão':()=>'Cada R$ 1.000 a menos de dívida soma cerca de '+(20*1000/(d.renda*1.5)).toFixed(1).replace('.',',')+' pontos.',
     'Lazer dentro do teto':()=>'Termine o mês dentro do teto de lazer para manter os 15 pontos.',
     'Hábito de registrar':()=>'Cada mês com gastos registrados soma cerca de 3 pontos. Lance no fim do dia.'
@@ -903,7 +903,7 @@ T.saude = () => {
     return `<div class="head"><div><h1>Patrimônio</h1><div class="sub">O que você tem, o que deve e uma nota simples.</div></div></div>
     ${alertas(al)}
     ${pn('Patrimônio líquido',`<div class="big" style="color:${liquido>=0?'var(--tx)':COR.ru}">${brl(liquido)}</div><div class="kv" style="margin-top:8px"><span>Tenho</span><span>${brl(ativos)}</span><span>Devo</span><span>${brl(divida)}</span></div>${d.real?`<div class="mu small" style="margin-top:6px">tenho ${origsTag((d.reservaLinhas||[]).concat(d.caixaLinhas||[]))}</div>`:''}`,'sky')}
-    ${pn('Sua nota'+info('Soma de 5 fatores: reserva de emergência, meta de janeiro, dívida do cartão, lazer dentro do teto e hábito de registrar. Não é o score de crédito do Serasa ou do SPC.'),`<div class="row" style="gap:16px;align-items:center;justify-content:flex-start">${ring(s.nota/100,COR[cor],String(s.nota),'de 100',104)}<div><span class="tag ${cor}">${cor==='ok'?IOK+' Saudável':cor==='at'?AV+' Pode melhorar':IX+' Precisa de atenção'}</span></div></div>`,'teal')}
+    ${pn('Sua nota'+info('Soma de 5 fatores: reserva de emergência, meta da reserva, dívida do cartão, lazer dentro do teto e hábito de registrar. Não é o score de crédito do Serasa ou do SPC.'),`<div class="row" style="gap:16px;align-items:center;justify-content:flex-start">${ring(s.nota/100,COR[cor],String(s.nota),'de 100',104)}<div><span class="tag ${cor}">${cor==='ok'?IOK+' Saudável':cor==='at'?AV+' Pode melhorar':IX+' Precisa de atenção'}</span></div></div>`,'teal')}
     ${det('saude','det','Ver detalhes',pn('Onde dá para ganhar pontos',ganhos,'teal')+pFat+pCarteira+pSaudeC+pReserva,'sky')}`;
   }
   return `
@@ -914,7 +914,7 @@ T.saude = () => {
     ${pn('O que você deve',`<div class="big" style="color:var(--vio)">${brl0(divida)}</div><div class="mu small">cartões: fatura + parcelas</div>`,'vio')}
   </div>
   <div class="grid g23" style="margin-bottom:14px">
-    ${pn('Sua nota'+info('Soma de 5 fatores: reserva de emergência (30), meta de janeiro (25), dívida do cartão (20), lazer dentro do teto (15) e hábito de registrar (10). Não é o score de crédito do Serasa ou do SPC.'),`<div class="row" style="gap:20px;align-items:center;justify-content:flex-start">${ring(s.nota/100,COR[cor],String(s.nota),'de 100',128)}
+    ${pn('Sua nota'+info('Soma de 5 fatores: reserva de emergência (30), meta da reserva (25), dívida do cartão (20), lazer dentro do teto (15) e hábito de registrar (10). Não é o score de crédito do Serasa ou do SPC.'),`<div class="row" style="gap:20px;align-items:center;justify-content:flex-start">${ring(s.nota/100,COR[cor],String(s.nota),'de 100',128)}
       <div><span class="tag ${cor}">${cor==='ok'?IOK+' Saudável':cor==='at'?AV+' Pode melhorar':IX+' Precisa de atenção'}</span><div class="mu small" style="margin-top:10px">Nota do app, com regras visíveis ao lado. Não é o score de crédito do Serasa ou do SPC.</div></div></div>
       <div style="margin-top:20px;border-top:1px solid var(--ln);padding-top:16px"><div class="mu small" style="margin-bottom:6px;font-family:var(--fn)">Onde dá para ganhar pontos</div>${ganhos}</div>`,'teal')}
     ${pFat}
@@ -939,6 +939,11 @@ function catBars(){ const t=catTotals(), tot=t.reduce((s,x)=>s+x[1],0)||1;
 const mesRotulo=mes=>{ const p=String(mes).split('-').map(Number), d=new Date(p[0],p[1]-1,1); return d.toLocaleDateString('pt-BR',{month:'short'}).replace('.','')+'/'+String(d.getFullYear()).slice(2); };   // 'AAAA-MM' no mesmo formato de mesNome
 /* noite-1: posição, na projeção, do mês da meta (janeiro/27) e do alerta (dezembro/26). No exemplo e no mês do arquivo: 2 e 1, como antes. */
 const iMetaDe=d=>d.iMeta??2, iAlertaDe=d=>d.iAlerta??1;
+/* noite-2: nome do mês da meta nos textos (antes: "janeiro" fixo) e a data dela (antes: 17/01 fixo). No exemplo: janeiro e 17/01/2027. */
+const MESL=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+const mMeta=d=>{ if(d.iMeta==null||!d.meses) return 'janeiro'; const i=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'].indexOf(String(d.meses[d.iMeta]||'').split('/')[0]); return i<0?'janeiro':MESL[i]; };
+const MMeta=d=>{ const s=mMeta(d); return s.charAt(0).toUpperCase()+s.slice(1); };
+const dMeta=d=>d.metaData||'2027-01-17', dMetaBR=d=>{ const s=dMeta(d); return s.slice(8,10)+'/'+s.slice(5,7)+'/'+s.slice(0,4); };
 const mesCurto=(d,i,padrao)=>d.iMeta==null?padrao:(s=>s.charAt(0).toUpperCase()+s.slice(1))(String(d.meses[i]).split('/')[0]);
 const mesNome=k=>{ const d=new Date(hoje.getFullYear(),hoje.getMonth()+k,1); return d.toLocaleDateString('pt-BR',{month:'short'}).replace('.','')+'/'+String(d.getFullYear()).slice(2); };
 function calendario(l){
@@ -1127,7 +1132,7 @@ function bindSim(){
     const jan=adj[iMetaDe(d)], [cls,icn,txt]=status(jan,d.meta,d.piso), dj=jan-v[iMetaDe(d)], mn=Math.min(...adj), mi=adj.indexOf(mn);
     const mudou=simS.gasto||simS.entrada||simS.compra;
     $('#simout').innerHTML=`<div style="margin-top:6px">
-      <div><div class="kv"><span>Janeiro com a mudança</span><span style="color:${COR[cls]}">${brl0(jan)}</span><span>Diferença contra o original</span><span style="color:${dj>=0?COR.ok:COR.ru}">${dj>=0?'+':''}${brl0(dj)}</span><span>Contra a meta</span><span>${jan-d.meta>=0?'+':''}${brl0(jan-d.meta)}</span><span>Mês mais apertado</span><span>${d.meses[mi]} · ${brl0(mn)}</span></div>
+      <div><div class="kv"><span>${MMeta(d)} com a mudança</span><span style="color:${COR[cls]}">${brl0(jan)}</span><span>Diferença contra o original</span><span style="color:${dj>=0?COR.ok:COR.ru}">${dj>=0?'+':''}${brl0(dj)}</span><span>Contra a meta</span><span>${jan-d.meta>=0?'+':''}${brl0(jan-d.meta)}</span><span>Mês mais apertado</span><span>${d.meses[mi]} · ${brl0(mn)}</span></div>
       <span class="tag ${cls}" style="margin-top:12px">${icn} ${txt}</span>
       <div class="disc">${mudou?'Estimativa do app: soma o efeito mês a mês ao cenário. As regras reais de cada mês (freios, rendimento) ficam na planilha, então use como ordem de grandeza.':'Mexa nos controles para ver o efeito no saldo.'}</div>
       <button class="btn ghost" id="s_r" style="margin-top:12px">Limpar simulação</button></div></div>`;
@@ -1250,7 +1255,7 @@ T.numeros = () => {
   const nf=n.fixos||{}, fa=d.fixosArquivo||{}, cx=(n.contas||[]).concat([{nome:'',valor:'',dia:''}]);
   const cF=(k,rot,arq,dia)=>`<div class="field"><label for="nf_${k}">${rot}</label><input type="number" id="nf_${k}" data-nf="${k}" inputmode="${dia?'numeric':'decimal'}" min="${dia?1:0}"${dia?' max="31"':''} step="${dia?1:10}" value="${nf[k]!=null?esc(nf[k]):''}" placeholder="${esc(arq)}" aria-describedby="nf_a"></div>`;
   const pFix = pn('Contas fixas e metas'+info('Estes números vieram do arquivo de dados. Preencha só o que mudou: campo em branco continua valendo o do arquivo, mostrado em cinza. Valem para a Agenda, o Hoje e a previsão.'),
-    `<div class="small mu" id="nf_a" style="margin-bottom:10px">Em branco, vale o valor do arquivo (em cinza no campo).</div><div class="nf-g">${cF('ajuda','Ajuda em casa por mês (R$)',fa.ajuda!=null?brl(fa.ajuda):'')}${cF('ajudaDia','Dia da ajuda em casa','dia 10',true)}${cF('faculdade','Faculdade por mês (R$)',fa.faculdade!=null?brl(fa.faculdade):'')}${cF('faculdadeDia','Dia da faculdade','dia 15',true)}${cF('assinaturas','Assinaturas no cartão por mês (R$)',fa.assinaturas!=null?brl(fa.assinaturas):'')}${cF('lazer','Teto de lazer por mês (R$)',fa.lazer!=null?brl(fa.lazer):'')}${cF('meta','Meta da reserva em 17/01 (R$)',fa.meta!=null?brl(fa.meta):'')}${cF('alerta','Alerta de dezembro (R$)',fa.alerta!=null?brl(fa.alerta):'')}</div>
+    `<div class="small mu" id="nf_a" style="margin-bottom:10px">Em branco, vale o valor do arquivo (em cinza no campo).</div><div class="nf-g">${cF('ajuda','Ajuda em casa por mês (R$)',fa.ajuda!=null?brl(fa.ajuda):'')}${cF('ajudaDia','Dia da ajuda em casa','dia 10',true)}${cF('faculdade','Faculdade por mês (R$)',fa.faculdade!=null?brl(fa.faculdade):'')}${cF('faculdadeDia','Dia da faculdade','dia 15',true)}${cF('assinaturas','Assinaturas no cartão por mês (R$)',fa.assinaturas!=null?brl(fa.assinaturas):'')}${cF('lazer','Teto de lazer por mês (R$)',fa.lazer!=null?brl(fa.lazer):'')}${cF('meta','Meta da reserva (R$)',fa.meta!=null?brl(fa.meta):'')}<div class="field"><label for="nf_metaData">Data da meta</label><input type="date" id="nf_metaData" data-nf="metaData" value="${nf.metaData?esc(nf.metaData):''}" aria-describedby="nf_a nf_md_a"><div class="small mu" id="nf_md_a">Em branco: 17/01/2027.</div></div>${cF('alerta','Alerta de dezembro (R$)',fa.alerta!=null?brl(fa.alerta):'')}</div>
     <h3 class="bc-dt" style="margin-top:14px">Outras contas de todo mês</h3><div class="small mu" style="margin-bottom:8px">Internet, plano, aluguel e o que mais se repete. Para apagar uma conta, deixe a linha dela em branco e salve.</div>${cx.map((c,i)=>`<div class="nc-l"><div class="field"><label for="nc_n_${i}">Nome${i===cx.length-1?' (nova conta)':''}</label><input id="nc_n_${i}" data-nc="${i}" type="text" maxlength="60" autocomplete="off" value="${esc(c.nome)}"></div><div class="field"><label for="nc_v_${i}">Valor (R$)</label><input id="nc_v_${i}" type="number" inputmode="decimal" min="0" step="1" value="${esc(c.valor)}"></div><div class="field"><label for="nc_d_${i}">Dia</label><input id="nc_d_${i}" type="number" inputmode="numeric" min="1" max="31" step="1" value="${esc(c.dia)}"></div></div>`).join('')}`,'teal');
   /* pluggy-6: cartões do banco ligados aos do app, e a reserva digitada */
   const credB=((S.st.banco&&S.st.banco.contas)||[]).filter(c=>c.tipo==='CREDIT');
