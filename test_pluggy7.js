@@ -633,7 +633,11 @@ const P = (n, de) => ({ n, de });
     t(g + 'em dezembro: as contas de novembro não são descontadas de novo (antes: mês do arquivo com 100 de pendência e depois dezembro inteiro)', b.cenarios.Base.length === 12 && b.cenarios.Base[1] - b.cenarios.Base[0] === 4250);
     /* C. dezembro antes do 5º dia útil: o salário do mês ainda entra */
     const c2 = D('2026-12-03');
-    t(g + 'antes do 5º dia útil (07/12): o salário do mês entra no mês 0 (8.190 + 5.000)', c2.cenarios.Base[0] === 13190 && c2.salarioMes0 === true && D('2026-12-06').salarioMes0 === true && D('2026-12-07').salarioMes0 === false);
+    /* noite-2 (dono, 16/11): o salário cai ATÉ o 5º dia útil; o próprio dia 07/12 ainda está na janela */
+    t(g + 'até o 5º dia útil (07/12, inclusive): o salário do mês entra no mês 0 (8.190 + 5.000); no dia seguinte, não', c2.cenarios.Base[0] === 13190 && c2.salarioMes0 === true && D('2026-12-06').salarioMes0 === true && D('2026-12-07').salarioMes0 === true && D('2026-12-08').salarioMes0 === false && D('2026-12-08').cenarios.Base[0] === 8190);
+    t(g + 'janela do salário: dia do 5º dia útil, se ainda está nela e se conta como recebido', eq(D('2026-12-03').salarioJanela, { dia: 7, naJanela: true, recebido: false, visto: false, marcado: false }) && eq(D('2026-12-08').salarioJanela, { dia: 7, naJanela: false, recebido: true, visto: false, marcado: false }) && D('2026-11-09').salarioJanela === null);
+    t(g + 'janela: entrada lançada no mês de pelo menos 60% do salário (3.000 de 5.000) conta como recebido; menor, do mês passado ou "não é gasto", não', D('2026-12-03', { lanc: [{ id: 1, data: '2026-12-02', valor: -3000 }] }).salarioJanela.visto === true && D('2026-12-03', { lanc: [{ id: 1, data: '2026-12-02', valor: -3000 }] }).cenarios.Base[0] === 8190 && D('2026-12-03', { lanc: [{ id: 1, data: '2026-12-02', valor: -2999.99 }] }).salarioMes0 === true && D('2026-12-03', { lanc: [{ id: 1, data: '2026-11-30', valor: -5000 }] }).salarioMes0 === true && D('2026-12-03', { lanc: [{ id: 1, data: '2026-12-02', valor: -5000, neutro: true }] }).salarioMes0 === true && D('2026-12-03', { lanc: [{ id: 1, data: '2026-12-02', valor: 5000 }] }).salarioMes0 === true);
+    t(g + 'janela: a marca "já recebi" do dono conta como recebido; a regra "já venceu" das contas não vale para o salário', D('2026-12-03', { pago: x => x.id === 'g:salario' }).salarioJanela.marcado === true && D('2026-12-03', { pago: x => x.id === 'g:salario' }).salarioMes0 === false && D('2026-12-03', { pago: x => x.dia < 3 }).salarioMes0 === true && D('2026-12-03', { pago: x => x.dia < 500 }).salarioMes0 === false);
     /* D. início digitado: desconta só as contas não pagas e só o lazer que falta */
     const d2 = D('2026-12-10', { reserva: [{ nome: 'Cofre', valor: 1000, data: '2026-12-01' }], pago: x => x.id === 'g:ajuda', lanc: [{ id: 1, data: '2026-12-04', cat: 'Lazer', valor: 50, lazer: true }, { id: 2, data: '2026-11-20', cat: 'Lazer', valor: 999, lazer: true }] });
     t(g + 'com reserva digitada: 10.000 menos as não pagas (210 + 100) e o lazer que falta (300 - 50) = 9.440', d2.cenarios.Base[0] === 9440 && eq(d2.pendNaoPagas, { n: 2, valor: 310 }) && d2.faltaMes0.lazer === 250);
@@ -660,7 +664,7 @@ const P = (n, de) => ({ n, de });
     t(g + 'em fevereiro/27, sem linha no arquivo para o mês: só as assinaturas viram a fatura estimada (10)', f.ancora === '2027-02' && f.agenda[0].valor === 10 && f.iMeta === 0);
     /* H. gasto periódico que cai no mês */
     const rp = RV(); rp.gastos_periodicos = [{ nome: 'Periódico', valor: 50, a_cada_meses: 3, primeiro: '2026-12' }];
-    t(g + 'gasto periódico: entra na agenda do mês em que cai, no último dia; fora dele, não', /g:per:0\|Periódico\|31\|50/.test(ag(D('2026-12-10', {}, rp))) && !/Periódico/.test(ag(D('2027-01-10', {}, rp))) && /g:per:0\|Periódico\|31\|50/.test(ag(D('2027-03-10', {}, rp))));
+    t(g + 'gasto periódico: entra na agenda do mês em que cai, no último dia; fora dele, não', /g:per:0\|Periódico \(sem dia certo\)\|31\|50/.test(ag(D('2026-12-10', {}, rp))) && !/Periódico/.test(ag(D('2027-01-10', {}, rp))) && /g:per:0\|Periódico \(sem dia certo\)\|31\|50/.test(ag(D('2027-03-10', {}, rp))) && D('2026-12-10', {}, rp).agenda.find(x => x.id === 'g:per:0').semDia === true);
     t(g + 'gasto periódico do mês 0 entra nas contas do mês (8.190 - 50)', D('2026-12-10', {}, rp).cenarios.Base[0] === 8140);
     /* J. dia das contas vindo do arquivo */
     const rd = RV(); rd.pendencias_novembro = [{ descricao: 'Conta de água (ajuda ao pai)', valor: 1, vence: '2026-11-08' }, { descricao: 'Faculdade X', valor: 1, vence: '2026-11-20' }];
@@ -820,6 +824,35 @@ const P = (n, de) => ({ n, de });
 
   /* noite-1: nome de compra comprido e sem espaços causava rolagem lateral no Cartão (pego em navegador, tests/p15_telas.js) */
   t('compras parceladas: a tabela tem largura fixa e quebra palavras compridas', require('fs').readFileSync(require('path').join(__dirname, 'index.html'), 'utf8').includes('table.cp{table-layout:fixed;width:100%} table.cp td,table.cp th{overflow-wrap:anywhere;min-width:0}'));
+
+  /* ===== 13. noite-2: a janela do salário (cai até o 5º dia útil) na tela Hoje ===== */
+  {
+    const g = 'janela do salário (tela): ';
+    const relogioS = iso => w => { const Rr = w.Date, alvo = new Rr(iso).getTime(), d0 = Rr.now(), agr = () => alvo + (Rr.now() - d0); class Dt extends Rr { constructor(...x) { if (x.length) super(...x); else super(agr()); } static now() { return agr(); } } w.Date = Dt; };
+    const RS = () => { const r = clone(FICTICIO); r._meta.as_of = '2026-11-08'; r.liquidez.total = 2500; return r; };
+    const abreS = async (quando, extra, larg) => { const A = await abrir(Object.assign({ tf_modo: 'real', tf_real: RS() }, extra || {}), { antes: relogioS(quando), largura: larg || 1024 }); await A.ir('hoje'); return A; };
+    const linha = X => X.$('#sal_l') ? X.$('#sal_l').textContent.replace(/\s+/g, ' ').trim() : null;
+    for (const larg of [1024, 390]) {
+      const A = await abreS('2026-12-03T12:00:00', null, larg), id = g + larg + ' px: ';
+      if (larg === 390) { A.$$('main details').forEach(d => { d.open = true; }); }
+      const com = A.w.eval('DEMO.cenarios.Base[0]');
+      t(id + 'dentro da janela e sem sinal de que entrou: diz que ainda conta como a receber, até o dia 7, com o botão "Já recebi"', /Salário deste mês: ainda conto como a receber \(cai até o dia 7\)\./.test(linha(A)) && A.$('#sal_b').textContent === 'Já recebi' && A.$('#sal_b').getAttribute('type') === 'button' && A.w.eval('DEMO.salarioMes0') === true);
+      A.click('#sal_b'); await tick(20);
+      t(id + '"Já recebi" grava a marca do mês e tira o salário do saldo previsto (5.000 a menos)', A.ls('tf_pagos')['g:salario@2026-12'] === true && Math.round((com - A.w.eval('DEMO.cenarios.Base[0]')) * 100) === 500000 && A.w.eval('DEMO.salarioMes0') === false);
+      if (larg === 390) { A.$$('main details').forEach(d => { d.open = true; }); }
+      t(id + 'depois de marcar: diz que está marcado e oferece desfazer', /Salário deste mês: marcado como recebido\./.test(linha(A)) && A.$('#sal_b').textContent === 'Ainda não recebi' && A.w.eval('atual') === 'hoje');
+      A.click('#sal_b'); await tick(20);
+      t(id + '"Ainda não recebi" desfaz: o salário volta ao saldo previsto', A.ls('tf_pagos')['g:salario@2026-12'] === false && A.w.eval('DEMO.cenarios.Base[0]') === com && A.erros.length === 0);
+    }
+    const V = await abreS('2026-12-03T12:00:00', { tf_lanc3: [{ id: 9000000000001, data: '2026-12-02', desc: 'Salário', cat: 'Outros', valor: -4000, forma: 'Pix', essencial: false, lazer: false }] });
+    t(g + 'com a entrada do salário já lançada no mês: diz que aparece nos lançamentos e não pergunta', /Salário deste mês: já aparece nos lançamentos\./.test(linha(V)) && !V.$('#sal_b') && V.w.eval('DEMO.salarioMes0') === false);
+    const D7 = await abreS('2026-12-07T12:00:00'), D8 = await abreS('2026-12-08T12:00:00');
+    t(g + 'no 5º dia útil (07/12) a linha ainda aparece; no dia seguinte some e o salário não é mais somado', !!linha(D7) && linha(D8) === null && D8.w.eval('DEMO.salarioMes0') === false);
+    const N = await abreS('2026-11-20T12:00:00');
+    t(g + 'no mês do arquivo (novembro): sem a linha', linha(N) === null && N.erros.length === 0);
+    const M = await abreS('2027-01-05T12:00:00', { tf_pagos: { 'g:salario@2026-12': true } });
+    t(g + 'a marca de dezembro não vale para janeiro: em 05/01 volta a perguntar (janela até o dia 8)', /cai até o dia 8/.test(linha(M) || '') && M.w.eval('DEMO.salarioMes0') === true);
+  }
 
   process.exit(fim());
 })();

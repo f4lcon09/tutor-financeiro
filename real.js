@@ -336,15 +336,21 @@
       if (facM > 0) agenda.push({ id: 'g:faculdade', nome: 'Faculdade', dia: diaDe(/faculdade/i, 15), valor: facM, origem: 'arquivo' });
       (num.periodicos || real.gastos_periodicos || []).forEach(function (g, i) {
         var q = String(g.primeiro || '').split('-'), idx = (aY - +q[0]) * 12 + (aM - +q[1]);
-        if (idx >= 0 && idx % g.a_cada_meses === 0 && g.valor > 0) agenda.push({ id: 'g:per:' + i, nome: g.nome, dia: new Date(Date.UTC(aY, aM, 0)).getUTCDate(), valor: g.valor, origem: 'arquivo' });
+        if (idx >= 0 && idx % g.a_cada_meses === 0 && g.valor > 0) agenda.push({ id: 'g:per:' + i, nome: g.nome + ' (sem dia certo)', dia: new Date(Date.UTC(aY, aM, 0)).getUTCDate(), valor: g.valor, origem: 'arquivo', semDia: true });   // dono, 16/11/2026: não tem data exata (é comprado quando está perto de acabar); fica no fim do mês até ser marcado como pago
       });
       n2.ancora = ancora;
       if (!inicioArquivo && typeof ctx.pago === 'function') {
         var npV = agenda.filter(function (a) { return !ctx.pago(a); });
         pendNaoPagas = { n: npV.length, valor: somaV(npV) }; n2.pend = pendNaoPagas.valor;
       } else n2.pend = somaV(agenda);
-      var d5 = quintoDiaUtil(aY, aM);
-      if (d5 && +ctx.hojeISO.slice(8) < d5) n2.salario0 = salario;
+      /* salário do mês corrente. Dono, 16/11/2026: o salário cai ATÉ o 5º dia útil, em qualquer dia da janela. Então, do dia 1 ao 5º dia útil
+         (inclusive) não dá para saber pelo calendário se já entrou. Conta como recebido se: há uma entrada lançada neste mês de pelo menos 60%
+         do salário; ou o dono marcou "já recebi" (marca g:salario do mês, em tf_pagos); ou a janela já passou. Enquanto não, o mês 0 soma o salário. */
+      var d5 = quintoDiaUtil(aY, aM), diaH = +ctx.hojeISO.slice(8);
+      var entrou = (ctx.lanc || []).some(function (l) { return l && String(l.data).slice(0, 7) === ancora && l.valor < 0 && !l.neutro && -l.valor >= 0.6 * salario; });
+      var marcou = typeof ctx.pago === 'function' && !!ctx.pago({ id: 'g:salario', dia: 99 });   // dia 99: só a marca explícita vale (sem marca, a regra "já venceu" nunca se aplica)
+      var janela = { dia: d5, naJanela: !!d5 && diaH <= d5, recebido: !d5 || diaH > d5 || entrou || marcou, visto: entrou, marcado: marcou };
+      if (!janela.recebido && salario > 0) n2.salario0 = salario;
     }
     var mesesEntre = function (a, b) { return (+b.slice(0, 4) - +a.slice(0, 4)) * 12 + (+b.slice(5, 7) - +a.slice(5, 7)); };
     var limitar = function (i) { return Math.min(Math.max(i, 0), 11); };
@@ -369,6 +375,7 @@
       meta: rg.meta_17_01_2027, piso: rg.piso_17_01_2027, alerta: rg.alerta_dezembro, tetoLazer: fx.teto_lazer_mes,
       pisoNovo: num.piso > 0 ? +num.piso : null,
       meses: rotulosMeses(ancora + '-01'),
+      salarioJanela: virou ? janela : null,   // noite-2: a janela do salário do mês corrente (dia do 5º dia útil; se ainda está nela; se conta como recebido e por quê)
       ancora: ancora, virou: virou, salarioMes0: n2.salario0 > 0,   // noite-1: mês 0 da projeção; se já passou do mês do arquivo; se o salário deste mês ainda entra
       iMeta: limitar(mesesEntre(ancora, '2027-01')), iAlerta: limitar(mesesEntre(ancora, '2026-12')),   // posição, na projeção, do mês da meta (17/01/2027) e do alerta de dezembro
       cenarios: { 'Base': base, 'Com repasse da mãe': com },
