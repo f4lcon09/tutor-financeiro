@@ -1243,6 +1243,12 @@ T.numeros = () => {
   const pRep = pn('Repasse da mãe'+info('Só conta no saldo previsto depois que você marcar que recebeu.'),parc.length?parc.map(f=>`<div class="linha-check"><input type="checkbox" id="rp_${esc(f.mes)}" data-mes="${esc(f.mes)}" ${n.repasse&&n.repasse[f.mes]?'checked':''}><label for="rp_${esc(f.mes)}">${esc(String(f.mes).slice(5))}/${esc(String(f.mes).slice(2,4))}: recebi ${brl(f.parte_mae)}</label></div>`).join(''):'<div class="mu small">Nenhum repasse previsto no arquivo.</div>','vio');
   const pPiso = pn('Piso da reserva'+info('O menor saldo que você aceita ter. Enquanto não definir, o app mostra piso a definir.'),`<div class="field"><label for="n_piso">Valor (R$)</label><input type="number" id="n_piso" inputmode="decimal" min="0" step="50" value="${n.piso||''}" aria-describedby="n_piso_a"></div><div class="mu small" id="n_piso_a">Origem: ${d.pisoNovo?'informado':'ainda a definir'}.</div>`,'pink');
   const pLimC = pn('Limite dos cartões',d.cartoes.map(c=>`<div class="field"><label for="n_lim_${esc(c.id)}">${esc(c.nome)} (R$)</label><input type="number" id="n_lim_${esc(c.id)}" data-id="${esc(c.id)}" inputmode="decimal" min="0" step="50" value="${c.limite||''}"${c.origem&&c.origem.limite?' aria-describedby="n_lim_'+esc(c.id)+'_a"':''}>${c.origem&&c.origem.limite?'<div class="hint" id="n_lim_'+esc(c.id)+'_a">Com o banco ligado, vale o limite que veio dele: '+origTag(c.origem.limite)+'</div>':''}</div>`).join(''),'sky');
+  /* noite-2: números que só existiam no arquivo, agora corrigíveis aqui; e contas fixas extras de todo mês */
+  const nf=n.fixos||{}, fa=d.fixosArquivo||{}, cx=(n.contas||[]).concat([{nome:'',valor:'',dia:''}]);
+  const cF=(k,rot,arq,dia)=>`<div class="field"><label for="nf_${k}">${rot}</label><input type="number" id="nf_${k}" data-nf="${k}" inputmode="${dia?'numeric':'decimal'}" min="${dia?1:0}"${dia?' max="31"':''} step="${dia?1:10}" value="${nf[k]!=null?esc(nf[k]):''}" placeholder="${esc(arq)}" aria-describedby="nf_a"></div>`;
+  const pFix = pn('Contas fixas e metas'+info('Estes números vieram do arquivo de dados. Preencha só o que mudou: campo em branco continua valendo o do arquivo, mostrado em cinza. Valem para a Agenda, o Hoje e a previsão.'),
+    `<div class="small mu" id="nf_a" style="margin-bottom:10px">Em branco, vale o valor do arquivo (em cinza no campo).</div><div class="nf-g">${cF('ajuda','Ajuda em casa por mês (R$)',fa.ajuda!=null?brl(fa.ajuda):'')}${cF('ajudaDia','Dia da ajuda em casa','dia 10',true)}${cF('faculdade','Faculdade por mês (R$)',fa.faculdade!=null?brl(fa.faculdade):'')}${cF('faculdadeDia','Dia da faculdade','dia 15',true)}${cF('assinaturas','Assinaturas no cartão por mês (R$)',fa.assinaturas!=null?brl(fa.assinaturas):'')}${cF('lazer','Teto de lazer por mês (R$)',fa.lazer!=null?brl(fa.lazer):'')}${cF('meta','Meta da reserva em 17/01 (R$)',fa.meta!=null?brl(fa.meta):'')}${cF('alerta','Alerta de dezembro (R$)',fa.alerta!=null?brl(fa.alerta):'')}</div>
+    <h3 class="bc-dt" style="margin-top:14px">Outras contas de todo mês</h3><div class="small mu" style="margin-bottom:8px">Internet, plano, aluguel e o que mais se repete. Para apagar uma conta, deixe a linha dela em branco e salve.</div>${cx.map((c,i)=>`<div class="nc-l"><div class="field"><label for="nc_n_${i}">Nome${i===cx.length-1?' (nova conta)':''}</label><input id="nc_n_${i}" data-nc="${i}" type="text" maxlength="60" autocomplete="off" value="${esc(c.nome)}"></div><div class="field"><label for="nc_v_${i}">Valor (R$)</label><input id="nc_v_${i}" type="number" inputmode="decimal" min="0" step="1" value="${esc(c.valor)}"></div><div class="field"><label for="nc_d_${i}">Dia</label><input id="nc_d_${i}" type="number" inputmode="numeric" min="1" max="31" step="1" value="${esc(c.dia)}"></div></div>`).join('')}`,'teal');
   /* pluggy-6: cartões do banco ligados aos do app, e a reserva digitada */
   const credB=((S.st.banco&&S.st.banco.contas)||[]).filter(c=>c.tipo==='CREDIT');
   const pLiga = credB.length?pn('Cartões do banco'+info('Escolha qual cartão do app é cada cartão do banco. Com um cartão de cada lado, a ligação é automática. Ligado, o cartão do app passa a usar o limite, o disponível e o limite usado do banco; a fatura aberta é estimada pelas compras depois do fechamento e pelas parcelas lançadas no dia do fechamento.'),credB.map((bc,i)=>{ const sel=(S.st.liga||{})[bc.id]||'', auto=!sel&&credB.length===1&&d.cartoes.length===1, c=d.cartoes.find(x=>x.banco&&x.banco.id===bc.id);
@@ -1252,6 +1258,7 @@ T.numeros = () => {
     const inf=[n.mercado,n.salario,n.piso].filter(v=>v>0).length;
     return `<div class="head"><div><h1>Meus números</h1><div class="sub">${inf} de 3 números principais informados. A previsão é recalculada ao salvar.</div></div></div>
     ${pMerc}${pSal}${pPiso}${pRes}
+    ${det('numeros','fixos','Contas fixas e metas',pFix,'teal')}
     ${det('numeros','mais','Repasse da mãe e limite dos cartões',pRep+pLimC+pLiga,'teal')}
     <div class="salvarfixo"><button class="btn" id="n_ok">Salvar números</button><span id="n_msg" class="small" role="status"></span></div>`;
   }
@@ -1263,6 +1270,7 @@ T.numeros = () => {
     ${pPiso}
     ${pLimC}
     ${pRes}
+    ${pFix}
     ${pLiga}
   </div>
   <div class="row" style="margin-top:14px;justify-content:flex-start;gap:14px"><button class="btn" id="n_ok">Salvar números</button><span id="n_msg" class="small" role="status"></span></div>`;
@@ -1280,7 +1288,11 @@ function bindNumeros(){
   $('#n_ok').onclick=()=>{
     const repasse={}; $$('input[data-mes]').forEach(c=>{ if(c.checked) repasse[c.dataset.mes]=true; });
     const limites={}; $$('input[data-id]').forEach(i=>{ limites[i.dataset.id]=i.value; });
-    const r=S.setNumeros({mercado:$('#n_mercado').value,salario:$('#n_salario').value,piso:$('#n_piso').value,repasse,limites});
+    const fixos={}; $$('input[data-nf]').forEach(i=>{ fixos[i.dataset.nf]=i.value; });   // noite-2
+    const contas=$$('input[data-nc]').map(i=>({nome:i.value,valor:$('#nc_v_'+i.dataset.nc).value,dia:$('#nc_d_'+i.dataset.nc).value}));
+    const r=S.setNumeros({mercado:$('#n_mercado').value,salario:$('#n_salario').value,piso:$('#n_piso').value,repasse,limites,fixos,contas});
+    $$('input[data-nf]').forEach(i=>i.setAttribute('aria-invalid',r.ok||!r.erros['fixo_'+i.dataset.nf]?'false':'true'));
+    $$('input[data-nc]').forEach(i=>i.setAttribute('aria-invalid',r.ok||!r.erros['conta_'+i.dataset.nc]?'false':'true'));
     ['mercado','salario','piso'].forEach(k=>$('#n_'+k).setAttribute('aria-invalid',r.ok||!r.erros[k]?'false':'true'));
     if(!r.ok){ $('#n_msg').innerHTML='<span class="tag ru" role="alert">'+IX+' '+esc(Object.values(r.erros)[0])+'</span>'; return; }
     ir('numeros'); $('#n_msg').innerHTML='<span class="tag ok">'+IOK+' Salvo. A previsão foi recalculada.</span>';

@@ -84,7 +84,7 @@
         var q = g.primeiro.split('-'), idx = (yy - +q[0]) * 12 + (mm + 1 - +q[1]);
         if (idx >= 0 && idx % g.a_cada_meses === 0) per += g.valor;
       });
-      var sai = fx.ajuda_em_casa_a_partir_de_dezembro + f.fatura_total + (f.novas || 0) + ass + fac + lazer + mercado + per;
+      var sai = fx.ajuda_em_casa_a_partir_de_dezembro + f.fatura_total + (f.novas || 0) + ass + fac + lazer + mercado + per + (num.contasMes > 0 ? +num.contasMes : 0);   // noite-2: contasMes = contas fixas extras do dono
       saldo = r2(saldo + entra - sai); out.push(saldo);
     }
     return out;
@@ -228,10 +228,24 @@
      num: números do dono (veja projetar). ctx: {lanc, hojeISO} para a média do mercado. */
   function derivar(real, num, ctx) {
     num = num || {}; ctx = ctx || {};
+    /* noite-2: o dono corrige no app os números que só existiam no arquivo (num.fixos) e acrescenta contas fixas de todo mês (num.contas).
+       O arquivo não é alterado: daqui para baixo vale uma cópia com as correções. Campo não corrigido = valor do arquivo. */
+    var arquivo = real, nf = num.fixos && typeof num.fixos === 'object' && !Array.isArray(num.fixos) ? num.fixos : {};
+    var corr = function (k, base) { return typeof nf[k] === 'number' && isFinite(nf[k]) ? nf[k] : base; };
+    var fxA = arquivo.gastos_fixos_mensais, fxE = Object.assign({}, fxA), rgE = Object.assign({}, arquivo.regras_e_metas);
+    fxE.ajuda_em_casa_a_partir_de_dezembro = corr('ajuda', fxA.ajuda_em_casa_a_partir_de_dezembro);
+    if (typeof nf.faculdade === 'number') { fxE.faculdade_2026 = nf.faculdade; fxE.faculdade_2027_estimado = nf.faculdade; }
+    fxE.teto_lazer_mes = corr('lazer', fxA.teto_lazer_mes);
+    if (typeof nf.assinaturas === 'number') { var dm = Math.min((fxA.assinaturas_no_cartao || {}).dados_moveis || 0, nf.assinaturas); fxE.assinaturas_no_cartao = { dados_moveis: dm, outras: r2(nf.assinaturas - dm) }; }
+    rgE.meta_17_01_2027 = corr('meta', rgE.meta_17_01_2027); rgE.alerta_dezembro = corr('alerta', rgE.alerta_dezembro);
+    if (num.piso > 0) rgE.piso_17_01_2027 = +num.piso;   // o piso digitado em Meus números passa a valer (antes só tirava o aviso de pendente)
+    real = Object.assign({}, arquivo, { gastos_fixos_mensais: fxE, regras_e_metas: rgE });
+    var extras = (Array.isArray(num.contas) ? num.contas : []).filter(function (x) { return x && typeof x.nome === 'string' && x.valor > 0 && x.dia >= 1 && x.dia <= 31; });
     var fx = real.gastos_fixos_mensais, c = real.cartao, rg = real.regras_e_metas;
     var estimado = salarioEstimado(real), salario = num.salario > 0 ? +num.salario : estimado;
     var media = ctx.lanc && ctx.hojeISO ? mediaMercado(ctx.lanc, ctx.hojeISO) : null;
     var n2 = Object.assign({}, num, { mercadoMedia: media });
+    if (extras.length) n2.contasMes = r2(extras.reduce(function (s, x) { return s + x.valor; }, 0));
     var essencial = r2(fx.ajuda_em_casa_a_partir_de_dezembro + fx.faculdade_2026 + (fx.assinaturas_no_cartao.dados_moveis || 0));
     var futuras = real.faturas_futuras_parcelas_antigas;
     var ven = function (s) { return +s.slice(8); };
@@ -245,6 +259,8 @@
     var asMes = real._meta.as_of.slice(0, 7), hojeMes = /^\d{4}-\d{2}-\d{2}$/.test(ctx.hojeISO || '') ? ctx.hojeISO.slice(0, 7) : asMes;
     var virou = hojeMes > asMes, ancora = virou ? hojeMes : asMes;
     if (virou) agenda = [];   // as contas do arquivo são do mês dele; as deste mês são montadas mais abaixo, depois dos cartões
+    var extrasAgenda = extras.map(function (x, i) { return { id: 'g:x:' + i, nome: x.nome, dia: x.dia, valor: x.valor, origem: 'digitado' }; });
+    if (!virou && extrasAgenda.length) agenda = agenda.concat(extrasAgenda);   // noite-2: contas fixas extras entram na agenda de todo mês
     var lim = num.limites || {};
     var cartoes = [{ id: 'c1', nome: c.emissor, final: '', limite: +lim.c1 || c.limite || 0, fatura: c.fatura_atual.total, parcelasFuturas: r2(futuras.reduce(function (s, f) { return s + f.fatura_total; }, 0)), fecha: c.fechamento_dia, vence: ven(c.fatura_atual.vence_em), serie: futuras }];
     (real.cartoes_extra || []).forEach(function (x, i) {
@@ -270,7 +286,7 @@
     if (!virou && !inicioArquivo && typeof ctx.pago === 'function') {
       var np = agenda.filter(function (a) { return !ctx.pago(a); });
       pendNaoPagas = { n: np.length, valor: somaV(np) }; n2.pend = pendNaoPagas.valor;
-    }
+    } else if (!virou && extrasAgenda.length) n2.pend = somaV(agenda);   // noite-2: início do arquivo com contas extras: o mês 0 desconta as do arquivo e as extras
     /* lazer e mercado do mês 0: no início do banco ou digitado, o que já foi lançado neste mês já saiu da conta; desconta só o que falta
        (teto de lazer menos o lazer lançado; mercado do mês menos o mercado lançado; mínimo 0). Só quando hoje está no mês do arquivo. */
     var falta = null;
@@ -331,9 +347,10 @@
       var oF = fb ? 'banco' : c1.mesAberta === ancora ? 'estimada' : 'arquivo';
       var vF = fb ? fb[1] : c1.mesAberta === ancora ? c1.fatura : r2((arqF ? arqF.fatura_total : 0) + assin);
       if (vF > 0) agenda.push({ id: 'g:fatura', nome: 'Fatura ' + c.emissor + (oF === 'banco' ? '' : ' (estimada)'), dia: c1.vence || 10, valor: r2(vF), origem: oF });
-      if (fx.ajuda_em_casa_a_partir_de_dezembro > 0) agenda.push({ id: 'g:ajuda', nome: 'Ajuda em casa', dia: diaDe(/ajuda/i, 10), valor: fx.ajuda_em_casa_a_partir_de_dezembro, origem: 'arquivo' });
+      if (fx.ajuda_em_casa_a_partir_de_dezembro > 0) agenda.push({ id: 'g:ajuda', nome: 'Ajuda em casa', dia: corr('ajudaDia', diaDe(/ajuda/i, 10)), valor: fx.ajuda_em_casa_a_partir_de_dezembro, origem: typeof nf.ajuda === 'number' ? 'digitado' : 'arquivo' });
       var facM = aY >= 2027 ? fx.faculdade_2027_estimado : fx.faculdade_2026;
-      if (facM > 0) agenda.push({ id: 'g:faculdade', nome: 'Faculdade', dia: diaDe(/faculdade/i, 15), valor: facM, origem: 'arquivo' });
+      if (facM > 0) agenda.push({ id: 'g:faculdade', nome: 'Faculdade', dia: corr('faculdadeDia', diaDe(/faculdade/i, 15)), valor: facM, origem: typeof nf.faculdade === 'number' ? 'digitado' : 'arquivo' });
+      agenda = agenda.concat(extrasAgenda);
       (num.periodicos || real.gastos_periodicos || []).forEach(function (g, i) {
         var q = String(g.primeiro || '').split('-'), idx = (aY - +q[0]) * 12 + (aM - +q[1]);
         if (idx >= 0 && idx % g.a_cada_meses === 0 && g.valor > 0) agenda.push({ id: 'g:per:' + i, nome: g.nome + ' (sem dia certo)', dia: new Date(Date.UTC(aY, aM, 0)).getUTCDate(), valor: g.valor, origem: 'arquivo', semDia: true });   // dono, 16/11/2026: não tem data exata (é comprado quando está perto de acabar); fica no fim do mês até ser marcado como pago
@@ -369,6 +386,8 @@
     if ((num.periodicos || real.gastos_periodicos || []).length) sup.push('Gastos periódicos entram no mês em que caem.');
     return {
       real: true, asOf: real._meta.as_of,
+      fixosArquivo: { ajuda: fxA.ajuda_em_casa_a_partir_de_dezembro, faculdade: +real._meta.as_of.slice(0, 4) >= 2027 ? fxA.faculdade_2027_estimado : fxA.faculdade_2026, lazer: fxA.teto_lazer_mes, assinaturas: soma(fxA.assinaturas_no_cartao), meta: arquivo.regras_e_metas.meta_17_01_2027, alerta: arquivo.regras_e_metas.alerta_dezembro },   // noite-2: os valores do arquivo, para mostrar ao lado do campo
+      contasExtras: extras.map(function (x) { return { nome: x.nome, valor: x.valor, dia: x.dia }; }),
       caixinha: caixinha, conta: contasBank.length ? somaV(caixaLinhas) : real.liquidez.conta_corrente, essencial: essencial, renda: salario,
       caixaBanco: !!contasBank.length, caixaLinhas: caixaLinhas, reservaLinhas: reservaLinhas, origemArquivo: oArq, pendNaoPagas: pendNaoPagas, faltaMes0: falta,   // pluggy-6
       salarioEstimado: !(num.salario > 0), salarioDiaProximo: salarioDia,

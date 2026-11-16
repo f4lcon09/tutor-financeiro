@@ -108,6 +108,19 @@
     var o = {};
     ['mercado', 'salario', 'piso'].forEach(function (k) { if (num(n[k]) && n[k] > 0) o[k] = n[k]; });
     if (isObj(n.repasse)) { o.repasse = {}; Object.keys(n.repasse).forEach(function (m) { if (mes(m) && n.repasse[m] === true) o.repasse[m] = true; }); }
+    /* noite-2: números do arquivo que o dono corrige no app (fixos) e contas fixas extras de todo mês (contas) */
+    if (isObj(n.fixos)) {
+      var f = {}, x = n.fixos, inteiro = function (v) { return num(v) && Math.floor(v) === v; };
+      ['ajuda', 'faculdade', 'assinaturas'].forEach(function (k) { if (num(x[k]) && x[k] >= 0 && x[k] <= 1e7) f[k] = x[k]; });
+      ['lazer', 'meta', 'alerta'].forEach(function (k) { if (num(x[k]) && x[k] > 0 && x[k] <= 1e9) f[k] = x[k]; });
+      ['ajudaDia', 'faculdadeDia'].forEach(function (k) { if (inteiro(x[k]) && x[k] >= 1 && x[k] <= 31) f[k] = x[k]; });
+      if (Object.keys(f).length) o.fixos = f;
+    }
+    if (Array.isArray(n.contas)) {
+      var cs = n.contas.slice(0, 20).filter(function (c) { return isObj(c) && typeof c.nome === 'string' && !!c.nome.trim() && num(c.valor) && c.valor > 0 && c.valor <= 1e7 && num(c.dia) && Math.floor(c.dia) === c.dia && c.dia >= 1 && c.dia <= 31; })
+        .map(function (c) { return { nome: corta(c.nome.trim(), 60), valor: c.valor, dia: c.dia }; });
+      if (cs.length) o.contas = cs;
+    }
     if (isObj(n.limites)) { o.limites = {}; Object.keys(n.limites).forEach(function (id) { if (RE_ID.test(id) && !perigosa(id) && num(n.limites[id]) && n.limites[id] > 0) o.limites[id] = n.limites[id]; }); }
     if (Array.isArray(n.periodicos)) o.periodicos = n.periodicos.slice(0, 100).filter(function (g) { return isObj(g) && mes(g.primeiro) && g.a_cada_meses >= 1 && g.a_cada_meses <= 120 && Math.floor(g.a_cada_meses) === g.a_cada_meses && num(g.valor); }).map(function (g) { return { primeiro: g.primeiro, a_cada_meses: g.a_cada_meses, valor: g.valor }; });
     return o;
@@ -223,6 +236,6 @@
     return { itens: out, descartados: desc };
   }
 
-  var api = { sanBanco: sanBanco, sanReserva: sanReserva, sanLiga: sanLiga, esc: esc, validarImportacao: validarImportacao, sanearEstado: sanearEstado, limparItens: limparItens, varrer: varrer, LIM: LIM, perigosa: perigosa, catOk: catOk, CATS: CATS };
+  var api = { sanBanco: sanBanco, sanNumeros: sanNumeros, sanReserva: sanReserva, sanLiga: sanLiga, esc: esc, validarImportacao: validarImportacao, sanearEstado: sanearEstado, limparItens: limparItens, varrer: varrer, LIM: LIM, perigosa: perigosa, catOk: catOk, CATS: CATS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TFSeg = api;
 })(typeof window !== 'undefined' ? window : globalThis);

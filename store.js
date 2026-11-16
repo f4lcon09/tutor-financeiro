@@ -337,6 +337,28 @@
           novo.limites = lim;
         }
         if ('periodicos' in patch) novo.periodicos = patch.periodicos;
+        /* noite-2: números do arquivo corrigidos no app. Campo vazio volta ao valor do arquivo. */
+        if ('fixos' in patch) {
+          var fx = Object.assign({}, novo.fixos), pf = patch.fixos || {};
+          ['ajuda', 'faculdade', 'assinaturas'].forEach(function (k) { if (!(k in pf)) return; var t = pf[k]; if (t === '' || t == null) { delete fx[k]; return; } var v = lerNumero(t); if (!(v >= 0)) erros['fixo_' + k] = 'Informe um valor igual ou maior que zero.'; else fx[k] = r2(v); });
+          ['lazer', 'meta', 'alerta'].forEach(function (k) { if (!(k in pf)) return; var t = pf[k]; if (t === '' || t == null) { delete fx[k]; return; } var v = lerNumero(t); if (!(v > 0)) erros['fixo_' + k] = 'Informe um valor maior que zero.'; else fx[k] = r2(v); });
+          ['ajudaDia', 'faculdadeDia'].forEach(function (k) { if (!(k in pf)) return; var t = pf[k]; if (t === '' || t == null) { delete fx[k]; return; } var v = +t; if (!(Math.floor(v) === v && v >= 1 && v <= 31)) erros['fixo_' + k] = 'Informe um dia de 1 a 31.'; else fx[k] = v; });
+          if (Object.keys(fx).length) novo.fixos = fx; else delete novo.fixos;
+        }
+        /* contas fixas extras: linha toda em branco é ignorada (é assim que se apaga); linha pela metade é erro */
+        if ('contas' in patch) {
+          var cs = [];
+          (Array.isArray(patch.contas) ? patch.contas : []).slice(0, 20).forEach(function (c, i) {
+            var nome = String((c && c.nome) || '').trim(), tv = c && c.valor, td = c && c.dia;
+            if (!nome && (tv === '' || tv == null) && (td === '' || td == null)) return;
+            var v = lerNumero(tv), d = +td;
+            if (!nome) erros['conta_' + i] = 'Dê um nome à conta.';
+            else if (!(v > 0)) erros['conta_' + i] = 'Informe o valor de ' + nome.slice(0, 30) + '.';
+            else if (!(Math.floor(d) === d && d >= 1 && d <= 31)) erros['conta_' + i] = 'Informe o dia de vencimento de ' + nome.slice(0, 30) + ' (1 a 31).';
+            else cs.push({ nome: nome.slice(0, 60), valor: r2(v), dia: d });
+          });
+          if (cs.length) novo.contas = cs; else delete novo.contas;
+        }
         if (Object.keys(erros).length) return { ok: false, erros: erros };
         st.numeros = novo; mudou({ numeros: 1 }); return { ok: true };
       },

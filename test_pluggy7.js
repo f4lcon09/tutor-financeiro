@@ -854,5 +854,75 @@ const P = (n, de) => ({ n, de });
     t(g + 'a marca de dezembro não vale para janeiro: em 05/01 volta a perguntar (janela até o dia 8)', /cai até o dia 8/.test(linha(M) || '') && M.w.eval('DEMO.salarioMes0') === true);
   }
 
+  /* ===== 14. noite-2: números do arquivo corrigidos no app (num.fixos) e contas fixas extras (num.contas) ===== */
+  {
+    const g = 'números editáveis: ';
+    const RV = () => { const r = REAL(); r.faturas_futuras_parcelas_antigas = [{ mes: '2026-12', fatura_total: 200, parte_mae: 0 }, { mes: '2027-01', fatura_total: 120, parte_mae: 0 }]; return r; };
+    const D = (hoje, num, extra) => Real.derivar(RV(), num || {}, Object.assign({ hojeISO: hoje, lanc: [] }, extra || {}));
+    const ag = d => d.agenda.map(a => a.id + '|' + a.nome + '|' + a.dia + '|' + a.valor + '|' + (a.origem || '')).join(' ; ');
+    const base = D('2026-12-10');
+    t(g + 'sem correções: tudo como antes, e o app informa os valores do arquivo', eq(base.fixosArquivo, { ajuda: 200, faculdade: 100, lazer: 300, assinaturas: 10, meta: 5000, alerta: 2000 }) && eq(base.contasExtras, []) && eq(D('2026-12-10', { fixos: {}, contas: [] }).cenarios, base.cenarios));
+    const F = { ajuda: 800, ajudaDia: 5, faculdade: 300, faculdadeDia: 20, lazer: 150, assinaturas: 40, meta: 6000, alerta: 2500 };
+    const c = D('2026-12-10', { fixos: F });
+    t(g + 'ajuda em casa e faculdade: valor e dia corrigidos na agenda, com origem "digitado"; a fatura estimada usa as assinaturas corrigidas (200 + 40)', ag(c) === 'g:fatura|Fatura Cartão Teste (estimada)|12|240|arquivo ; g:ajuda|Ajuda em casa|5|800|digitado ; g:faculdade|Faculdade|20|300|digitado');
+    t(g + 'meta, alerta e teto de lazer corrigidos chegam às telas', c.meta === 6000 && c.alerta === 2500 && c.tetoLazer === 150 && c.piso === 3000);
+    t(g + 'mês 0: 9.000 - (240 + 800 + 300) - 150 de lazer = 7.510', c.cenarios.Base[0] === 7510);
+    t(g + 'janeiro: 7.510 + 5.000 - (800 ajuda + 120 parcelas + 40 assinaturas + 300 faculdade + 150 lazer) = 11.100; a faculdade corrigida vale também em 2027', c.cenarios.Base[1] === 11100);
+    t(g + 'os valores do arquivo continuam informados, e o arquivo não é alterado', eq(c.fixosArquivo, base.fixosArquivo) && (() => { const r = RV(), s = JSON.stringify(r); Real.derivar(r, { fixos: F, contas: [{ nome: 'X', valor: 5, dia: 3 }], piso: 1 }, { hojeISO: '2026-12-10', lanc: [] }); return JSON.stringify(r) === s; })());
+    t(g + 'valor zero é aceito: sem ajuda em casa e sem faculdade, as duas contas somem da agenda', ag(D('2026-12-10', { fixos: { ajuda: 0, faculdade: 0 } })) === 'g:fatura|Fatura Cartão Teste (estimada)|12|210|arquivo');
+    t(g + 'correção que não é número é ignorada', eq(D('2026-12-10', { fixos: { ajuda: '800', lazer: null, meta: NaN } }).cenarios, base.cenarios) && eq(D('2026-12-10', { fixos: [1, 2] }).cenarios, base.cenarios));
+    t(g + 'piso digitado em Meus números passa a valer nas telas', D('2026-12-10', { piso: 1234 }).piso === 1234 && D('2026-11-09', { piso: 1234 }).piso === 1234);
+    /* contas extras */
+    const X = [{ nome: 'Internet', valor: 99.9, dia: 12 }, { nome: 'Plano', valor: 50.1, dia: 28 }];
+    const e = D('2026-12-10', { contas: X });
+    t(g + 'contas extras entram na agenda do mês, com o dia de cada uma', / ; g:x:0\|Internet\|12\|99\.9\|digitado ; g:x:1\|Plano\|28\|50\.1\|digitado$/.test(ag(e)) && eq(e.contasExtras, X));
+    t(g + 'contas extras: saem do mês 0 (8.190 - 150) e de cada mês seguinte (150 a mais por mês)', e.cenarios.Base[0] === 8040 && Math.round((base.cenarios.Base[1] - e.cenarios.Base[1]) * 100) === 30000 && Math.round((base.cenarios.Base[5] - e.cenarios.Base[5]) * 100) === 90000);
+    const e2 = D('2026-12-10', { contas: X }, { reserva: [{ nome: 'Cofre', valor: 1000, data: '2026-12-01' }], pago: x => x.id === 'g:x:0' });
+    t(g + 'conta extra marcada como paga não é descontada do mês 0', e2.pendNaoPagas.n === 4 && Math.round(e2.pendNaoPagas.valor * 100) === 56010);
+    const nov = D('2026-11-09', { contas: X });
+    t(g + 'no mês do arquivo: as extras entram na agenda junto das do arquivo e o mês 0 desconta as duas', /^a1\|Conta de teste\|12\|100\| ; g:x:0\|Internet/.test(ag(nov)) && Math.round((D('2026-11-09').cenarios.Base[0] - nov.cenarios.Base[0]) * 100) === 15000);
+    t(g + 'conta extra malformada é ignorada', eq(D('2026-12-10', { contas: [{ nome: 'A', valor: 0, dia: 5 }, { nome: 'B', valor: 5, dia: 0 }, { nome: 'C', valor: 5, dia: 32 }, { valor: 5, dia: 5 }, null, 'x'] }).cenarios, base.cenarios) && eq(D('2026-12-10', { contas: 'x' }).cenarios, base.cenarios));
+    /* sanNumeros */
+    const san = Seg.sanNumeros({ fixos: Object.assign({}, F, { outro: 1, ajudaDia: 5.5, faculdadeDia: 32, lazer: 0, meta: -1, alerta: '9' }), contas: X.concat([{ nome: '  ', valor: 5, dia: 5 }, { nome: 'Z', valor: -1, dia: 5 }, { nome: 'Z', valor: 5, dia: 1.5 }, { nome: 'y'.repeat(80), valor: 5, dia: 31 }, null]) });
+    t(g + 'sanNumeros: guarda só os campos conhecidos e válidos; dia quebrado ou fora de 1 a 31, lazer zero, meta negativa e texto caem', eq(san.fixos, { ajuda: 800, faculdade: 300, assinaturas: 40 }));
+    t(g + 'sanNumeros: contas válidas ficam (nome cortado em 60); as malformadas caem', san.contas.length === 3 && eq(san.contas.slice(0, 2), X) && san.contas[2].nome.length === 60);
+    t(g + 'sanNumeros: vai e volta igual; sem os campos, não cria nada; no máximo 20 contas', Object.keys(F).every(k => Seg.sanNumeros({ fixos: F }).fixos[k] === F[k]) && Object.keys(Seg.sanNumeros({ fixos: F }).fixos).length === 8 && eq(Seg.sanNumeros({ contas: X }).contas, X) && eq(Seg.sanNumeros(Seg.sanNumeros({ fixos: F, contas: X })), Seg.sanNumeros({ fixos: F, contas: X })) && eq(Seg.sanNumeros({}), {}) && eq(Seg.sanNumeros({ fixos: {}, contas: [] }), {}) && Seg.sanNumeros({ contas: Array.from({ length: 25 }, (_, i) => ({ nome: 'c' + i, valor: 1, dia: 1 })) }).contas.length === 20 && eq(Seg.sanNumeros({ fixos: 'x', contas: 'y' }), {}));
+    /* store.setNumeros */
+    const S7 = require('./store.js'), mem = () => { const o = {}; return { getItem: k => (k in o ? o[k] : null), setItem: (k, v) => { o[k] = String(v); }, _o: o }; };
+    const s = S7.criarStore(mem(), () => new Date(2026, 11, 10));
+    let r = s.setNumeros({ fixos: { ajuda: '800', ajudaDia: '5', faculdade: '300,50', lazer: '', meta: '6000', alerta: '' }, contas: [{ nome: ' Internet ', valor: '99,90', dia: '12' }, { nome: '', valor: '', dia: '' }] });
+    t(g + 'salvar: lê os números no formato brasileiro; campo vazio não cria correção; linha em branco é ignorada', r.ok && eq(s.st.numeros.fixos, { ajuda: 800, faculdade: 300.5, meta: 6000, ajudaDia: 5 }) && eq(s.st.numeros.contas, [{ nome: 'Internet', valor: 99.9, dia: 12 }]));
+    r = s.setNumeros({ fixos: { ajuda: '' }, contas: [{ nome: '', valor: '', dia: '' }] });
+    t(g + 'salvar: esvaziar um campo volta ao valor do arquivo; esvaziar a linha apaga a conta', r.ok && !('ajuda' in s.st.numeros.fixos) && s.st.numeros.fixos.meta === 6000 && !('contas' in s.st.numeros));
+    t(g + 'salvar: ajuda zero é aceita (não tenho mais essa conta)', s.setNumeros({ fixos: { ajuda: '0' } }).ok && s.st.numeros.fixos.ajuda === 0);
+    const antes = JSON.stringify(s.st.numeros);
+    const erros = [[{ fixos: { ajuda: '-5' } }, 'fixo_ajuda'], [{ fixos: { lazer: '0' } }, 'fixo_lazer'], [{ fixos: { meta: 'abc' } }, 'fixo_meta'], [{ fixos: { ajudaDia: '32' } }, 'fixo_ajudaDia'], [{ fixos: { faculdadeDia: '2.5' } }, 'fixo_faculdadeDia'], [{ fixos: { faculdadeDia: '0' } }, 'fixo_faculdadeDia'], [{ contas: [{ nome: '', valor: '10', dia: '5' }] }, 'conta_0'], [{ contas: [{ nome: 'A', valor: '', dia: '5' }] }, 'conta_0'], [{ contas: [{ nome: 'A', valor: '10', dia: '' }] }, 'conta_0'], [{ contas: [{ nome: 'A', valor: '10', dia: '5' }, { nome: 'B', valor: '10', dia: '40' }] }, 'conta_1']];
+    t(g + 'salvar: valor negativo, lazer zero, texto, dia fora de 1 a 31 e linha de conta pela metade dão erro e não gravam nada', erros.every(([p, k]) => { const x = s.setNumeros(p); return !x.ok && !!x.erros[k]; }) && JSON.stringify(s.st.numeros) === antes);
+    t(g + 'salvar: quando todas as correções saem, o campo fixos some', s.setNumeros({ fixos: { ajuda: '', meta: '', faculdade: '', ajudaDia: '' } }).ok && !('fixos' in s.st.numeros));
+    /* tela Meus números */
+    const relogioN = iso => w => { const Rr = w.Date, alvo = new Rr(iso).getTime(), d0 = Rr.now(), agr = () => alvo + (Rr.now() - d0); class Dt extends Rr { constructor(...x) { if (x.length) super(...x); else super(agr()); } static now() { return agr(); } } w.Date = Dt; };
+    const RN = () => { const x = clone(FICTICIO); x._meta.as_of = '2026-11-08'; return x; };
+    const tx = A => A.$('main').textContent.replace(/\s+/g, ' ');
+    for (const larg of [1024, 390]) {
+      const A = await abrir({ tf_modo: 'real', tf_real: RN() }, { antes: relogioN('2026-12-10T12:00:00'), largura: larg }); await A.ir('numeros');
+      const id = g + larg + ' px: ';
+      t(id + 'o painel mostra os campos com o valor do arquivo em cinza e uma linha vazia para conta nova', /Contas fixas e metas/.test(tx(A)) && A.$('#nf_ajuda').value === '' && /200,00/.test(A.$('#nf_ajuda').getAttribute('placeholder')) && /5\.000,00/.test(A.$('#nf_meta').getAttribute('placeholder')) && A.$$('input[data-nc]').length === 1 && A.$('#nc_n_0').value === '');
+      t(id + 'todo campo tem rótulo', A.$$('input[data-nf],input[data-nc],input[id^="nc_v_"],input[id^="nc_d_"]').every(i => !!A.d.querySelector('label[for="' + i.id + '"]')));
+      A.set('#nf_ajuda', '800'); A.set('#nf_ajudaDia', '5'); A.set('#nc_n_0', 'Internet'); A.set('#nc_v_0', '99.9'); A.set('#nc_d_0', '12');   // campo numérico: o navegador entrega com ponto
+      A.click('#n_ok'); await tick(20);
+      t(id + 'Salvar grava as correções e a conta nova', eq(A.ls('tf_numeros').fixos, { ajuda: 800, ajudaDia: 5 }) && eq(A.ls('tf_numeros').contas, [{ nome: 'Internet', valor: 99.9, dia: 12 }]) && /Salvo/.test(A.$('#n_msg').textContent));
+      t(id + 'depois de salvar: os campos voltam preenchidos e aparece outra linha vazia', A.$('#nf_ajuda').value === '800' && A.$('#nc_n_0').value === 'Internet' && A.$$('input[data-nc]').length === 2);
+      await A.ir('agenda');
+      t(id + 'a Agenda passa a mostrar a ajuda em casa corrigida e a conta nova', /Internet/.test(tx(A)) && /800/.test(tx(A)) && A.erros.length === 0);
+      await A.ir('numeros'); A.set('#nf_ajudaDia', '40'); A.click('#n_ok'); await tick(20);
+      t(id + 'dia inválido: mostra o erro, marca o campo e não grava', /Informe um dia de 1 a 31\./.test(A.$('#n_msg').textContent) && A.$('#nf_ajudaDia').getAttribute('aria-invalid') === 'true' && A.ls('tf_numeros').fixos.ajudaDia === 5);
+      A.set('#nf_ajudaDia', '5'); A.set('#nc_n_0', ''); A.set('#nc_v_0', ''); A.set('#nc_d_0', ''); A.click('#n_ok'); await tick(20);
+      t(id + 'esvaziar a linha da conta e salvar apaga a conta', !('contas' in A.ls('tf_numeros')) && A.$$('input[data-nc]').length === 1);
+    }
+    t(g + 'folha de estilo: valor do arquivo esmaecido no campo; em tela estreita o nome da conta fica em linha própria', (css => css.includes('.nf-g input::placeholder{color:var(--mu);opacity:.75;font-style:italic}') && css.includes('@media (max-width:480px){.nc-l{grid-template-columns:minmax(0,1fr) 96px} .nc-l .field:first-child{grid-column:1/-1}}'))(require('fs').readFileSync(require('path').join(__dirname, 'index.html'), 'utf8')));
+    const Ex = await abrir({ tf_modo: 'demo' }, { largura: 1024 }); await Ex.ir('numeros');
+    t(g + 'modo de exemplo: abre sem erro', Ex.erros.length === 0);
+  }
+
   process.exit(fim());
 })();
