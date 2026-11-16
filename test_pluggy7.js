@@ -924,5 +924,23 @@ const P = (n, de) => ({ n, de });
     t(g + 'modo de exemplo: abre sem erro', Ex.erros.length === 0);
   }
 
+  /* ===== 15. noite-2: teto zero (não definido) não aparece como "No ritmo" ===== */
+  {
+    const g = 'teto zero: ';
+    const relogioT = iso => w => { const Rr = w.Date, alvo = new Rr(iso).getTime(), d0 = Rr.now(), agr = () => alvo + (Rr.now() - d0); class Dt extends Rr { constructor(...x) { if (x.length) super(...x); else super(agr()); } static now() { return agr(); } } w.Date = Dt; };
+    const RT0 = () => { const x = clone(FICTICIO); x._meta.as_of = '2026-11-08'; return x; };
+    const LT = (i, cat, valor) => ({ id: 6000000000000 + i, data: '2026-11-0' + (i + 1), desc: 'Gasto ' + i, cat, valor, forma: 'Pix', essencial: false, lazer: false });
+    const A = await abrir({ tf_modo: 'real', tf_real: RT0(), tf_tetos: { Mercado: 100, Transporte: 0, Outros: 0, Estudos: 0, 'Saúde': 0 }, tf_lanc3: [LT(0, 'Mercado', 50), LT(1, 'Transporte', 30)] }, { antes: relogioT('2026-11-10T12:00:00'), largura: 1024 });
+    const ev = s => A.w.eval(s);
+    t(g + 'regra: sem teto e sem gasto, traço; sem teto com gasto, "ne"; com teto, como antes', ev("sitOrc({teto:0,gasto:0})") === '-' && ev("sitOrc({teto:0,gasto:5})") === 'ne' && ev("sitOrc({gasto:5})") === 'ne' && ev("sitOrc({teto:100,gasto:75})") === 'ok' && ev("sitOrc({teto:100,gasto:75.01})") === 'at' && ev("sitOrc({teto:100,gasto:100})") === 'at' && ev("sitOrc({teto:100,gasto:100.01})") === 'ru');
+    await A.ir('orcamento');
+    const sit = nome => { const r = [...A.d.querySelectorAll('table.rt tr[data-cat]')].find(x => x.dataset.cat === nome); return r ? r.querySelector('td[data-l="Situação"]').textContent.replace(/\s+/g, ' ').trim() : null; };
+    t(g + 'computador: Transporte (teto 0, gasto 30) diz "Teto não definido", não "No ritmo"', sit('Transporte') === 'Teto não definido' && !/No ritmo/.test(sit('Transporte')));
+    t(g + 'computador: Saúde (teto 0, sem gasto) mostra traço; Mercado (50 de 100) continua "No ritmo"', sit('Saúde') === '—' && /No ritmo/.test(sit('Mercado')) && A.erros.length === 0);
+    const M = await abrir({ tf_modo: 'real', tf_real: RT0(), tf_tetos: { Mercado: 100, Transporte: 0, Outros: 0, Estudos: 0, 'Saúde': 0 }, tf_lanc3: [LT(0, 'Mercado', 50), LT(1, 'Transporte', 30)] }, { antes: relogioT('2026-11-10T12:00:00'), largura: 390 }); await M.ir('orcamento');
+    const sitM = nome => { const r = [...M.d.querySelectorAll('.orcl[data-cat]')].find(x => x.dataset.cat === nome); return r ? r.querySelector('.orcl2').textContent.replace(/\s+/g, ' ').trim() : null; };
+    t(g + 'celular: Transporte diz "Sem teto"; Saúde, traço; Mercado, "No ritmo"', sitM('Transporte') === 'Sem teto' && sitM('Saúde') === '—' && /No ritmo/.test(sitM('Mercado')) && M.erros.length === 0);
+  }
+
   process.exit(fim());
 })();

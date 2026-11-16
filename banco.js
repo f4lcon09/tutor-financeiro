@@ -398,6 +398,15 @@
     return usado;
   }
 
+  /* noite-2: lançamentos importados que parecem o mesmo movimento duas vezes: mesma conta, data, valor e descrição, ids do banco diferentes.
+     Devolve grupos [{ fica: lançamento, extras: [lançamentos] }]; fica o primeiro na ordem da lista. Nada é apagado aqui. */
+  function repetidosImportados(lanc) {
+    var g = new Map();
+    (lanc || []).forEach(function (l) { if (!l || !l.idExterno || !l.contaId || typeof l.desc !== 'string' || typeof l.valor !== 'number') return; var k = l.contaId + '|' + chave(l.data, l.valor, l.desc); if (!g.has(k)) g.set(k, []); g.get(k).push(l); });
+    var out = [];
+    g.forEach(function (ls) { var ids = new Set(ls.map(function (l) { return l.idExterno; })); if (ls.length > 1 && ids.size > 1) out.push({ fica: ls[0], extras: ls.slice(1) }); });
+    return out;
+  }
   /* prévia: nada é gravado aqui. estado = novo | existe (mesma data, valor e descrição) | importado (mesmo id).
      vinculo = sim | ambiguo | feito | null, sobre o lançamento que já existe. */
   function montarPrevia(dados, lanc, idsLocais, inversoes, renomes) {
@@ -441,6 +450,16 @@
       if (l && it.neutro && !l.neutro) { it.vinculo = 'sim'; it.alvo = l.id; it.soNeutro = true; }
       var dest = it.alvo != null ? it.alvo : it.possivel && it.possivel.alvo;
       if (dest != null) alvos.set(String(dest), (alvos.get(String(dest)) || 0) + 1);
+    });
+    /* noite-2: o mesmo movimento duas vezes no mesmo lote, com ids diferentes (mesma conta, data, valor, sentido e descrição): visto em 14/11/2026
+       (Apple.Com/Bill duas vezes no mesmo dia; A Confirmar se era pendente e lançado). Fica marcado só um, de preferência o já lançado;
+       os outros vêm desmarcados com a etiqueta "repetido nesta busca". Dois gastos iguais de verdade: o dono marca o segundo. */
+    var lotes = new Map();
+    lista.forEach(function (it) { if (it.estado !== 'novo') return; var k = it.contaId + '|' + chave(it.data, it.direcao === 'entrada' ? -it.valor : it.valor, it.desc); if (!lotes.has(k)) lotes.set(k, []); lotes.get(k).push(it); });
+    lotes.forEach(function (g) {
+      if (g.length < 2) return;
+      var fica = g.filter(function (x) { return !x.pendente; })[0] || g[0];
+      g.forEach(function (x) { if (x !== fica) { x.repetidoLote = true; x.marcado = false; } });
     });
     /* dois movimentos para o mesmo lançamento: não dá para saber qual é */
     lista.forEach(function (it) { if (it.alvo != null && alvos.get(String(it.alvo)) > 1) { it.vinculo = 'ambiguo'; it.alvo = null; it.soNeutro = false; } if (it.possivel && it.possivel.alvo != null && alvos.get(String(it.possivel.alvo)) > 1) it.possivel = { ambiguo: true }; });
@@ -513,6 +532,6 @@
     return { ok: true, snap: { v: 1, em: agoraDe(agora), contas: contas, inv: invs, ip: Array.isArray(d.investimentos), movs: movs, pm: pm, pn: pn, pg: pg, fat: fat } };   // ip: a ponte mandou a lista de investimentos
   }
 
-  var api = { catDoBanco: catDoBanco, catPorDescricao: catPorDescricao, CAT_BANCO: CAT_BANCO, CAT_NEUTRA: CAT_NEUTRA, instantaneo: instantaneo, idadeMs: idadeMs, rotulos: rotulos, padraoConta: padraoConta, limparNome: limparNome, marcarPares: marcarPares, PADROES: PADROES, RAZOES: RAZOES, validarUrl: validarUrl, validarResposta: validarResposta, mensagem: mensagem, consultar: consultar, pedir: pedir, estrutura: estrutura, estruturaLinhas: estruturaLinhas, saldos: saldos, categorias: categorias, idade: idade, mapear: mapear, normalizar: normalizar, chave: chave, montarPrevia: montarPrevia, MAX_MOVS: MAX_MOVS, DIAS: DIAS };
+  var api = { catDoBanco: catDoBanco, catPorDescricao: catPorDescricao, repetidosImportados: repetidosImportados, CAT_BANCO: CAT_BANCO, CAT_NEUTRA: CAT_NEUTRA, instantaneo: instantaneo, idadeMs: idadeMs, rotulos: rotulos, padraoConta: padraoConta, limparNome: limparNome, marcarPares: marcarPares, PADROES: PADROES, RAZOES: RAZOES, validarUrl: validarUrl, validarResposta: validarResposta, mensagem: mensagem, consultar: consultar, pedir: pedir, estrutura: estrutura, estruturaLinhas: estruturaLinhas, saldos: saldos, categorias: categorias, idade: idade, mapear: mapear, normalizar: normalizar, chave: chave, montarPrevia: montarPrevia, MAX_MOVS: MAX_MOVS, DIAS: DIAS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TFBanco = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -723,6 +723,38 @@ const foto = A => JSON.stringify(['tf_lanc3', 'tf_banco_ids', 'tf_banco_inv', 't
       W.click('#bc_rec'); await tick(20);
       t(g + 'de novo: nada a fazer', /Nenhum lançamento importado em Outros com descrição reconhecida\./.test(saida(W)) && W.w.eval('S.marcarImportados().n') === 0 && W.erros.length === 0);
     }
+    /* noite-2: repetidos na importação */
+    {
+      const g = 'repetidos: ', saida = X => X.$('#bc_diag_out').textContent.replace(/\s+/g, ' ');
+      /* A. o mesmo movimento duas vezes no mesmo lote */
+      const D1 = { id: 'd1', conta: 'c2', data: mes + '-03', desc: 'Loja Repetida', valor: 19.9, tipo: 'DEBIT', status: 'PENDING' }, D2 = { ...D1, id: 'd2', status: 'POSTED' }, D3 = { ...D1, id: 'd3', conta: 'c1' }, D4 = { ...D1, id: 'd4', valor: 19.91 };
+      const P = await abreCom(RESP([D1, D2, D3, D4])); await atualiza(P);
+      const cx = i => P.d.querySelector('.bc-it input[data-i="' + i + '"]');
+      const txt = i => cx(i).closest('.bc-lin').textContent.replace(/\s+/g, ' ');
+      t(g + 'mesmo movimento duas vezes no lote: fica marcado só o já lançado; o pendente vem desmarcado com a etiqueta', !cx(0).checked && /repetido nesta busca/.test(txt(0)) && cx(1).checked && !/repetido nesta busca/.test(txt(1)));
+      t(g + 'outra conta ou outro valor não é repetido', cx(2).checked && cx(3).checked && !/repetido nesta busca/.test(txt(2) + txt(3)));
+      const Q = await abreCom(RESP([{ ...D1, id: 'q1', status: 'POSTED' }, { ...D1, id: 'q2', status: 'POSTED' }])); await atualiza(Q);
+      const cq = i => Q.d.querySelector('.bc-it input[data-i="' + i + '"]');
+      t(g + 'dois iguais já lançados: fica o primeiro; o segundo pode ser marcado à mão (dois gastos iguais de verdade)', cq(0).checked && !cq(1).checked && !cq(1).disabled);
+      /* B. já importados */
+      const L = (id, ext, extra) => Object.assign({ id, data: mes + '-03', desc: 'Loja Repetida', cat: 'Outros', valor: 19.9, forma: 'Crédito', essencial: false, lazer: false, origem: 'pluggy', idExterno: ext, contaId: 'c2', contaNome: 'Cartão Teste' }, extra || {});
+      const LS = [L(5000000000001, 'x1'), L(5000000000002, 'x2'), L(5000000000003, 'x3'), L(5000000000004, 'x4', { valor: 5 }), L(5000000000005, 'x5', { contaId: 'c1' }), { id: 5000000000006, data: mes + '-03', desc: 'Loja Repetida', cat: 'Outros', valor: 19.9, forma: 'Pix', essencial: false, lazer: false }];
+      const R = P.w.eval('JSON.stringify(TFBanco.repetidosImportados(' + JSON.stringify(LS) + ').map(x=>[x.fica.idExterno,x.extras.map(e=>e.idExterno)]))');
+      t(g + 'importados: agrupa mesma conta, data, valor e descrição com ids diferentes; manual, outro valor e outra conta ficam fora', R === '[["x1",["x2","x3"]]]');
+      t(g + 'importados: o mesmo id duas vezes não é repetido do banco; lista vazia ou malformada não quebra', P.w.eval('TFBanco.repetidosImportados(' + JSON.stringify([L(1, 'y'), L(2, 'y')]) + ').length') === 0 && P.w.eval('TFBanco.repetidosImportados(null).length') === 0 && P.w.eval('TFBanco.repetidosImportados([null,{},{idExterno:"a"}]).length') === 0);
+      const W = await abreCom(RESP([M1]), { tf_lanc3: LS }); await W.ir('banco');
+      t(g + 'botão existe, com tipo button', W.$('#bc_rep') && W.$('#bc_rep').getAttribute('type') === 'button' && W.$('#bc_rep').textContent === 'Procurar repetidos');
+      const c0 = W.chamadas.length; W.click('#bc_rep'); await tick(20);
+      t(g + 'lista o grupo com quantas vezes aparece, sem chamar a ponte e sem apagar nada', W.chamadas.length === c0 && W.d.querySelectorAll('#bc_diag_out table td.tt').length === 1 && /3/.test(W.$('#bc_diag_out td[data-l="Vezes"]').textContent) && W.$('#bc_rep_ok').textContent === 'Apagar 2 repetidos (fica um de cada)' && W.w.eval('S.st.lanc.length') === 6);
+      W.click('#bc_rep_ok'); await tick(10);
+      t(g + 'pede confirmação antes de apagar', !!W.d.querySelector('.conf') && /Apagar repetidos\?/.test(W.d.querySelector('.conf').textContent) && W.w.eval('S.st.lanc.length') === 6);
+      W.click('#conf_nao'); await tick(10);
+      t(g + 'cancelar não apaga', !W.d.querySelector('.conf') && W.w.eval('S.st.lanc.length') === 6);
+      W.click('#bc_rep_ok'); await tick(10); W.click('#conf_sim'); await tick(20);
+      t(g + 'confirmar apaga os extras e mantém um de cada', W.w.eval('S.st.lanc.length') === 4 && W.w.eval("S.st.lanc.filter(l=>l.idExterno==='x1').length") === 1 && W.w.eval("S.st.lanc.some(l=>l.idExterno==='x2'||l.idExterno==='x3')") === false && /2 lançamentos apagados\./.test(saida(W)) && W.erros.length === 0);
+      W.click('#bc_rep'); await tick(20);
+      t(g + 'de novo: nada repetido', /Nenhum lançamento importado repetido\./.test(saida(W)));
+    }
     /* texto da tela */
     await A.ir('banco');
     t(n + 'a tela diz o que roda sozinho', /Os valores do banco atualizam ao abrir o app\. Importar movimentos, só quando você pedir\./.test(A.texto()) && !/Só atualiza quando você pedir/.test(A.texto()));
