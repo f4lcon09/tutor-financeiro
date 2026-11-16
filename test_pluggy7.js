@@ -713,5 +713,113 @@ const P = (n, de) => ({ n, de });
     t(g + 'modo de exemplo: sem o painel', !E2.$('#mr_v') && E2.erros.length === 0);
   }
 
+  /* ===== 11. noite-1: compras parceladas em andamento, pelas descrições "n/N" dos lançamentos importados ===== */
+  {
+    const g = 'compras parceladas: ', CP = Real.comprasParceladas;
+    const L = (id, data, desc, valor, extra) => Object.assign({ id, idExterno: 'e' + id, contaId: 'cr', data, desc, valor, forma: 'Crédito', origem: 'pluggy' }, extra || {});
+    /* fecha dia 3, vence dia 10, hoje 16/11: a fatura aberta vence em dezembro */
+    const base = [L(1, '2026-11-03', 'Loja Alfa 6/10', 168.4), L(2, '2026-11-03', 'Ingresso Beta 4/10', 77), L(3, '2026-11-03', 'Loja Gama 10/10', 78.09), L(4, '2026-11-11', 'Site Delta 1/3', 104.52), L(5, '2026-11-06', 'Supermercado', 15)];
+    const r = CP(base, 'cr', 3, 10, '2026-11-16');
+    t(g + 'a fatura aberta vence em dezembro; a última parcela (10/10) e a compra sem parcela ficam fora', r.aberta === '2026-12' && r.lista.map(x => x.nome).join('|') === 'Site Delta|Loja Alfa|Ingresso Beta');
+    t(g + 'cada compra: parcela, quantas faltam depois da aberta, quanto falta e em que fatura termina', eq(r.lista, [{ nome: 'Site Delta', valor: 104.52, n: 1, de: 3, faltam: 2, restante: 209.04, termina: '2027-02' }, { nome: 'Loja Alfa', valor: 168.4, n: 6, de: 10, faltam: 4, restante: 673.6, termina: '2027-04' }, { nome: 'Ingresso Beta', valor: 77, n: 4, de: 10, faltam: 6, restante: 462, termina: '2027-06' }]));
+    t(g + 'por mês e total, com centavos certos', eq(r.porMes, { '2027-01': 349.92, '2027-02': 349.92, '2027-03': 245.4, '2027-04': 245.4, '2027-05': 77, '2027-06': 77 }) && r.total === 1344.64);
+    /* a mesma compra importada em dois meses: vale a parcela mais adiantada */
+    const dois = CP([L(1, '2026-10-03', 'Loja Alfa 5/10', 168.4), L(2, '2026-11-03', 'Loja Alfa 6/10', 168.4)], 'cr', 3, 10, '2026-11-16');
+    t(g + 'a mesma compra em dois meses conta uma vez, pela parcela mais adiantada', dois.lista.length === 1 && dois.lista[0].n === 6 && dois.lista[0].faltam === 4);
+    const soVelha = CP([L(1, '2026-10-03', 'Loja Alfa 5/10', 168.4)], 'cr', 3, 10, '2026-11-16');
+    t(g + 'só a parcela do mês passado foi importada: projeta a partir dela (5/10 em novembro: 4 depois de dezembro, até abril)', soVelha.lista[0].faltam === 4 && soVelha.lista[0].termina === '2027-04' && soVelha.lista[0].restante === 673.6);
+    t(g + 'compras diferentes com o mesmo nome e valor mas N diferente não se misturam; valor diferente também não', CP([L(1, '2026-11-03', 'Loja 2/5', 10), L(2, '2026-11-03', 'Loja 2/6', 10), L(3, '2026-11-03', 'Loja 2/5', 11)], 'cr', 3, 10, '2026-11-16').lista.length === 3);
+    t(g + 'maiúsculas e espaços no nome não separam a mesma compra', CP([L(1, '2026-10-03', 'LOJA ALFA 5/10', 10), L(2, '2026-11-03', 'Loja Alfa  6/10', 10)], 'cr', 3, 10, '2026-11-16').lista.length === 1);
+    const fora = [L(1, '2026-11-03', 'Loja 2/5', 10, { contaId: 'outra' }), L(2, '2026-11-03', 'Loja 2/5', -10), L(3, '2026-11-03', 'Loja 2/5', 10, { neutro: true }), L(4, '2026-11-03', 'Loja 2/5', 10, { idExterno: undefined }), L(5, '2026-11-03', 'Loja 5/2', 10), L(6, '2026-11-03', 'Loja 0/5', 10), L(7, '2026-11-03', 'Loja 1/1', 10), L(8, '2026-11-03', 'Loja 2/121', 10), L(9, '2026-11-03', '2/5', 10), L(10, '2026-11-03', 'Posto 24/7 aberto', 10), L(11, 'ruim', 'Loja 2/5', 10), L(12, '2026-11-03', 5, 10), null];
+    t(g + 'ficam fora: outro cartão, entrada, "não é gasto", lançamento manual, n maior que N, n zero, 1/1, N acima de 120, sem nome, "n/N" no meio do texto, data ou descrição inválidas', eq(CP(fora, 'cr', 3, 10, '2026-11-16').lista, []));
+    t(g + 'sem fechamento, sem data de hoje ou sem lista: nada', CP(base, 'cr', 0, 10, '2026-11-16') === null && CP(base, 'cr', 3, 10, '') === null && CP(null, 'cr', 3, 10, '2026-11-16') === null);
+    /* fronteiras de fatura */
+    t(g + 'parcela datada no dia do fechamento (03/11) é da fatura que vence em dezembro; datada na véspera (02/11) é da de novembro', CP([L(1, '2026-11-03', 'Loja 2/5', 10)], 'cr', 3, 10, '2026-11-16').lista[0].termina === '2027-03' && CP([L(1, '2026-11-02', 'Loja 2/5', 10)], 'cr', 3, 10, '2026-11-16').lista[0].termina === '2027-02');
+    t(g + 'compra que termina na fatura aberta não aparece; a que termina na seguinte aparece com 1', eq(CP([L(1, '2026-11-03', 'Loja 5/5', 10)], 'cr', 3, 10, '2026-11-16').lista, []) && CP([L(1, '2026-11-03', 'Loja 4/5', 10)], 'cr', 3, 10, '2026-11-16').lista[0].faltam === 1);
+    t(g + 'vencimento antes do fechamento (fecha 20, vence 5): a fatura de cada parcela vence dois meses depois do fechamento anterior', CP([L(1, '2026-11-22', 'Loja 1/3', 10)], 'cr', 20, 5, '2026-11-25').aberta === '2027-01' && CP([L(1, '2026-11-22', 'Loja 1/3', 10)], 'cr', 20, 5, '2026-11-25').lista[0].termina === '2027-03');
+    t(g + 'virada de ano na data da parcela (31/12 mais um dia)', CP([L(1, '2026-12-31', 'Loja 1/3', 10)], 'cr', 3, 10, '2027-01-02').lista[0].termina === '2027-03');   // 31/12 + 1 dia = 01/01: fatura que vence em jan/27; 1/3 termina em mar/27
+    t(g + 'ordem: termina antes primeiro; no mesmo mês, a de maior valor a pagar primeiro', CP([L(1, '2026-11-03', 'Pequena 2/4', 10), L(2, '2026-11-03', 'Grande 2/4', 90), L(3, '2026-11-03', 'Curta 2/3', 50)], 'cr', 3, 10, '2026-11-16').lista.map(x => x.nome).join('|') === 'Curta|Grande|Pequena');
+    t(g + 'a lista de lançamentos não é alterada', (() => { const c0 = clone(base), s = JSON.stringify(c0); CP(c0, 'cr', 3, 10, '2026-11-16'); return JSON.stringify(c0) === s; })());
+    /* tela do Cartão */
+    const relogioC = iso => w => { const Rr = w.Date, alvo = new Rr(iso).getTime(), d0 = Rr.now(), agr = () => alvo + (Rr.now() - d0); class Dt extends Rr { constructor(...x) { if (x.length) super(...x); else super(agr()); } static now() { return agr(); } } w.Date = Dt; };
+    const RTC = () => { const r0 = clone(FICTICIO); r0._meta.as_of = '2026-11-08'; return r0; };
+    const agoraC = new Date('2026-11-10T12:00:00').getTime(), hC = h => new Date(agoraC - h * 36e5).toISOString();
+    const SNAPC = extra => Object.assign({ v: 1, em: agoraC, ip: true, contas: [{ id: 'ccA', tipo: 'BANK', nome: 'Banco Alfa', saldo: 1200, atu: hC(5) }, { id: 'crA', tipo: 'CREDIT', nome: 'Cartão Alfa', saldo: 900, atu: hC(5), lim: 4000, disp: 3100 }], inv: [{ nome: 'Reserva inventada', saldo: 5000, atu: hC(5) }], movs: { crA: [['2026-11-08', 100], ['2026-11-09', 60]] }, pm: { crA: [['2026-11-09', 60]] }, pn: { crA: [['2026-11-09', 60, 1, 3]] } }, extra || {});
+    const LC = (i, data, desc, valor) => ({ id: 7000000000000 + i, data, desc, cat: 'Compras', valor, forma: 'Crédito', essencial: false, lazer: false, origem: 'pluggy', idExterno: 'c' + i, contaId: 'crA', contaNome: 'Cartão Alfa' });
+    const txC = X => X.$('main').textContent.replace(/\s+/g, ' ');
+    for (const larg of [360, 1024]) {
+      const A = await abrir({ tf_modo: 'real', tf_real: RTC(), tf_bsnap: SNAPC({ pg: { crA: '2026-11-09' } }), tf_lanc3: [LC(1, '2026-11-09', 'Loja <b>Um</b> 1/3', 60), LC(2, '2026-11-06', 'Mercado', 15)] }, { antes: relogioC('2026-11-10T12:00:00'), largura: larg }); await A.ir('cartao');
+      const id = g + larg + ' px: ';
+      t(id + 'o painel aparece com a compra, a parcela, quantas faltam, quanto falta e quando termina', /Compras parceladas em andamento/.test(txC(A)) && A.d.querySelectorAll('table.cp td.tt').length === 1 && /60,00 · 1 de 3/.test(txC(A)) && /120,00/.test(A.$('#cp_res').textContent) && /fev\/27/.test(txC(A)));
+      t(id + 'o nome da compra é escapado', A.$('table.cp').innerHTML.includes('Loja &lt;b&gt;Um&lt;/b&gt;') && !A.$('table.cp td b b'));
+      t(id + 'com a fatura pelo limite: compara com o compromisso futuro do banco (120,00) e diz que bate', /Bate com o compromisso futuro que o banco mostra\./.test(A.$('#cp_res').textContent) && A.erros.length === 0);
+      const Dif = await abrir({ tf_modo: 'real', tf_real: RTC(), tf_bsnap: SNAPC({ pg: { crA: '2026-11-09' }, pn: { crA: [['2026-11-09', 60, 1, 3], ['2026-11-09', 25, 2, 4]] } }), tf_lanc3: [LC(1, '2026-11-09', 'Loja Um 1/3', 60)] }, { antes: relogioC('2026-11-10T12:00:00'), largura: larg }); await Dif.ir('cartao');
+      t(id + 'o banco mostra mais que as compras importadas: diz quanto a mais (50,00)', /O banco mostra R\$\s?170,00 de compromisso futuro: R\$\s?50,00 a mais \(compra parcelada ainda não importada\)\./.test(Dif.$('#cp_res').textContent));
+      const Sem = await abrir({ tf_modo: 'real', tf_real: RTC(), tf_bsnap: SNAPC(), tf_lanc3: [LC(2, '2026-11-06', 'Mercado', 15)] }, { antes: relogioC('2026-11-10T12:00:00'), largura: larg }); await Sem.ir('cartao');
+      t(id + 'sem lançamento importado com parcela: o painel não aparece', !/Compras parceladas em andamento/.test(txC(Sem)) && !Sem.$('table.cp'));
+      const SemPg = await abrir({ tf_modo: 'real', tf_real: RTC(), tf_bsnap: SNAPC(), tf_lanc3: [LC(1, '2026-11-09', 'Loja Um 1/3', 60)] }, { antes: relogioC('2026-11-10T12:00:00'), largura: larg }); await SemPg.ir('cartao');
+      t(id + 'sem a fatura pelo limite: mostra o total sem comparar com o banco', /Depois da fatura aberta, ainda a pagar: R\$\s?120,00 em 1 compra\.$/.test(SemPg.$('#cp_res').textContent.trim()));
+    }
+    const SemBanco = await abrir({ tf_modo: 'real', tf_real: RTC(), tf_lanc3: [LC(1, '2026-11-09', 'Loja Um 1/3', 60)] }, { antes: relogioC('2026-11-10T12:00:00'), largura: 390 }); await SemBanco.ir('cartao');
+    const Ex = await abrir({ tf_modo: 'demo' }, { largura: 390 }); await Ex.ir('cartao');
+    t(g + 'sem banco ligado e no modo de exemplo: o painel não aparece', !SemBanco.$('table.cp') && !Ex.$('table.cp') && Ex.erros.length === 0);
+  }
+
+  /* ===== 12. noite-1: lacunas apontadas pela prova por mutação da virada do mês (16/11) ===== */
+  {
+    const g = 'virada do mês, limites: ';
+    const RV = () => { const r = REAL(); r.faturas_futuras_parcelas_antigas = [{ mes: '2026-12', fatura_total: 200, parte_mae: 0 }, { mes: '2027-01', fatura_total: 120, parte_mae: 0 }]; r.plano_de_pagamento = [{ data: '2026-11-09', acao: 'Pagar algo' }]; return r; };
+    const D = (hoje, real) => Real.derivar(real || RV(), {}, { hojeISO: hoje, lanc: [] });
+    const ag = d => d.agenda.map(a => a.id + '|' + a.dia + '|' + a.valor).join(' ; ');
+    const rp = RV(); rp.gastos_periodicos = [{ nome: 'Trimestral', valor: 50, a_cada_meses: 3, primeiro: '2026-09' }, { nome: 'Zero', valor: 0, a_cada_meses: 1, primeiro: '2026-01' }];
+    t(g + 'periódico que começou em 09/26, a cada 3 meses: cai em 12/26 (dia 31) e em 03/27, não em 01/27; o de valor zero não entra', /g:per:0\|31\|50/.test(ag(D('2026-12-10', rp))) && !/g:per/.test(ag(D('2027-01-10', rp))) && /g:per:0\|31\|50/.test(ag(D('2027-03-10', rp))) && !/g:per:1/.test(ag(D('2026-12-10', rp))));
+    t(g + 'próximo salário: 5º dia útil do mês seguinte ao mês de hoje (jan/27: dia 8), não do mês seguinte ao arquivo', D('2026-12-10').salarioDiaProximo === Real.quintoDiaUtil(2027, 1) && D('2026-11-10').salarioDiaProximo === Real.quintoDiaUtil(2026, 12) && Real.quintoDiaUtil(2027, 1) !== Real.quintoDiaUtil(2026, 12));
+    t(g + 'plano de pagamento do arquivo: aparece no mês dele e some depois', D('2026-11-10').plano.length === 1 && D('2026-12-10').plano.length === 0);
+    const rsv = RV(); rsv.cartao.fatura_atual.vence_em = '2026-11-00';
+    t(g + 'cartão sem dia de vencimento: a fatura do mês fica no dia 10', /g:fatura\|10\|/.test(ag(D('2026-12-10', rsv))));
+    /* foto: faturas */
+    const rf = RESP([]); rf.dados.faturas = [{ conta: 'crA', vence: '2026-12-12', total: 0 }, { conta: 'crA', vence: '2026-11-12', total: 100.456 }];
+    t(g + 'foto: fatura de total zero é guardada; o total é arredondado para centavos', eq(B.instantaneo(rf, AG, []).snap.fat, { crA: [['2026-12-12', 0], ['2026-11-12', 100.46]] }));
+    const fs0 = B.instantaneo(rf, AG, []).snap, doze = []; for (let i = 0; i < 13; i++) doze.push(['2026-01-' + String(i + 10), i]);
+    const f1 = clone(fs0); f1.fat = { crA: 'x' }; const f2 = clone(fs0); f2.fat = { crA: doze };
+    t(g + 'sanBanco: lista de faturas que não é lista cai sem erro; guarda até 12 por cartão; total zero fica', Seg.sanBanco(f1).fat.crA === undefined && Seg.sanBanco(f2).fat.crA.length === 12 && Seg.sanBanco(f2).fat.crA[0][1] === 0 && eq(Seg.sanBanco(clone(fs0)).fat.crA[0], ['2026-12-12', 0]));
+    /* telas com o mês virado: dezembro (alerta na posição 0, meta na posição 1) */
+    const relogioL = iso => w => { const Rr = w.Date, alvo = new Rr(iso).getTime(), d0 = Rr.now(), agr = () => alvo + (Rr.now() - d0); class Dt extends Rr { constructor(...x) { if (x.length) super(...x); else super(agr()); } static now() { return agr(); } } w.Date = Dt; };
+    const RTL = () => { const r = clone(FICTICIO); r._meta.as_of = '2026-11-08'; r.liquidez.total = 2500; r.faturas_futuras_parcelas_antigas = [{ mes: '2026-12', fatura_total: 300, parte_mae: 0 }, { mes: '2027-01', fatura_total: 200, parte_mae: 0 }]; return r; };
+    const tx = X => X.$('main').textContent.replace(/\s+/g, ' ');
+    const A = await abrir({ tf_modo: 'real', tf_real: RTL(), tf_pagos: { 'g:ajuda@2026-12': true } }, { antes: relogioL('2026-12-11T12:00:00'), largura: 1024 });
+    const ev = s => A.w.eval(s);
+    t(g + 'posições padrão sem os campos (exemplo): meta 2 e alerta 1; rótulo padrão', ev('iMetaDe({})') === 2 && ev('iAlertaDe({})') === 1 && ev("mesCurto({},5,'Dez')") === 'Dez' && ev("mesCurto({iMeta:1,meses:['dez/26','jan/27']},1,'X')") === 'Jan' && ev("mesCurto({iMeta:1,meses:['dez/26','jan/27']},0,'X')") === 'Dez');
+    t(g + 'em dezembro o app está com a meta na posição 1 e o alerta na 0, com números diferentes em cada posição', ev('DEMO.iMeta') === 1 && ev('DEMO.iAlerta') === 0 && new Set(ev('DEMO.cenarios.Base').slice(0, 3)).size === 3);
+    await A.ir('hoje');
+    const base = ev('DEMO.cenarios.Base'), b0 = ev('brl0(DEMO.cenarios.Base[0])'), b1 = ev('brl0(DEMO.cenarios.Base[1])'), b2 = ev('brl0(DEMO.cenarios.Base[2])');
+    t(g + 'Hoje: "Saldo em janeiro" usa a posição da meta (1), não a posição 2', [...A.d.querySelectorAll('.pn')].some(p => /Saldo em janeiro/.test(p.textContent) && p.textContent.includes(b1) && !p.textContent.includes(b2)));
+    const painel = [...A.d.querySelectorAll('.pn')].find(p => /Contas deste mês/.test(p.textContent));
+    t(g + 'Hoje: no mês virado aparece "Contas deste mês" no lugar do plano de pagamento', !!painel && !/Plano de pagamento/.test(tx(A)));
+    const linhas = painel ? [...painel.querySelectorAll('.ins')].map(x => x.textContent.replace(/\s+/g, ' ').trim()) : [];
+    t(g + 'Contas deste mês: em ordem de dia (10, 12, 15), com a paga marcada e as outras não', linhas.length === 3 && /^dia 10 ?Ajuda em casa/.test(linhas[0]) && /· paga$/.test(linhas[0]) && /^dia 12 ?Fatura/.test(linhas[1]) && !/paga/.test(linhas[1]) && /^dia 15 ?Faculdade/.test(linhas[2]) && painel.querySelectorAll('.ins .d.ok').length === 1 && painel.querySelectorAll('.ins .d.at').length === 2);
+    t(g + 'Contas deste mês: "ainda a pagar" soma só as não pagas (310 de fatura + 100 de faculdade)', /Ainda a pagar neste mês\s*R\$\s?410,00/.test(painel ? painel.textContent.replace(/\s+/g, ' ') : ''));
+    await A.ir('futuro');
+    const ths = [...A.d.querySelectorAll('table.rt th')].map(e => e.textContent).join('|');
+    t(g + 'Futuro: cabeçalhos Dez e Jan vêm dos meses da projeção', ths.includes('Dez|Jan'));
+    const linhaBase = [...A.d.querySelectorAll('table.rt tr')].find(r => /Base/.test(r.textContent) && r.querySelector('td[data-l="Dez"]'));
+    t(g + 'Futuro: a coluna Dez mostra a posição 0 e a Jan a posição 1', !!linhaBase && linhaBase.querySelector('td[data-l="Dez"]').textContent.trim() === b0 && linhaBase.querySelector('td[data-l="Jan"]').textContent.trim() === b1);
+    t(g + 'Futuro: "Depois de janeiro o saldo cresce" usa (fim - janeiro) / 10 meses e diz "de jan/27 até"', tx(A).includes('Depois de janeiro o saldo cresce ' + ev('brl0((DEMO.cenarios[cenSel][11]-DEMO.cenarios[cenSel][1])/10)').replace(/\s+/g, ' ') + ' por mês') && /Em média, de jan\/27 até/.test(tx(A)));
+    t(g + 'Futuro: a janela do gráfico começa no mês de hoje', ev('pvInicio(DEMO)') === 0 && ev("pvInicio({asOf:'2026-11-08'})") === 1 && ev('pvInicio({})') === 0);
+    await A.ir('saude');
+    t(g + 'Patrimônio abre sem erro com o mês virado', A.erros.length === 0, A.erros.slice(0, 2).join(' | '));
+    const M = await abrir({ tf_modo: 'real', tf_real: RTL() }, { antes: relogioL('2026-12-11T12:00:00'), largura: 390 }); await M.ir('futuro');
+    t(g + 'Futuro no celular: "Fim de dez" em minúsculas, com o valor da posição 0', tx(M).includes('Fim de dez ' + M.w.eval('brl0(DEMO.cenarios[cenSel][0])').replace(/\s+/g, ' ')) && !/Fim de Dez/.test(tx(M)) && M.erros.length === 0);
+    const V = await abrir({ tf_modo: 'real', tf_real: (() => { const r = RTL(); r.gastos_fixos_mensais.ajuda_em_casa_a_partir_de_dezembro = 0; r.gastos_fixos_mensais.faculdade_2026 = 0; r.gastos_fixos_mensais.assinaturas_no_cartao = {}; r.faturas_futuras_parcelas_antigas = []; return r; })() }, { antes: relogioL('2026-12-11T12:00:00'), largura: 1024 }); await V.ir('hoje');
+    t(g + 'Contas deste mês sem nenhuma conta: diz que não há', /Nenhuma conta montada para este mês\./.test(tx(V)) && V.erros.length === 0);
+    const N = await abrir({ tf_modo: 'real', tf_real: (() => { const r = RTL(); r.plano_de_pagamento = [{ data: '2026-11-09', acao: 'Pagar algo' }]; return r; })() }, { antes: relogioL('2026-11-20T12:00:00'), largura: 1024 }); await N.ir('hoje');
+    t(g + 'no mês do arquivo: continua o "Plano de pagamento", sem "Contas deste mês"', /Plano de pagamento/.test(tx(N)) && !/Contas deste mês/.test(tx(N)) && N.w.eval('DEMO.iMeta') === 2);
+    await N.ir('futuro');
+    t(g + 'no mês do arquivo: "Depois de janeiro" usa (fim - posição 2) / 9', tx(N).includes('Depois de janeiro o saldo cresce ' + N.w.eval('brl0((DEMO.cenarios[cenSel][11]-DEMO.cenarios[cenSel][2])/9)').replace(/\s+/g, ' ') + ' por mês'));
+  }
+
+  /* noite-1: nome de compra comprido e sem espaços causava rolagem lateral no Cartão (pego em navegador, tests/p15_telas.js) */
+  t('compras parceladas: a tabela tem largura fixa e quebra palavras compridas', require('fs').readFileSync(require('path').join(__dirname, 'index.html'), 'utf8').includes('table.cp{table-layout:fixed;width:100%} table.cp td,table.cp th{overflow-wrap:anywhere;min-width:0}'));
+
   process.exit(fim());
 })();
