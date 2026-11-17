@@ -29,124 +29,99 @@ const P = (n, de) => ({ n, de });
 (async () => {
   /* ===== 1. estimarFatura: o caso observado e os cantos do calendário ===== */
   {
+    /* noite-3 (17/11/2026): regra nova. Tudo o que é datado no dia do fechamento entra na fatura que abre nesse dia; se hoje é dia de
+       fechamento, o que é datado hoje já é da próxima. As parcelas (pm) estão sempre dentro de movs, como na foto real; pm só conta quantas são. */
     /* fechamento dia 5, hoje 09/11: desde = 05/11 */
-    let e = E([['2026-11-06', 40]], 5, '2026-11-09', [['2026-11-05', 100]]);
-    t('parcela datada no fechamento é somada: 40 + 100 = 140, desde 05/11, 1 parcela', e.valor === 140 && e.desde === '2026-11-05' && e.parcelas === 1);
+    let e = E([['2026-11-05', 100], ['2026-11-06', 40]], 5, '2026-11-09', [['2026-11-05', 100]]);
+    t('parcela datada no fechamento entra: 100 + 40 = 140, desde 05/11, 1 parcela', e.valor === 140 && e.desde === '2026-11-05' && e.parcelas === 1);
     e = E([['2026-11-05', 70], ['2026-11-06', 40]], 5, '2026-11-09', []);
-    t('compra comum no dia do fechamento (fora de pm) continua fora da fatura', e.valor === 40 && e.parcelas === 0);
-    e = E([['2026-11-05', 70], ['2026-11-06', 40]], 5, '2026-11-09', [['2026-11-05', 70]]);
-    t('o mesmo item no dia do fechamento: fora de pm não entra, dentro de pm entra', e.valor === 110 && e.parcelas === 1);
+    t('compra comum no dia do fechamento também entra (visto no Nubank em 17/11/2026): 70 + 40', e.valor === 110 && e.parcelas === 0);
+    e = E([['2026-11-04', 70], ['2026-11-06', 40]], 5, '2026-11-09', []);
+    t('compra na véspera do fechamento fica na fatura que fechou', e.valor === 40);
     e = E([['2026-11-06', 40], ['2026-11-07', 25]], 5, '2026-11-09', [['2026-11-06', 40], ['2026-11-07', 25]]);
-    t('parcelas em outros dias já estão em movs: não são contadas duas vezes', e.valor === 65 && e.parcelas === 0);
-    e = E([['2026-11-06', 40]], 5, '2026-11-09', [['2026-11-06', 40], ['2026-11-05', 100], ['2026-11-05', 30]]);
-    t('várias parcelas no fechamento: soma todas e conta todas', e.valor === 170 && e.parcelas === 2);
-    e = E([['2026-11-06', 40]], 5, '2026-11-09', [['2026-11-04', 500], ['2026-10-05', 500], ['2026-11-10', 500]]);
-    t('parcela antes do fechamento ou depois de hoje: ignorada', e.valor === 40 && e.parcelas === 0);
-    e = E([], 5, '2026-11-09', [['2026-11-05', 0.1], ['2026-11-05', 0.2]]);
+    t('parcelas em outros dias estão em movs: não são contadas duas vezes nem como "lançadas no fechamento"', e.valor === 65 && e.parcelas === 0);
+    e = E([['2026-11-05', 100], ['2026-11-05', 30], ['2026-11-06', 40]], 5, '2026-11-09', [['2026-11-05', 100], ['2026-11-05', 30]]);
+    t('várias parcelas no fechamento: soma uma vez cada e conta todas', e.valor === 170 && e.parcelas === 2);
+    e = E([['2026-11-04', 500], ['2026-10-05', 500], ['2026-11-10', 500], ['2026-11-06', 40]], 5, '2026-11-09', [['2026-11-04', 500], ['2026-10-05', 500], ['2026-11-10', 500]]);
+    t('antes do fechamento ou depois de hoje: fica fora', e.valor === 40 && e.parcelas === 0);
+    e = E([['2026-11-05', 0.1], ['2026-11-05', 0.2]], 5, '2026-11-09', [['2026-11-05', 0.1], ['2026-11-05', 0.2]]);
     t('centavos: 0,1 + 0,2 vira 0,3', e.valor === 0.3 && e.parcelas === 2);
+    t('sem pm (versão antiga da foto): o valor é o mesmo; só a contagem de parcelas some', E([['2026-11-05', 100], ['2026-11-06', 40]], 5, '2026-11-09').valor === 140 && E([['2026-11-05', 100], ['2026-11-06', 40]], 5, '2026-11-09').parcelas === 0);
 
-    /* hoje é o dia do fechamento (05/11): desde = 05/10; as parcelas de hoje pertencem à próxima fatura */
-    const movsH = [['2026-10-20', 50], ['2026-11-05', 30]];
+    /* hoje é o dia do fechamento (05/11): desde = 05/10; o que é datado hoje é da próxima fatura */
+    const movsH = [['2026-10-05', 100], ['2026-10-20', 50], ['2026-11-05', 30]];
     e = E(movsH, 5, '2026-11-05', [['2026-10-05', 100], ['2026-11-05', 30]]);
-    t('hoje é o fechamento: soma as parcelas do fechamento anterior (100) e tira as de hoje (30): 50 + 30 + 100 − 30 = 150', e.desde === '2026-10-05' && e.valor === 150 && e.parcelas === 1);
-    e = E(movsH, 5, '2026-11-05', [['2026-11-05', 30]]);
-    t('hoje é o fechamento, só parcela de hoje: não conta como parcela lançada e sai do total (50)', e.valor === 50 && e.parcelas === 0);
+    t('hoje é o fechamento: conta o fechamento anterior (100) e o mês (50); o de hoje (30) é da próxima', e.desde === '2026-10-05' && e.valor === 150 && e.parcelas === 1);
     e = E(movsH, 5, '2026-11-05', []);
-    t('hoje é o fechamento, compra comum de hoje fica no total (80, igual a antes)', e.valor === 80 && e.parcelas === 0);
+    t('hoje é o fechamento, compra comum de hoje também é da próxima (150)', e.valor === 150 && e.parcelas === 0);
     e = E([['2026-10-20', 100], ['2026-11-05', -30]], 5, '2026-11-05', [['2026-11-05', -30]]);
-    t('hoje é o fechamento com parcela negativa de hoje: o desconto devolve o valor (100)', e.valor === 100);
-    e = E([['2026-11-06', 7], ['2026-11-05', 30]], 5, '2026-11-06', [['2026-11-05', 100], ['2026-11-06', 20]]);
-    t('dia seguinte ao fechamento: parcelas do fechamento entram; as de hoje continuam em movs, sem desconto (7 + 100)', e.desde === '2026-11-05' && e.valor === 107 && e.parcelas === 1);
-    e = E([['2026-11-06', 20]], 5, '2026-11-06', [['2026-11-06', 20]]);
-    t('dia seguinte: parcela de hoje em pm e em movs não é descontada (20)', e.valor === 20 && e.parcelas === 0);
-    e = E([['2026-11-04', 9]], 5, '2026-11-04', [['2026-10-05', 60]]);
+    t('hoje é o fechamento com estorno de hoje: fica para a próxima (100)', e.valor === 100);
+    e = E([['2026-11-05', 30], ['2026-11-05', 100], ['2026-11-06', 7], ['2026-11-06', 20]], 5, '2026-11-06', [['2026-11-05', 100], ['2026-11-06', 20]]);
+    t('dia seguinte ao fechamento: o dia do fechamento e hoje contam (30 + 100 + 7 + 20)', e.desde === '2026-11-05' && e.valor === 157 && e.parcelas === 1);
+    e = E([['2026-10-05', 60], ['2026-11-04', 9]], 5, '2026-11-04', [['2026-10-05', 60]]);
     t('dia anterior ao fechamento: o último fechamento é o do mês passado', e.desde === '2026-10-05' && e.valor === 69 && e.parcelas === 1);
 
     /* fechamento 31 */
-    e = E([['2026-11-30', 25]], 31, '2026-11-30', [['2026-10-31', 80], ['2026-11-30', 25]]);
-    t('fechamento 31 em mês de 30 dias: hoje (30/11) é dia de fechamento; desde 31/10; 25 + 80 − 25 = 80', e.desde === '2026-10-31' && e.valor === 80 && e.parcelas === 1);
-    e = E([['2026-12-01', 10]], 31, '2026-12-01', [['2026-11-30', 25]]);
-    t('fechamento 31, dia seguinte (01/12): desde 30/11; parcela de 30/11 entra: 10 + 25', e.desde === '2026-11-30' && e.valor === 35 && e.parcelas === 1);
-    e = E([['2026-11-29', 5]], 31, '2026-11-29', [['2026-10-31', 11]]);
-    t('fechamento 31, dia 29/11 ainda não é fechamento: não desconta nada de hoje', e.desde === '2026-10-31' && e.valor === 16 && e.parcelas === 1);
-    e = E([['2027-02-28', 15]], 31, '2027-02-28', [['2027-01-31', 60], ['2027-02-28', 15]]);
-    t('fechamento 31 em fevereiro (28 dias): hoje 28/02 é fechamento; 15 + 60 − 15 = 60', e.desde === '2027-01-31' && e.valor === 60 && e.parcelas === 1);
-    e = E([['2027-03-01', 4]], 31, '2027-03-01', [['2027-02-28', 15]]);
-    t('fechamento 31, 01/03 depois de fevereiro: desde 28/02; 4 + 15', e.desde === '2027-02-28' && e.valor === 19 && e.parcelas === 1);
-    e = E([['2028-02-29', 15]], 31, '2028-02-29', [['2028-01-31', 60], ['2028-02-29', 15]]);
-    t('fechamento 31 em fevereiro bissexto (29): hoje 29/02 é fechamento', e.desde === '2028-01-31' && e.valor === 60 && e.parcelas === 1);
-    e = E([['2028-02-28', 15]], 31, '2028-02-28', [['2028-01-31', 60], ['2028-02-28', 15]]);
-    t('fechamento 31, 28/02 de ano bissexto não é fechamento: não desconta; 15 + 60', e.desde === '2028-01-31' && e.valor === 75);
-    e = E([['2026-12-31', 7]], 31, '2026-12-31', [['2026-11-30', 40], ['2026-12-31', 7]]);
-    t('fechamento 31 em dezembro: hoje 31/12 é fechamento; desde 30/11; 7 + 40 − 7 = 40', e.desde === '2026-11-30' && e.valor === 40 && e.parcelas === 1);
+    e = E([['2026-10-31', 80], ['2026-11-30', 25]], 31, '2026-11-30', [['2026-10-31', 80], ['2026-11-30', 25]]);
+    t('fechamento 31 em mês de 30 dias: hoje (30/11) é dia de fechamento; desde 31/10; 80 entra, 25 é da próxima', e.desde === '2026-10-31' && e.valor === 80 && e.parcelas === 1);
+    e = E([['2026-11-30', 25], ['2026-12-01', 10]], 31, '2026-12-01', [['2026-11-30', 25]]);
+    t('fechamento 31, dia seguinte (01/12): desde 30/11; 25 + 10', e.desde === '2026-11-30' && e.valor === 35 && e.parcelas === 1);
+    e = E([['2026-10-31', 11], ['2026-11-29', 5]], 31, '2026-11-29', [['2026-10-31', 11]]);
+    t('fechamento 31, dia 29/11 ainda não é fechamento: o de hoje conta', e.desde === '2026-10-31' && e.valor === 16 && e.parcelas === 1);
+    e = E([['2027-01-31', 60], ['2027-02-28', 15]], 31, '2027-02-28', [['2027-01-31', 60], ['2027-02-28', 15]]);
+    t('fechamento 31 em fevereiro (28 dias): hoje 28/02 é fechamento; 60 entra, 15 é da próxima', e.desde === '2027-01-31' && e.valor === 60 && e.parcelas === 1);
+    e = E([['2027-02-28', 15], ['2027-03-01', 4]], 31, '2027-03-01', [['2027-02-28', 15]]);
+    t('fechamento 31, 01/03 depois de fevereiro: desde 28/02; 15 + 4', e.desde === '2027-02-28' && e.valor === 19 && e.parcelas === 1);
+    e = E([['2028-01-31', 60], ['2028-02-29', 15]], 31, '2028-02-29', [['2028-01-31', 60], ['2028-02-29', 15]]);
+    t('fechamento 31 em fevereiro bissexto (29): hoje 29/02 é fechamento; 60 entra, 15 é da próxima', e.desde === '2028-01-31' && e.valor === 60 && e.parcelas === 1);
+    e = E([['2028-01-31', 60], ['2028-02-28', 15]], 31, '2028-02-28', [['2028-01-31', 60], ['2028-02-28', 15]]);
+    t('fechamento 31, 28/02 de ano bissexto não é fechamento: o de hoje conta; 60 + 15', e.desde === '2028-01-31' && e.valor === 75);
+    e = E([['2026-11-30', 40], ['2026-12-31', 7]], 31, '2026-12-31', [['2026-11-30', 40], ['2026-12-31', 7]]);
+    t('fechamento 31 em dezembro: hoje 31/12 é fechamento; desde 30/11; 40 entra, 7 é da próxima', e.desde === '2026-11-30' && e.valor === 40 && e.parcelas === 1);
 
     /* virada de ano */
-    e = E([['2027-01-10', 10]], 10, '2027-01-10', [['2026-12-10', 90], ['2027-01-10', 10]]);
-    t('virada de ano, hoje é o fechamento (10/01): desde 10/12; 10 + 90 − 10 = 90', e.desde === '2026-12-10' && e.valor === 90 && e.parcelas === 1);
-    e = E([['2026-12-20', 5]], 10, '2027-01-03', [['2026-12-10', 90]]);
-    t('virada de ano, 03/01: desde 10/12; 5 + 90', e.desde === '2026-12-10' && e.valor === 95 && e.parcelas === 1);
-    e = E([['2027-01-01', 5]], 1, '2027-01-01', [['2026-12-01', 20], ['2027-01-01', 5]]);
-    t('fechamento dia 1, hoje 01/01: desde 01/12; 5 + 20 − 5 = 20', e.desde === '2026-12-01' && e.valor === 20 && e.parcelas === 1);
+    e = E([['2026-12-10', 90], ['2027-01-10', 10]], 10, '2027-01-10', [['2026-12-10', 90], ['2027-01-10', 10]]);
+    t('virada de ano, hoje é o fechamento (10/01): desde 10/12; 90 entra, 10 é da próxima', e.desde === '2026-12-10' && e.valor === 90 && e.parcelas === 1);
+    e = E([['2026-12-10', 90], ['2026-12-20', 5]], 10, '2027-01-03', [['2026-12-10', 90]]);
+    t('virada de ano, 03/01: desde 10/12; 90 + 5', e.desde === '2026-12-10' && e.valor === 95 && e.parcelas === 1);
+    e = E([['2026-12-01', 20], ['2027-01-01', 5]], 1, '2027-01-01', [['2026-12-01', 20], ['2027-01-01', 5]]);
+    t('fechamento dia 1, hoje 01/01: desde 01/12; 20 entra, 5 é da próxima', e.desde === '2026-12-01' && e.valor === 20 && e.parcelas === 1);
 
-    /* parcela negativa (estorno de parcela), mínimo 0 */
-    e = E([['2026-11-06', 50]], 5, '2026-11-09', [['2026-11-05', -30]]);
+    /* estorno, mínimo 0 */
+    e = E([['2026-11-05', -30], ['2026-11-06', 50]], 5, '2026-11-09', [['2026-11-05', -30]]);
     t('estorno de parcela no fechamento desconta: 50 − 30 = 20, 1 parcela', e.valor === 20 && e.parcelas === 1);
-    e = E([['2026-11-06', 10]], 5, '2026-11-09', [['2026-11-05', -500]]);
+    e = E([['2026-11-05', -500], ['2026-11-06', 10]], 5, '2026-11-09', [['2026-11-05', -500]]);
     t('estorno maior que o total: mínimo 0, mas a parcela é contada', e.valor === 0 && e.parcelas === 1);
     e = E([['2026-11-06', 100], ['2026-11-06', -30]], 5, '2026-11-09', [['2026-11-06', -30]]);
-    t('estorno de parcela em outro dia já está em movs: não conta de novo (70)', e.valor === 70 && e.parcelas === 0);
+    t('estorno de parcela em outro dia: conta uma vez (70)', e.valor === 70 && e.parcelas === 0);
 
     /* entradas inválidas */
     t('sem dia de fechamento ou data ruim: não estima, com ou sem pm', E([], null, '2026-11-09', [['2026-11-05', 1]]) === null && E([], 0, '2026-11-09', []) === null && E([], 32, '2026-11-09', []) === null && E([], 5, 'ontem', []) === null && E([], 5, undefined, []) === null);
-    t('movs ausente: estima só com pm', E(undefined, 5, '2026-11-09', [['2026-11-05', 12]]).valor === 12 && E(null, 5, '2026-11-09', null).valor === 0);
+    t('movs ausente: valor 0 (pm só conta parcelas)', E(undefined, 5, '2026-11-09', [['2026-11-05', 12]]).valor === 0 && E(undefined, 5, '2026-11-09', [['2026-11-05', 12]]).parcelas === 1 && E(null, 5, '2026-11-09', null).valor === 0);
     t('o resultado traz exatamente valor, desde e parcelas', eq(Object.keys(E([], 5, '2026-11-09', [])).sort(), ['desde', 'parcelas', 'valor']));
   }
 
-  /* ===== 2. estimarFatura: sem pm é idêntico ao jeito antigo (propriedade, semente fixa) ===== */
+  /* ===== 2. estimarFatura contra um modelo independente (propriedade, semente fixa) ===== */
   {
-    const antigo = (movs, fecha, hoje) => { if (!(fecha >= 1 && fecha <= 31)) return null; const desde = Real.fechamentoAnterior(fecha, hoje); let s = 0; (movs || []).forEach(m => { if (m[0] > desde && m[0] <= hoje) s += m[1]; }); return { valor: Math.round(Math.max(s, 0) * 100) / 100, desde }; };
-    const rnd = prng(20261112), n = 4000;
-    let iguais = 0, semParcela = 0, totalComMovs = 0;
+    const rnd = prng(20261117), n = 4000;
+    let ok = 0, comFech = 0, comHoje = 0;
     for (let i = 0; i < n; i++) {
-      const fecha = 1 + Math.floor(rnd() * 31), hoje = somaDias('2026-01-01', Math.floor(rnd() * 1100));
-      const movs = []; const q = Math.floor(rnd() * 13);
-      for (let k = 0; k < q; k++) movs.push([somaDias(hoje, Math.floor(rnd() * 90) - 55), Math.round((rnd() * 400 - 60) * 100) / 100]);
-      const ref = antigo(movs, fecha, hoje), a3 = E(movs, fecha, hoje);
-      const v = [E(movs, fecha, hoje, undefined), E(movs, fecha, hoje, []), E(movs, fecha, hoje, null), E(movs, fecha, hoje, {}.nada)];
-      const ok = a3.valor === ref.valor && a3.desde === ref.desde && a3.parcelas === 0 && v.every(x => x.valor === a3.valor && x.desde === a3.desde && x.parcelas === 0);
-      if (ok) iguais++;
-      if (q) totalComMovs++;
-      if (a3.parcelas === 0) semParcela++;
-    }
-    t('propriedade (4000 casos): sem pm, vazio ou nulo, valor e desde idênticos ao cálculo antigo de 3 argumentos e parcelas 0', iguais === n && semParcela === n && totalComMovs > 3000, iguais + '/' + n);
-
-    /* com pm: parcelas em dias que não são nem o fechamento nem o dia de hoje de fechamento não mudam nada; modelo independente para o resto */
-    const rnd2 = prng(7777);
-    let modeloOk = 0, neutroOk = 0, comParcelas = 0, comDesconto = 0;
-    for (let i = 0; i < n; i++) {
-      const fecha = 1 + Math.floor(rnd2() * 31), hoje = somaDias('2026-01-01', Math.floor(rnd2() * 1100)), desde = Real.fechamentoAnterior(fecha, hoje);
+      const fecha = 1 + Math.floor(rnd() * 31), hoje = somaDias('2026-01-01', Math.floor(rnd() * 1100)), desde = Real.fechamentoAnterior(fecha, hoje);
       const fechaHoje = Real.fechamentoAnterior(fecha, somaDias(hoje, 1)) === hoje;   // amanhã o último fechamento é hoje: logo hoje é dia de fechamento
-      const movs = [], pm = []; const q = Math.floor(rnd2() * 10);
+      const movs = [], pm = []; const q = Math.floor(rnd() * 12);
       for (let k = 0; k < q; k++) {
-        const sorte = rnd2(), dia = sorte < 0.25 ? hoje : sorte < 0.5 ? desde : somaDias(hoje, Math.floor(rnd2() * 90) - 50);
-        const it = [dia, Math.round((rnd2() * 300 - 40) * 100) / 100];
-        if (rnd2() < 0.5) pm.push(it);
-        if (it[0] !== desde || rnd2() < 0.5) movs.push(it);   // parcelas estão dentro de movs, no dia do fechamento só às vezes
+        const sorte = rnd(), dia = sorte < 0.2 ? hoje : sorte < 0.4 ? desde : somaDias(hoje, Math.floor(rnd() * 90) - 50);
+        const it = [dia, Math.round((rnd() * 300 - 40) * 100) / 100]; movs.push(it); if (rnd() < 0.4) pm.push(it);   // pm sempre dentro de movs, como na foto
       }
-      const a3 = E(movs, fecha, hoje), a4 = E(movs, fecha, hoje, pm);
-      const noFech = pm.filter(m => m[0] === desde), noHoje = pm.filter(m => m[0] === hoje && fechaHoje && m[0] !== desde);
-      const bruto = semMin(movs, desde, hoje) + noFech.reduce((s, m) => s + m[1], 0) - noHoje.reduce((s, m) => s + m[1], 0);
-      if (a4.valor === Math.round(Math.max(bruto, 0) * 100) / 100 && a4.parcelas === noFech.length && a4.desde === desde) modeloOk++;
-      /* só parcelas fora do fechamento e fora de "hoje de fechamento": nada muda */
-      const pmNeutro = pm.filter(m => m[0] !== desde && !(fechaHoje && m[0] === hoje));
-      const a5 = E(movs, fecha, hoje, pmNeutro);
-      if (a5.valor === a3.valor && a5.parcelas === 0) neutroOk++;
-      if (noFech.length) comParcelas++;
-      if (noHoje.length) comDesconto++;
+      let s = 0; movs.forEach(m => { if (m[0] >= desde && m[0] <= hoje && !(fechaHoje && m[0] === hoje)) s += m[1]; });
+      const esperado = { valor: Math.round(Math.max(s, 0) * 100) / 100, desde, parcelas: pm.filter(m => m[0] === desde).length };
+      const r = [E(movs, fecha, hoje, pm), E(movs, fecha, hoje), E(movs, fecha, hoje, []), E(movs, fecha, hoje, null)];
+      if (r[0].valor === esperado.valor && r[0].desde === desde && r[0].parcelas === esperado.parcelas && r.slice(1).every(x => x.valor === esperado.valor && x.desde === desde && x.parcelas === 0)) ok++;
+      if (movs.some(m => m[0] === desde)) comFech++;
+      if (fechaHoje && movs.some(m => m[0] === hoje)) comHoje++;
     }
-    t('propriedade (4000 casos): valor e parcelas batem com o modelo (soma de movs no intervalo + pm no fechamento − pm de hoje se for fechamento)', modeloOk === n, modeloOk + '/' + n);
-    t('propriedade: parcelas fora do fechamento (e fora de hoje, quando hoje fecha) nunca mudam o resultado', neutroOk === n, neutroOk + '/' + n);
-    t('propriedade: o sorteio exercitou parcelas no fechamento e descontos de hoje', comParcelas > 500 && comDesconto > 20, comParcelas + ' / ' + comDesconto);
+    t('propriedade (4000 casos): valor = soma do fechamento até hoje (sem o de hoje quando hoje fecha); pm só conta parcelas; sem pm, o mesmo valor', ok === n, ok + '/' + n);
+    t('propriedade: o sorteio exercitou o dia do fechamento e "hoje é fechamento"', comFech > 1000 && comHoje > 20, comFech + ' / ' + comHoje);
   }
   function semMin(movs, desde, hoje) { let s = 0; movs.forEach(m => { if (m[0] > desde && m[0] <= hoje) s += m[1]; }); return s; }
 
@@ -274,14 +249,14 @@ const P = (n, de) => ({ n, de });
     /* simulação de versão antiga: a foto nova perde pm; o cálculo volta ao de antes */
     const real = REAL();
     const fotoNova = clone(sn); fotoNova.contas = fotoNova.contas.filter(c => c.id !== 'crB');
-    fotoNova.movs.crA = [['2026-11-06', 40], ['2026-11-08', 100], ['2026-11-05', 70]]; fotoNova.pm.crA = [['2026-11-05', 200], ['2026-11-06', 40]];
+    fotoNova.movs.crA = [['2026-11-06', 40], ['2026-11-08', 100], ['2026-11-05', 70], ['2026-11-05', 200]]; fotoNova.pm.crA = [['2026-11-05', 200], ['2026-11-06', 40]];   // noite-3: pm dentro de movs, como na foto real
     const fotoAntiga = clone(fotoNova); delete fotoAntiga.pm;
     const dN = Real.derivar(real, {}, ctxB(fotoNova)).cartoes[0], dA = Real.derivar(real, {}, ctxB(fotoAntiga)).cartoes[0];
     const dSan = Real.derivar(real, {}, ctxB(Seg.sanBanco(fotoAntiga))).cartoes[0];
     const velho = E(fotoNova.movs.crA, 5, '2026-11-09');
-    t('versão antiga (sem pm): a fatura é a de antes (40 + 100 = 140), igual ao estimarFatura de 3 argumentos', dA.fatura === 140 && dA.fatura === velho.valor && dA.origem.fatura.desde === velho.desde);
-    t('versão antiga sem pm: sem parcelas lançadas (0), nenhuma quebra; a foto saneada dá o mesmo', dA.origem.fatura.parcelas === 0 && dSan.fatura === 140 && dSan.origem.fatura.parcelas === 0);
-    t('versão nova com pm: 140 + 200 = 340 e 2 parcelas... a de 06/11 está em movs; só a de 05/11 conta: 1 parcela', dN.fatura === 340 && dN.origem.fatura.parcelas === 1);
+    t('versão antiga (sem pm): a mesma fatura (70 + 200 + 40 + 100 = 410), igual ao estimarFatura de 3 argumentos', dA.fatura === 410 && dA.fatura === velho.valor && dA.origem.fatura.desde === velho.desde);
+    t('versão antiga sem pm: sem parcelas lançadas (0), nenhuma quebra; a foto saneada dá o mesmo', dA.origem.fatura.parcelas === 0 && dSan.fatura === 410 && dSan.origem.fatura.parcelas === 0);
+    t('versão nova com pm: a mesma fatura (410); só a parcela de 05/11 conta como lançada no fechamento', dN.fatura === 410 && dN.origem.fatura.parcelas === 1);
   }
 
   /* ===== 5. derivar: de ponta a ponta ===== */
@@ -291,14 +266,14 @@ const P = (n, de) => ({ n, de });
     const mk = (m, p) => ({ v: 1, em: AG, ip: false, contas: [{ id: 'ccA', tipo: 'BANK', nome: 'Banco Alfa', saldo: 600, atu: hAtras(5) }, { id: 'crA', tipo: 'CREDIT', nome: 'Cartão Alfa', saldo: 900, atu: hAtras(5), lim: 4000, disp: 3100 }], inv: [], movs: m, pm: p });
     const c0 = Real.derivar(real, {}, ctxB(mk(movs, {}))).cartoes[0];
     t('sem parcelas: fatura 100 + 40 − 15 = 125, 0 parcelas lançadas, compromisso futuro 900 − 125', c0.fatura === 125 && c0.origem.fatura.parcelas === 0 && c0.parcelasFuturas === 775 && c0.origem.fatura.desde === '2026-11-05');
-    const c1 = Real.derivar(real, {}, ctxB(mk(movs, { crA: [['2026-11-05', 150], ['2026-11-05', 50], ['2026-11-06', 40]] }))).cartoes[0];
+    const c1 = Real.derivar(real, {}, ctxB(mk({ crA: movs.crA.concat([['2026-11-05', 150], ['2026-11-05', 50]]) }, { crA: [['2026-11-05', 150], ['2026-11-05', 50], ['2026-11-06', 40]] }))).cartoes[0];
     t('com parcelas no fechamento: fatura 125 + 200 = 325, 2 parcelas, compromisso futuro 900 − 325', c1.fatura === 325 && c1.origem.fatura.parcelas === 2 && c1.parcelasFuturas === 575 && c1.origem.fatura.t === 'estimado');
     const c2 = Real.derivar(real, {}, ctxB(mk(movs, null))).cartoes[0], c3 = Real.derivar(real, {}, ctxB(mk(movs, undefined))).cartoes[0];
     t('foto sem pm ou com pm nulo: igual a antes e sem quebrar', c2.fatura === 125 && c3.fatura === 125 && c2.origem.fatura.parcelas === 0);
     const cH = Real.derivar(real, {}, ctxB(mk(movs, { crA: [['2026-11-05', 50]] }), { hojeISO: '2026-11-05' })).cartoes[0];
     t('hoje é o fechamento (dia 5): desde 05/10; parcelas de 05/10 entram (nenhuma); as de hoje saem. Sem movs de hoje, a parcela de hoje em pm desconta 50 → 0', cH.origem.fatura.desde === '2026-10-05' && cH.fatura === 0 && cH.origem.fatura.parcelas === 0);
-    const cH2 = Real.derivar(real, {}, ctxB(mk({ crA: [['2026-10-20', 80], ['2026-11-05', 50]] }, { crA: [['2026-10-05', 300], ['2026-11-05', 50]] }), { hojeISO: '2026-11-05' })).cartoes[0];
-    t('hoje é o fechamento, de ponta a ponta: 80 + 50 + 300 − 50 = 380, 1 parcela', cH2.fatura === 380 && cH2.origem.fatura.parcelas === 1);
+    const cH2 = Real.derivar(real, {}, ctxB(mk({ crA: [['2026-10-05', 300], ['2026-10-20', 80], ['2026-11-05', 50]] }, { crA: [['2026-10-05', 300], ['2026-11-05', 50]] }), { hojeISO: '2026-11-05' })).cartoes[0];
+    t('hoje é o fechamento, de ponta a ponta: 300 (fechamento anterior) + 80; os 50 de hoje são da próxima = 380, 1 parcela', cH2.fatura === 380 && cH2.origem.fatura.parcelas === 1);
     const semFecha = REAL(); delete semFecha.cartao.fechamento_dia;
     const cS = Real.derivar(semFecha, {}, ctxB(mk(movs, { crA: [['2026-11-05', 1]] }))).cartoes[0];
     t('sem dia de fechamento: não estima (fatura do arquivo, origem.fatura nula), mesmo com pm', cS.origem.fatura === null && cS.fatura === 300);
@@ -307,14 +282,14 @@ const P = (n, de) => ({ n, de });
     const dois = REAL(); dois.cartoes_extra = [{ id: 'c2', nome: 'Cartão Segundo', limite: 1000, fechamento_dia: 20, vence_dia: 28, fatura: 0 }];
     const fd = { v: 1, em: AG, ip: false,
       contas: [{ id: 'ccA', tipo: 'BANK', nome: 'Banco Alfa', saldo: 600, atu: hAtras(5) }, { id: 'crA', tipo: 'CREDIT', nome: 'Cartão Alfa', saldo: 900, atu: hAtras(5), lim: 4000, disp: 3100 }, { id: 'crB', tipo: 'CREDIT', nome: 'Cartão Beta', saldo: 500, atu: hAtras(5), lim: 2000, disp: 1500 }],
-      inv: [], movs: { crA: [['2026-11-06', 10]], crB: [['2026-11-07', 20]] }, pm: { crA: [['2026-11-05', 100]], crB: [['2026-10-20', 1000], ['2026-10-20', 2000]] } };
+      inv: [], movs: { crA: [['2026-11-05', 100], ['2026-11-06', 10]], crB: [['2026-10-20', 1000], ['2026-10-20', 2000], ['2026-11-07', 20]] }, pm: { crA: [['2026-11-05', 100]], crB: [['2026-10-20', 1000], ['2026-10-20', 2000]] } };
     const dd = Real.derivar(dois, {}, ctxB(fd, { liga: { crA: 'c1', crB: 'c2' } }));
     const [ca, cb] = dd.cartoes;
     t('dois cartões ligados: cada um usa o seu pm (A: dia 5, 10 + 100; B: dia 20, 20 + 3000)', ca.banco.id === 'crA' && cb.banco.id === 'crB' && ca.fatura === 110 && ca.origem.fatura.parcelas === 1 && ca.origem.fatura.desde === '2026-11-05' && cb.fatura === 3020 && cb.origem.fatura.parcelas === 2 && cb.origem.fatura.desde === '2026-10-20');
     const dd2 = Real.derivar(dois, {}, ctxB(fd, { liga: { crA: 'c2', crB: 'c1' } }));
-    t('ligação trocada: o pm acompanha o cartão do banco, e o calendário é o do cartão do app (c1 dia 5 recebe crB: 20 e 0 parcelas; c2 dia 20 recebe crA: 10 e 0 parcelas)', dd2.cartoes[0].banco.id === 'crB' && dd2.cartoes[0].origem.fatura.desde === '2026-11-05' && dd2.cartoes[0].fatura === 20 && dd2.cartoes[0].origem.fatura.parcelas === 0 && dd2.cartoes[1].banco.id === 'crA' && dd2.cartoes[1].origem.fatura.desde === '2026-10-20' && dd2.cartoes[1].fatura === 10 && dd2.cartoes[1].origem.fatura.parcelas === 0);
+    t('ligação trocada: o pm acompanha o cartão do banco, e o calendário é o do cartão do app (c1 dia 5 recebe crB: 20 e 0 parcelas; c2 dia 20 recebe crA: 100 + 10 = 110 e 0 parcelas)', dd2.cartoes[0].banco.id === 'crB' && dd2.cartoes[0].origem.fatura.desde === '2026-11-05' && dd2.cartoes[0].fatura === 20 && dd2.cartoes[0].origem.fatura.parcelas === 0 && dd2.cartoes[1].banco.id === 'crA' && dd2.cartoes[1].origem.fatura.desde === '2026-10-20' && dd2.cartoes[1].fatura === 110 && dd2.cartoes[1].origem.fatura.parcelas === 0);
     const ddSo = Real.derivar(dois, {}, ctxB(Object.assign(clone(fd), { pm: { crB: fd.pm.crB } }), { liga: { crA: 'c1', crB: 'c2' } }));
-    t('pm só de um cartão: o outro fica com 0 parcelas', ddSo.cartoes[0].origem.fatura.parcelas === 0 && ddSo.cartoes[0].fatura === 10 && ddSo.cartoes[1].origem.fatura.parcelas === 2);
+    t('pm só de um cartão: o outro fica com 0 parcelas', ddSo.cartoes[0].origem.fatura.parcelas === 0 && ddSo.cartoes[0].fatura === 110 && ddSo.cartoes[1].origem.fatura.parcelas === 2);
     t('derivar não altera a foto recebida (pm e movs)', (() => { const f = clone(fd), antes = JSON.stringify(f); Real.derivar(dois, {}, ctxB(f, { liga: { crA: 'c1', crB: 'c2' } })); return JSON.stringify(f) === antes; })());
     t('Real.derivar sem banco: cartão sem origem de fatura (nada de parcelas)', !Real.derivar(real, {}, ctxB(null)).cartoes[0].origem);
   }
@@ -326,24 +301,24 @@ const P = (n, de) => ({ n, de });
     const agoraT = new Date('2026-11-10T12:00:00').getTime(), hT = n => new Date(agoraT - n * 36e5).toISOString();
     const SNAP = pm => ({ v: 1, em: agoraT, ip: true,
       contas: [{ id: 'ccA', tipo: 'BANK', nome: 'Banco Alfa', saldo: 1200, atu: hT(5) }, { id: 'crA', tipo: 'CREDIT', nome: 'Cartão Alfa', saldo: 900, atu: hT(5), lim: 4000, disp: 3100 }],
-      inv: [{ nome: 'Reserva inventada', saldo: 5000, atu: hT(5) }], movs: { crA: [['2026-11-08', 100], ['2026-11-09', 20]] }, pm });
+      inv: [{ nome: 'Reserva inventada', saldo: 5000, atu: hT(5) }], movs: { crA: [['2026-11-08', 100], ['2026-11-09', 20]].concat((pm && pm.crA) || []) }, pm });   // noite-3: pm dentro de movs, como na foto real
     const txt = A => A.$('main').textContent.replace(/\s+/g, ' ');
     const abre = async (pm, larg, tela) => { const A = await abrir({ tf_modo: 'real', tf_real: RT(), tf_bsnap: SNAP(pm) }, { antes: relogio('2026-11-10T12:00:00'), largura: larg }); await A.ir(tela || 'cartao'); return A; };
     const NOTA = /A fatura do banco pode ser um pouco maior/;
     for (const larg of [390, 1024]) {
       const n = larg + 'px: ';
       const A2 = await abre({ crA: [['2026-11-05', 40], ['2026-11-05', 60]] }, larg);
-      t(n + 'Cartão: duas parcelas -> "compras depois de 05/11 e 2 parcelas lançadas em 05/11"', /estimada · compras depois de 05\/11 e 2 parcelas lançadas em 05\/11/.test(txt(A2)));
+      t(n + 'Cartão: duas parcelas -> "compras desde 05/11 e 2 parcelas lançadas em 05/11"', /estimada · compras desde 05\/11 e 2 parcelas lançadas em 05\/11/.test(txt(A2)));
       t(n + 'Cartão: a frase das parcelas fica num trecho próprio, para poder quebrar de linha (junta, ela é cortada em 360 px e o Hoje ganha rolagem lateral em 900 px)', [...A2.d.querySelectorAll('.orig')].some(e => e.textContent.trim() === 'e 2 parcelas lançadas em 05/11') && ![...A2.d.querySelectorAll('.orig')].some(e => /compras depois/.test(e.textContent) && /parcelas/.test(e.textContent)));
       t(n + 'Cartão: a fatura soma as parcelas (100 + 20 + 40 + 60 = 220)', /Fatura atual \(estimada\)\s*R\$\s?220,00/.test(txt(A2)) && A2.w.eval('DEMO.cartoes[0].fatura') === 220);
       t(n + 'Cartão: a nota "A fatura do banco pode ser um pouco maior" aparece', NOTA.test(txt(A2)) && /A Confirmar/.test(txt(A2)));
       const A1 = await abre({ crA: [['2026-11-05', 40]] }, larg);
-      t(n + 'Cartão: uma parcela -> singular "1 parcela lançada em 05/11"', /compras depois de 05\/11 e 1 parcela lançada em 05\/11/.test(txt(A1)) && !/1 parcelas/.test(txt(A1)));
+      t(n + 'Cartão: uma parcela -> singular "1 parcela lançada em 05/11"', /compras desde 05\/11 e 1 parcela lançada em 05\/11/.test(txt(A1)) && !/1 parcelas/.test(txt(A1)));
       const A0 = await abre({}, larg);
-      t(n + 'Cartão: zero parcelas -> só "compras depois de 05/11", sem texto de parcela', /estimada · compras depois de 05\/11/.test(txt(A0)) && !/parcelas? lançadas?/.test(txt(A0)) && !/ e 0 parcela/.test(txt(A0)));
+      t(n + 'Cartão: zero parcelas -> só "compras desde 05/11", sem texto de parcela', /estimada · compras desde 05\/11/.test(txt(A0)) && !/parcelas? lançadas?/.test(txt(A0)) && !/ e 0 parcela/.test(txt(A0)));
       t(n + 'Cartão: zero parcelas mantém a nota da fatura do banco', NOTA.test(txt(A0)));
       const An = await abre(undefined, larg);
-      t(n + 'Cartão: foto antiga sem pm: igual a zero parcelas, sem erro', /compras depois de 05\/11/.test(txt(An)) && !/parcelas? lançadas?/.test(txt(An)) && An.erros.length === 0);
+      t(n + 'Cartão: foto antiga sem pm: igual a zero parcelas, sem erro', /compras desde 05\/11/.test(txt(An)) && !/parcelas? lançadas?/.test(txt(An)) && An.erros.length === 0);
       const Ah = await abre({ crA: [['2026-11-05', 40], ['2026-11-05', 60]] }, larg, 'hoje');
       if (larg >= 800) t(n + 'Hoje: o painel de limite também mostra as parcelas lançadas', /e 2 parcelas lançadas em 05\/11/.test(txt(Ah)));
       t(n + 'sem erro', A2.erros.length + A1.erros.length + A0.erros.length + Ah.erros.length === 0, [].concat(A2.erros, A1.erros, A0.erros, Ah.erros).join(' | '));
@@ -599,12 +574,12 @@ const P = (n, de) => ({ n, de });
       const r = IF(ms, 'crA', 5, '2026-11-09', false, pag);
       t(g + 'lista só o cartão pedido, do fechamento até hoje, mais novo primeiro', r.desde === '2026-11-05' && eq(r.itens.map(x => x.data), ['2026-11-08', '2026-11-07', '2026-11-06', '2026-11-06', '2026-11-06', '2026-11-05', '2026-11-05']));
       const por = v => r.itens.find(x => Math.abs(x.valor) === v);
-      t(g + 'compra depois do fechamento conta; parcela no fechamento conta; compra comum no fechamento não; pagamento não', por(40).entra && por(90).entra && por(30).entra && por(30).motivo === 'parcela lançada no fechamento: conta' && !por(70).entra && por(70).motivo === 'dia do fechamento: fica na fatura que fechou' && !por(500).entra && por(500).motivo === 'pagamento de fatura: fica fora');
+      t(g + 'compra depois do fechamento conta; parcela e compra comum no dia do fechamento contam; pagamento não', por(40).entra && por(90).entra && por(30).entra && por(30).motivo === 'parcela lançada no fechamento: conta' && por(70).entra && por(70).motivo === 'compra no dia do fechamento: conta' && !por(500).entra && por(500).motivo === 'pagamento de fatura: fica fora');
       t(g + 'estorno entra negativo e marcado como pendente; parcela traz n e N', por(25).valor === -25 && por(25).pendente === true && por(90).n === 1 && por(90).de === 3 && por(40).n === null);
-      t(g + 'o total é igual ao da fatura estimada com a mesma resposta', r.total === 140.05 && r.conta === 5 && (() => { const f = B.instantaneo(RESP(ms.filter(m => m && typeof m.valor === 'number' && m.tipo !== 'OUTRO' && !/T/.test(m.data))), AG, []).snap; return Math.round((E(f.movs.crA, 5, '2026-11-09', f.pm.crA).valor + 5.05) * 100) === 14005; })());
+      t(g + 'o total é igual ao da fatura estimada com a mesma resposta', r.total === 210.05 && r.conta === 6 && (() => { const f = B.instantaneo(RESP(ms.filter(m => m && typeof m.valor === 'number' && m.tipo !== 'OUTRO' && !/T/.test(m.data))), AG, []).snap; return Math.round((E(f.movs.crA, 5, '2026-11-09', f.pm.crA).valor + 5.05) * 100) === 21005; })());
       t(g + 'sinal invertido neste aparelho inverte os valores', IF(ms, 'crA', 5, '2026-11-09', true, pag).itens.find(x => Math.abs(x.valor) === 40).valor === -40);
       const rf = IF([mov('a', 'crA', '2026-11-05', 50, 'DEBIT', { parc: P(2, 4) }), mov('b', 'crA', '2026-10-05', 60, 'DEBIT', { parc: P(1, 4) }), mov('c', 'crA', '2026-11-05', 8)], 'crA', 5, '2026-11-05', false, pag);
-      t(g + 'hoje é dia de fechamento: a parcela datada hoje é da próxima fatura; a compra de hoje conta', rf.desde === '2026-10-05' && rf.total === 68 && rf.itens.find(x => x.valor === 50).motivo === 'parcela da próxima fatura');
+      t(g + 'hoje é dia de fechamento: tudo o que é datado hoje (parcela e compra) é da próxima fatura; o fechamento anterior conta', rf.desde === '2026-10-05' && rf.total === 60 && rf.itens.find(x => x.valor === 50).motivo === 'dia do fechamento: vai para a próxima fatura' && rf.itens.find(x => x.valor === 8).entra === false);
       t(g + 'descrição longa é cortada em 80 e a que não é texto vira vazia', IF([mov('a', 'crA', '2026-11-06', 1, 'DEBIT', { desc: 'x'.repeat(200) }), mov('b', 'crA', '2026-11-06', 2, 'DEBIT', { desc: 7 })], 'crA', 5, '2026-11-09', false, pag).itens.map(x => x.desc.length).join() === '80,0');
       t(g + 'sem fechamento, sem data ou sem lista: nada', IF(ms, 'crA', 0, '2026-11-09', false, pag) === null && IF(ms, 'crA', 5, '', false, pag) === null && IF(null, 'crA', 5, '2026-11-09', false, pag) === null);
       t(g + 'total nunca negativo; sem função de pagamento, nada é tratado como pagamento', IF([mov('a', 'crA', '2026-11-06', 30, 'CREDIT')], 'crA', 5, '2026-11-09', false, pag).total === 0 && IF(ms, 'crA', 5, '2026-11-09', false).itens.find(x => Math.abs(x.valor) === 500).entra === true);

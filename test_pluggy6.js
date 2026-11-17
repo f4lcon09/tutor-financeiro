@@ -122,9 +122,9 @@ const RESP = () => ({ ok: true, dados: { de: '2026-10-05', ate: '2026-11-09',
   {
     const M = [['2026-11-05', 70], ['2026-11-06', 40], ['2026-11-07', -15], ['2026-11-08', 100], ['2026-11-09', 20], ['2026-11-10', 999]];
     const e = Real.estimarFatura(M, 5, '2026-11-09');
-    t('fechamento dia 5, hoje 9: conta de 06 a 09; o dia 5 fica na fatura fechada; amanhã não entra', e.desde === '2026-11-05' && e.valor === 145);
-    t('hoje é o dia do fechamento: ainda conta desde o fechamento anterior', Real.estimarFatura([['2026-10-06', 10], ['2026-11-05', 5]], 5, '2026-11-05').valor === 15 && Real.fechamentoAnterior(5, '2026-11-05') === '2026-10-05');
-    t('dia seguinte ao fechamento: só o que veio depois', Real.estimarFatura([['2026-11-05', 5], ['2026-11-06', 7]], 5, '2026-11-06').valor === 7);
+    t('fechamento dia 5, hoje 9: conta de 05 a 09 (o dia do fechamento entra: 70 + 40 - 15 + 100 + 20); amanhã não entra', e.desde === '2026-11-05' && e.valor === 215);
+    t('hoje é o dia do fechamento: conta desde o fechamento anterior; o que é datado hoje já é da próxima', Real.estimarFatura([['2026-10-05', 3], ['2026-10-06', 10], ['2026-11-05', 5]], 5, '2026-11-05').valor === 13 && Real.fechamentoAnterior(5, '2026-11-05') === '2026-10-05');
+    t('dia seguinte ao fechamento: conta o dia do fechamento e o que veio depois', Real.estimarFatura([['2026-11-04', 9], ['2026-11-05', 5], ['2026-11-06', 7]], 5, '2026-11-06').valor === 12);
     t('fechamento 31 em novembro vira 30; em fevereiro vira 28', Real.fechamentoAnterior(31, '2026-12-01') === '2026-11-30' && Real.fechamentoAnterior(31, '2027-03-01') === '2027-02-28');
     t('virada de ano', Real.fechamentoAnterior(10, '2027-01-03') === '2026-12-10');
     t('parcelas: cada uma pelo próprio valor e data', Real.estimarFatura([['2026-11-06', 40], ['2026-12-06', 40]], 5, '2026-11-20').valor === 40);
@@ -145,10 +145,10 @@ const RESP = () => ({ ok: true, dados: { de: '2026-10-05', ate: '2026-11-09',
     t('idade: 5 h não está desatualizado; 60 h está', A1.caixaLinhas[0].o.desat === false && A1.caixaLinhas[1].o.desat === true && Math.round(A1.caixaLinhas[0].o.ms / 36e5) === 5);
     const c = A1.cartoes[0];
     t('cartão ligado sozinho (um de cada lado): limite e usado do banco', c.banco.id === 'crA' && c.limite === 4000 && c.disponivel === 3100 && c.usadoBanco === 900);
-    t('cartão: fatura estimada (100 + 40 − 15 + 20) e compromisso futuro (900 − 145)', c.fatura === 145 && c.parcelasFuturas === 755 && c.origem.fatura.t === 'estimado' && c.origem.fatura.desde === '2026-11-05');
+    t('cartão: fatura estimada (70 do dia do fechamento + 100 + 40 − 15 + 20) e compromisso futuro (900 − 215)', c.fatura === 215 && c.parcelasFuturas === 685 && c.origem.fatura.t === 'estimado' && c.origem.fatura.desde === '2026-11-05');
     t('cartão: vencimento continua o dia do arquivo (não usa balanceDueDate)', c.vence === A0.cartoes[0].vence);
     const maior = clone(sn); maior.contas[2].saldo = 100;
-    t('fatura estimada maior que o limite usado: compromisso futuro fica 0', Real.derivar(real, {}, ctxB(maior)).cartoes[0].fatura === 145 && Real.derivar(real, {}, ctxB(maior)).cartoes[0].parcelasFuturas === 0);
+    t('fatura estimada maior que o limite usado: compromisso futuro fica 0', Real.derivar(real, {}, ctxB(maior)).cartoes[0].fatura === 215 && Real.derivar(real, {}, ctxB(maior)).cartoes[0].parcelasFuturas === 0);
     const lim = Real.derivar(real, { limites: { c1: 1234 } }, ctxB(sn));
     t('limite digitado perde para o do banco; sem banco, vale o digitado', lim.cartoes[0].limite === 4000 && Real.derivar(real, { limites: { c1: 1234 } }, ctxB(null)).cartoes[0].limite === 1234);
     const semLim = clone(sn); semLim.contas[2].lim = null;

@@ -117,13 +117,15 @@
      soma as parcelas datadas no último fechamento e tira as datadas hoje, quando hoje é dia de fechamento. Sem pm, igual a antes. */
   function estimarFatura(movs, fecha, hojeISO, pm) {
     if (!(fecha >= 1 && fecha <= 31) || !/^\d{4}-\d{2}-\d{2}$/.test(hojeISO || '')) return null;
+    /* noite-3 (17/11/2026, captura do dono com a data e a hora de cada item): tudo o que é datado no dia do fechamento entra na fatura
+       que abre nesse dia, não só as parcelas. Prova: a soma dos itens ficou R$ 114,40 abaixo da fatura do Nubank, exatamente o Claude Sub
+       comprado em 03/11 (dia do fechamento) às 13h49. A conexão data cada compra no momento dela; o Nubank mostra no dia seguinte.
+       A regra anterior (compra comum no dia do fechamento fica na fatura que fechou) vinha só de contagens, sem hora. Então: conta o que
+       é datado do último fechamento até hoje; se hoje é dia de fechamento, o que é datado hoje já é da próxima fatura. pm só conta parcelas. */
     var desde = fechamentoAnterior(fecha, hojeISO), s = 0, np = 0;
-    (movs || []).forEach(function (m) { if (m[0] > desde && m[0] <= hojeISO) s += m[1]; });
     var hp = hojeISO.split('-').map(Number), fechaHoje = hp[2] === Math.min(fecha, new Date(Date.UTC(hp[0], hp[1], 0)).getUTCDate());
-    (pm || []).forEach(function (m) {
-      if (m[0] === desde) { s += m[1]; np++; }
-      else if (fechaHoje && m[0] === hojeISO) s -= m[1];
-    });
+    (movs || []).forEach(function (m) { if (m[0] >= desde && m[0] <= hojeISO && !(fechaHoje && m[0] === hojeISO)) s += m[1]; });
+    (pm || []).forEach(function (m) { if (m[0] === desde) np++; });
     return { valor: r2(Math.max(s, 0)), desde: desde, parcelas: np };
   }
   /* pluggy-8: as parcelas do banco nas faturas seguintes à aberta. pn: [data, valor, n, N] com n < N.
@@ -211,8 +213,8 @@
       var p = m.parc, parc = isObjeto(p) && Number.isInteger(p.n) && Number.isInteger(p.de) && p.n >= 1 && p.de >= p.n && p.de <= 120;
       var pag = !!(ehPagamento && ehPagamento(m.cat)), entra, motivo;
       if (pag) { entra = false; motivo = 'pagamento de fatura: fica fora'; }
-      else if (parc && fechaHoje && dia === hojeISO) { entra = false; motivo = 'parcela da próxima fatura'; }
-      else if (dia === desde) { entra = parc; motivo = parc ? 'parcela lançada no fechamento: conta' : 'dia do fechamento: fica na fatura que fechou'; }
+      else if (fechaHoje && dia === hojeISO) { entra = false; motivo = 'dia do fechamento: vai para a próxima fatura'; }   // noite-3: mesma regra de estimarFatura
+      else if (dia === desde) { entra = true; motivo = parc ? 'parcela lançada no fechamento: conta' : 'compra no dia do fechamento: conta'; }
       else { entra = true; motivo = 'conta'; }
       var v = r2((gasto ? 1 : -1) * Math.abs(m.valor));
       if (entra) { total += v; conta++; }
