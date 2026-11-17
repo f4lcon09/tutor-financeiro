@@ -687,7 +687,7 @@ T.metas = () => {
     const labs=Array.from({length:25},(_,k)=>mesNome(k));
     const ser0=metas.map(m=>Calc.investimento(m.guardado,m.aporte,i,24,false,0).serie.map(x=>x.saldo)), tot=ser0.length?ser0[0].map((_,t)=>ser0.reduce((a,v)=>a+v[t],0)):[];
     const vazio=metasVazio();
-    const nova=`<div class="field"><label for="m_n">Nome</label><input type="text" id="m_n" placeholder="Ex.: curso, moto, reserva"></div><div class="field"><label for="m_a">Quanto quer juntar (R$)</label><input type="number" id="m_a" min="0" step="100"></div><div class="field"><label for="m_g">Já tem (R$)</label><input type="number" id="m_g" min="0" step="50" value="0"></div><div class="field"><label for="m_p">Prazo</label><input type="month" id="m_p" style="width:100%;background:var(--p2);border:1px solid var(--ln2);border-radius:3px;padding:10px 12px;color:var(--tx)"></div><div class="field"><label for="m_m">Guarda por mês (R$)</label><input type="number" id="m_m" min="0" step="10" value="100"></div><button class="btn" id="m_ok" style="--h:var(--sky);width:100%">Adicionar meta</button><div class="hint" id="m_msg"></div>`;
+    const nova=`<div class="field"><label for="m_n">Nome</label><input type="text" id="m_n" placeholder="Ex.: curso, moto, reserva"></div><div class="field"><label for="m_a">Quanto quer juntar (R$)</label><input type="number" id="m_a" min="0" step="100"></div><div class="field"><label for="m_g">Já tem (R$)</label><input type="number" id="m_g" min="0" step="50" value="0"></div><div class="field"><label for="m_p">Prazo</label><input type="month" id="m_p" style="width:100%;background:var(--p2);border:1px solid var(--ln2);border-radius:3px;padding:10px 12px;color:var(--tx)"></div><div class="field"><label for="m_m">Guarda por mês (R$)</label><input type="number" id="m_m" min="0" step="10" value="100" aria-describedby="m_sug"></div><div class="hint" id="m_sug" role="status"></div><button class="btn" id="m_ok" style="--h:var(--sky);width:100%">Adicionar meta</button><div class="hint" id="m_msg"></div>`;
     return `<div class="head"><div><h1>Metas</h1><div class="sub">Quanto guardar por mês para chegar no prazo.</div></div></div>
     ${vazio}${alertas(al)}
     ${metas.length?pn('Resumo',`<div class="big">${brl0(somaA)}</div><div class="mu small">guardado por mês de ${brl0(somaN)} necessários</div><span class="tag ${kk}" style="margin-top:8px">${ST[kk][0]} ${pc(pr,0)} da renda · ${kk==='ok'?'cabe com folga':kk==='at'?'pesa na renda':'pesa demais'}</span>`,'sky'):''}
@@ -699,7 +699,7 @@ T.metas = () => {
     <div style="width:260px"><label>Rendimento esperado do que você guarda (ao mês, %) ${info('Quanto o dinheiro guardado rende por mês. Se não souber, deixe 0 para uma conta conservadora ou use a taxa do seu CDB ou poupança.',true)}</label><input type="number" id="tx" value="${esc(taxaMeta)}" step="0.05" min="0"></div></div>
   <div class="grid g3" style="margin-bottom:14px">${cards}</div>
   ${metasResumo(i)}
-  ${pn('Nova meta',`<div class="grid g4"><div class="field"><label>Nome</label><input type="text" id="m_n" placeholder="Ex.: curso, moto, reserva"></div><div class="field"><label>Quanto quer juntar (R$)</label><input type="number" id="m_a" min="0" step="100"></div><div class="field"><label>Já tem (R$)</label><input type="number" id="m_g" min="0" step="50" value="0"></div><div class="field"><label>Prazo</label><input type="month" id="m_p" style="width:100%;background:var(--p2);border:1px solid var(--ln2);border-radius:3px;padding:10px 12px;color:var(--tx)"></div><div class="field"><label>Guarda por mês (R$)</label><input type="number" id="m_m" min="0" step="10" value="100"></div></div><button class="btn" id="m_ok" style="--h:var(--sky)">Adicionar meta</button><div class="hint" id="m_msg"></div>`,'sky')}`;
+  ${pn('Nova meta',`<div class="grid g4"><div class="field"><label>Nome</label><input type="text" id="m_n" placeholder="Ex.: curso, moto, reserva"></div><div class="field"><label>Quanto quer juntar (R$)</label><input type="number" id="m_a" min="0" step="100"></div><div class="field"><label>Já tem (R$)</label><input type="number" id="m_g" min="0" step="50" value="0"></div><div class="field"><label>Prazo</label><input type="month" id="m_p" style="width:100%;background:var(--p2);border:1px solid var(--ln2);border-radius:3px;padding:10px 12px;color:var(--tx)"></div><div class="field"><label for="m_m">Guarda por mês (R$)</label><input type="number" id="m_m" min="0" step="10" value="100" aria-describedby="m_sug"></div></div><div class="hint" id="m_sug" role="status" style="margin:-4px 0 10px"></div><button class="btn" id="m_ok" style="--h:var(--sky)">Adicionar meta</button><div class="hint" id="m_msg"></div>`,'sky')}`;
 };
 function bindMetas(){
   const mpu=$('#m_pular'); if(mpu) mpu.onclick=()=>ir('hoje');
@@ -708,6 +708,15 @@ function bindMetas(){
   $$('[data-depb]').forEach(b=>b.onclick=()=>{ const inp=$('[data-dep="'+b.dataset.depb+'"]'); if(S.depositar(b.dataset.depb,inp.value)) ir('metas'); });
   $('#tx').onchange=()=>{ S.setTaxa($('#tx').value); ir('metas'); };
   $$('[data-del]').forEach(b=>b.onclick=()=>{ S.removerMeta(b.dataset.del); ir('metas'); });
+  /* noite-3: quanto guardar por mês, sozinho, pela mesma conta dos cartões de meta (Calc.metaAporte com a taxa da tela). Digitou o valor: o app não mexe mais. */
+  const mm=$('#m_m'), sug=$('#m_sug'); let mmManual=false;
+  const sugerirAporte=()=>{ if(!mm||!sug) return; const a=S.lerNumero?S.lerNumero($('#m_a').value):parseFloat($('#m_a').value), g=parseFloat($('#m_g').value)||0, p=$('#m_p').value;
+    if(!(a>0)||!/^\d{4}-\d{2}$/.test(p)){ sug.textContent=''; return; }
+    const [ay,am]=p.split('-').map(Number), n=Math.max((ay-hoje.getFullYear())*12+(am-1-hoje.getMonth()),0), need=Math.ceil(Calc.metaAporte(a,g,Calc.mensal(taxaMeta,'m'),n));
+    if(!mmManual) mm.value=String(need);
+    sug.textContent=n<=0?'O prazo é este mês ou já passou: falta '+brl0(Math.max(a-g,0))+'.':'Para chegar até '+mesRotulo(p)+': '+brl0(need)+' por mês em '+n+(n===1?' mês':' meses')+', rendendo '+String(taxaMeta).replace('.',',')+'% ao mês.'+(mmManual&&+mm.value!==need?' Você escolheu '+brl0(+mm.value||0)+'.':''); };
+  ['#m_a','#m_g','#m_p'].forEach(s=>{ const e=$(s); if(e){ e.addEventListener('input',sugerirAporte); e.addEventListener('change',sugerirAporte); } });
+  if(mm) mm.addEventListener('input',()=>{ mmManual=mm.value!==''; sugerirAporte(); });
   $('#m_ok').onclick=()=>{
     const r=S.addMeta({nome:$('#m_n').value,alvo:$('#m_a').value,guardado:$('#m_g').value,prazo:$('#m_p').value,aporte:$('#m_m').value});
     if(!r.ok){ $('#m_msg').textContent='Preencha nome, valor e prazo.'; return; } ir('metas'); };

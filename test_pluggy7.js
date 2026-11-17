@@ -983,5 +983,34 @@ const P = (n, de) => ({ n, de });
     t('recorrentes: sem lançamentos, nem o painel nem a revisão da semana aparecem', !/Gastos que se repetem/.test(tx(V)) && (await V.ir('hoje'), !/Revisão da semana/.test(tx(V))) && V.erros.length === 0);
   }
 
+  /* ===== 18. noite-3: "Guarda por mês" da nova meta se preenche sozinho ===== */
+  {
+    const g = 'nova meta: ';
+    const relogioM = iso => w => { const Rr = w.Date, alvo = new Rr(iso).getTime(), d0 = Rr.now(), agr = () => alvo + (Rr.now() - d0); class Dt extends Rr { constructor(...x) { if (x.length) super(...x); else super(agr()); } static now() { return agr(); } } w.Date = Dt; };
+    for (const larg of [1024, 390]) {
+      const A = await abrir({ tf_modo: 'demo' }, { antes: relogioM('2026-11-17T12:00:00'), largura: larg }); await A.ir('metas');
+      if (larg < 900) A.$$('main details').forEach(d => { d.open = true; });
+      const id = g + larg + ' px: ', esperado = A.w.eval("Math.ceil(Calc.metaAporte(12000,0,Calc.mensal(taxaMeta,'m'),11))");
+      t(id + 'antes de preencher: o campo fica como estava e não há sugestão', A.$('#m_m').value === '100' && A.$('#m_sug').textContent === '');
+      A.set('#m_n', 'Camera'); A.set('#m_a', '12000'); A.set('#m_g', '0');
+      t(id + 'sem prazo ainda: não sugere', A.$('#m_m').value === '100' && A.$('#m_sug').textContent === '');
+      A.set('#m_p', '2027-10');
+      t(id + 'com valor e prazo (out/27, 11 meses): preenche o quanto guardar por mês e explica', A.$('#m_m').value === String(esperado) && esperado > 1000 && esperado < 1091 && new RegExp('Para chegar até out/27: R\\$\\s?' + A.w.eval('brl0(' + esperado + ')').replace(/[^\d.,]/g, '').replace('.', '\\.') + ' por mês em 11 meses, rendendo 0,8% ao mês\\.').test(A.$('#m_sug').textContent));
+      A.set('#m_g', '3000');
+      t(id + 'mudar o que já tem atualiza a sugestão', +A.$('#m_m').value === A.w.eval("Math.ceil(Calc.metaAporte(12000,3000,Calc.mensal(taxaMeta,'m'),11))") && +A.$('#m_m').value < esperado);
+      A.set('#m_m', '900');
+      t(id + 'digitar o valor: o app respeita e mostra a diferença', A.$('#m_m').value === '900' && /Você escolheu R\$\s?900\./.test(A.$('#m_sug').textContent));
+      A.set('#m_a', '15000');
+      t(id + 'depois de digitar, mudar o valor da meta não sobrescreve o que foi escolhido', A.$('#m_m').value === '900');
+      A.set('#m_m', ''); A.set('#m_a', '12000');
+      t(id + 'apagar o valor digitado volta a sugerir sozinho', +A.$('#m_m').value === A.w.eval("Math.ceil(Calc.metaAporte(12000,3000,Calc.mensal(taxaMeta,'m'),11))"));
+      A.set('#m_p', '2026-11');
+      t(id + 'prazo neste mês: diz quanto falta', /O prazo é este mês ou já passou: falta R\$\s?9\.000\./.test(A.$('#m_sug').textContent));
+      A.set('#m_p', '2027-10'); A.click('#m_ok'); await tick(20);
+      t(id + 'adicionar grava a meta com o valor sugerido', A.w.eval("S.st.metas.some(m=>m.nome==='Camera'&&m.alvo===12000&&m.prazo==='2027-10'&&m.aporte===" + A.w.eval("Math.ceil(Calc.metaAporte(12000,3000,Calc.mensal(taxaMeta,'m'),11))") + ")") && A.erros.length === 0);
+      t(id + 'o campo "Guarda por mês" tem rótulo e aponta para a explicação', !!A.d.querySelector('label[for="m_m"]') && A.$('#m_m').getAttribute('aria-describedby') === 'm_sug');
+    }
+  }
+
   process.exit(fim());
 })();
